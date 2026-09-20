@@ -1,0 +1,81 @@
+# Animation and rendering lessons
+
+Read the sections relevant to the reported issue. Values below describe the September 2026 implementation; inspect current constants before changing timing.
+
+## Rig and road-relative locomotion
+
+The chase loads the brown `public/models/rex-hero.glb`. Runtime motion is procedural on the existing 130-bone rig; editing an exported clip does not automatically change the chase. `createRex()` restores rest transforms each frame and layers gait, body motion, vocals, impacts, and scripted poses. Keep bone updates in this ownership model rather than adding competing frame loops.
+
+The road moves toward scene +Z. The actor faces approximately PI yaw toward the Jeep. Planted feet live in scene space and advance with the road, so actor speed alone does not describe a stride. `RunGait.advance()` derives speed from root velocity relative to ground velocity. Cadence follows this speed; the menu walks more slowly than pursuit, and locomotion continues under a roar while moving.
+
+Prior defects and their fixes:
+
+- **Small rapid steps:** tune frequency, stance duration and reachable travel together. Slowing a phase clock alone can make plants slide or knees lock. Menu walking needs continuous support and a slower cadence, not a slowed running pose.
+- **Knee snapping at toe-off:** reconstruct the exact fractional toe-off instant. Advancing the old plant by a whole frame double-counted the first swing interval. Swing endpoints use quintic blending and short contact-velocity windows; carrying full road velocity through the whole arc throws the foot behind the hip.
+- **Crossing legs during the final walk:** the root follows a curved path and its heading follows that path's tangent. Sliding sideways while facing the Jeep makes planted legs cross the pelvis. The final approach transfers weight sooner to avoid exhausting leg reach.
+- **High right-leg kick immediately after the spin:** the torso still faces the Jeep while the root recoils away. In `solve()`, the recoil blend points foot travel toward `rootVelocity - groundVelocity`; otherwise IK tries to rescue an unreachable target by lifting the foot. Flexion reserve tapers into landing. Entering the final approach resets phase/speed and leg initialization after the settled beat, rather than resuming the interrupted recoil swing.
+
+`verify-defeat-gait.cjs` tests 30/60/144 Hz with varied entry strides and timeout speeds. The regression window is 3.5-5.5 seconds: toe height < .55 scene units, vertical speed < 3.5 units/s, knee angular speed < 16 rad/s. During the approach, toe/knee separation stays > .65 and reach error < .15. These are useful regression bounds, not a definition of natural motion; inspect the captures too.
+
+Footstep dust and sounds consume footfall events, not a separate sine clock. Keep particle pools bounded and dust moving relative to the road.
+
+## Two different endings
+
+**Rex dies / player wins:** `death-motion.js` captures the current stride, stops gait, buckles the supporting leg, falls, partly rolls and slides. Damped spine, neck, limbs and tail responses prevent the board-stiff fall the user disliked. Skinned contact samples constrain ground penetration. Victory waits for this roughly 5.2-second sequence. This is authored motion with damping and contact constraints, not a full ragdoll solver.
+
+**Player loses:** one `DEFEAT` clock drives the Rex, detached gun, vehicle, camera, overlays, audio cues and interior. Every loss route uses this sequence and locks first person and shooting. Avoid independent timers or arbitrary camera delays.
+
+| Beat | Current defeat clock |
+| --- | --- |
+| Rex strikes side; gun detaches | 1.65 s |
+| Jeep completes one 360-degree spin and stops | 4.65 s |
+| Fresh walking approach starts | 5.00 s |
+| Closed-jaw look at the player | 8.55 s |
+| Brief gape / head-back windup / lunge | 8.90 / 9.22 s |
+| Interior begins blending / contact | 9.46 / 9.56 s |
+| Still mouth beat, then swallowing head lift | lift begins 10.20 s |
+| Descent and muffled swallowing audio start | 10.85 s |
+| Head lift completes | 11.10 s |
+| End of 3.2-second descent | 14.05 s |
+| Full black / retry screen | 14.85 / 15.40 s |
+
+The wide gape lasts less than half a second. The external camera stays at the seat during the windup so following the head does not cancel the visible head-back motion. It then aligns between skinned lip landmarks. A brief red contact flash clears to reveal the interior.
+
+`swallowPose()` shares the hold, head lift and slide curves between the rig and interior. The interior camera remains at the entrance until `slideAt`; it tips before translating. Bite calls stop as the jaws seal; swallowing sound starts at descent and lasts through the slide. Pause freezes the encounter clock and suspends the AudioContext. Restart resets gun attachment, vehicle transform, gaze, gait, wounds, interior and overlays.
+
+## Interior rendering
+
+`swallow.js` builds a curved, folded tube with a traveling contraction and a wider dark chamber. Keep the effect the user approved while adjusting its motion.
+
+- Capture the aperture's projected origin before the lips pass behind the camera. Reprojecting those points later flips the opening under the tongue.
+- Tube geometry extends behind the interior camera so the entrance rim cannot expose black gaps.
+- Use periodic angular coordinates for tissue noise; an unwrapped angle causes a visible seam.
+- Render to HalfFloat when `EXT_color_buffer_float` is available, with the existing byte fallback. Preserve the color-space conversion and composite dithering; missing shader chunks or double conversion caused bad shading/compilation previously. `dithering_pars_fragment` needs `common` for its helpers.
+- Cap the target resolution at 1280 by 900, skip normal-world rendering while the interior covers the frame, and preserve/restore render target and `autoClear` state.
+- Reduced motion lowers tilt/roll. A paused frame still renders the same interior composition. Darkness follows the descent rather than immediately covering it.
+
+## Skin, wounds, tongue, eyes
+
+The runtime skin is `Rex_Skin` / `BodyMat`. The original texture includes a roughness map; setting `material.roughness=.72` multiplies its green channel rather than setting the final roughness to .72. Inspection found an average around .48 after that multiplication, producing strong wet-looking highlights on the face, body and feet.
+
+The accepted correction in `creature.js` / `damage.js` sets the base factor to 1, remaps the sampled roughness with `mix(.48,.86,clamp(roughnessFactor,0.,1.))`, and reduces skin `envMapIntensity` from .45 to .30. Soot roughens the surface; wounds use restrained local moisture. An earlier .70-.94 remap looked too matte, so keep some highlight definition. Preserve authored color and scale normals. Do not dim all scene lighting to fix only the hide.
+
+`ImpactDamage.install()` owns the skin's `onBeforeCompile`. Apply or compose skin shader edits there rather than overwriting the damage hook elsewhere. Update `customProgramCacheKey` when changing shader structure. Verify clean, staged damage and actual impact marks, not only pristine skin.
+
+Hits map from deformed triangles back to rest space. A persistent 1024px UV atlas retains damage when the 36 recent clusters wrap; stage sites add face/body wear based on the worst health reached. Do not return to dinosaur claw-like scratches or erase older wounds during the jungle detour.
+
+`finishTongue()` in `src/creature-materials.js` is shared by chase and lab: muted rose multiplier, darker root, subtle central crease, reduced normal intensity and bounded moist roughness. A saturated red multiplier made it unnaturally bright. Corneas/eyes use separate materials; their moisture and pupil tracking should not be flattened along with the hide. Gaze converges on the viewer in first person/menu and on the gunner in third person.
+
+## Cinematic cover and audio
+
+The midpoint feint exits and re-enters the left side. Use the continuous `ambushPose()` path and actual vegetation occlusion, including third person; `actor.visible=false` or a teleport is visibly wrong. Keep the verge open and concentrate dense cover farther from the road. Branch projectiles begin at the Rex's contact with a low bough, with a full interception window after breaking.
+
+Named runtime clips live in `public/audio/catalog.json` and `public/audio/clip-NN.wav`. Raw references remain local. Default roles are opening 01, charge 02, growl 09, pain 27; footsteps 03-06 and bite 18. Roars use the decoded 60 Hz amplitude envelope and AudioContext playback clock, including playback rate and pause. Ambient calls never animate the Rex jaw. The opening accommodates the chosen roar duration. Sound-library local storage can override the catalog, so use a fresh browser context when reproducing default audio behavior.
+
+## Mobile and vehicle details
+
+`pointer-controls.js` owns independent aim and fire pointer IDs. Aim appears 96 CSS pixels above the thumb in portrait and 72 in landscape, shifting sideways at the top edge. The displayed reticle, raycast and gun aim use the same offset. Do not apply the offset to desktop mouse input or make fire steal the aim pointer.
+
+Keep `user-select`, WebKit callout suppression, touch actions, pointer capture/cancel handling, and large buttons coordinated. Pause, blur, orientation changes and restart clear held input. Short portrait layouts put camera choices in Pause. Test actual Playwright touch events, not only synthetic mouse clicks.
+
+The left-seat driver and wheel, shot-driven ammo belt/case/link pools, and 2.6-second articulated reload use the game state. Arm IK preserves limb lengths while shoulders accommodate reach. Do not fix a reload contact error by stretching forearms or driving the belt from elapsed time when no shot was accepted.

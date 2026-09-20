@@ -6,6 +6,10 @@ A playable jungle chase: stand at a mounted .50-cal in an open Jeep while a T. r
 
 90 seconds. One Jeep. No second chances.
 
+## Continuing development
+
+Start with [the session handoff](docs/HANDOFF.md) and [AGENTS.md](AGENTS.md). The [Rex: Pursuit maintainer skill](.agents/skills/rex-pursuit-maintainer/SKILL.md) maps the code and records the animation, rendering, mobile, verification, and release lessons. Its repo folder is the maintained source and can also be copied to `~/.codex/skills/rex-pursuit-maintainer` for discovery in future sessions.
+
 ## Run
 
 ```powershell
