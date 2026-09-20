@@ -1,5 +1,5 @@
 import * as T from 'three';
-import {DEFEAT} from './defeat.js';
+import {DEFEAT,swallowPose} from './defeat.js';
 
 // A short, self-contained interior shot. Composite through an expanding soft
 // aperture in the visible mouth, then travel down a curved, contracting lumen.
@@ -8,20 +8,20 @@ export function createSwallow(renderer){
  const scene=new T.Scene();scene.background=new T.Color(0x010000);
  const camera=new T.PerspectiveCamera(68,1,.025,35),screen=new T.Scene(),screenCamera=new T.Camera();
  const target=new T.WebGLRenderTarget(1,1,{depthBuffer:true,stencilBuffer:false,type:renderer.extensions.has('EXT_color_buffer_float')?T.HalfFloatType:T.UnsignedByteType});
- const uniforms={elapsed:{value:0},light:{value:1},eye:{value:new T.Vector3()}};
+ const uniforms={opening:{value:.18},flow:{value:0},contraction:{value:0},light:{value:1},eye:{value:new T.Vector3()}};
  const geometry=new T.PlaneGeometry(1,1,96,128),positions=geometry.attributes.position,uv=geometry.attributes.uv;
  // Extend behind the interior camera so the transition never exposes a cut
  // tube rim or the black background outside its entrance.
  for(let i=0;i<positions.count;i++)positions.setXYZ(i,uv.getX(i)*Math.PI*2,-3+uv.getY(i)*16,0);
  const material=new T.ShaderMaterial({side:T.DoubleSide,uniforms,vertexShader:`
-  uniform float elapsed;varying vec3 surface;varying vec3 surfaceNormal;varying vec2 tissueUv;
+  uniform float opening;uniform float flow;uniform float contraction;varying vec3 surface;varying vec3 surfaceNormal;varying vec2 tissueUv;
   float ease(float a,float b,float x){return smoothstep(a,b,x);}
   vec3 wall(float a,float z){
-   float entrance=exp(-z*z*1.8),open=ease(0.,.48,elapsed);
+   float entrance=exp(-z*z*1.8),open=opening;
    float radius=mix(.96,2.6,ease(7.6,11.,z));
    radius*=1.-entrance*(.56-.63*open);
-   float wave=exp(-pow((z-(elapsed*.95+1.1))/.65,2.));
-   radius*=1.-.19*wave;
+   float wave=exp(-pow((z-(flow*.95+1.1))/.65,2.));
+   radius*=1.-.19*wave*contraction;
    float folds=.065*cos(a*9.+z*.47)+.029*cos(a*15.-z*.76)+.026*sin(z*9.+sin(a*3.));
    radius*=1.+folds*(1.-.45*entrance*open);
    float x=.12*sin(z*.42),y=-.036*z*z;
@@ -33,7 +33,7 @@ export function createSwallow(renderer){
    surfaceNormal=normalize(cross(around,along));
    gl_Position=projectionMatrix*modelViewMatrix*vec4(surface,1.);
   }`,fragmentShader:`
-  uniform float elapsed;uniform float light;uniform vec3 eye;
+  uniform float light;uniform vec3 eye;
   varying vec3 surface;varying vec3 surfaceNormal;varying vec2 tissueUv;
   float hash(vec3 p){return fract(sin(dot(p,vec3(127.1,311.7,74.7)))*43758.5453);}
   float noise(vec3 p){vec3 i=floor(p),f=fract(p);f=f*f*(3.-2.*f);
@@ -78,13 +78,16 @@ export function createSwallow(renderer){
   reset(){active=false;progress=0;apertureOrigin=null;blend.alpha.value=0;},
   update(t,worldCamera,mouth,reducedMotion=false){
    active=t>=DEFEAT.swallowAt&&t<DEFEAT.black;if(!active)return;
-   const elapsed=t-DEFEAT.swallowAt,entry=T.MathUtils.smoothstep(elapsed,0,.36);
-   progress=T.MathUtils.smoothstep(t,DEFEAT.swallowAt,DEFEAT.bellyAt);
+   const elapsed=t-DEFEAT.swallowAt,entry=T.MathUtils.smoothstep(elapsed,0,.36),pose=swallowPose(t);
+   progress=pose.progress;
    const z=T.MathUtils.lerp(-1.1,9.4,progress);camera.position.copy(centerAt(z));
-   camera.lookAt(centerAt(z+2));camera.rotation.z+=reducedMotion?0:Math.sin(progress*Math.PI)*.09;
+   // Remain at the mouth while it closes. Tip the view with her head before
+   // releasing the player into the throat, then settle along the descent.
+   const look=centerAt(z+2);look.y+=pose.tilt*(reducedMotion?.16:.58);
+   camera.lookAt(look);camera.rotation.z+=reducedMotion?0:Math.sin(progress*Math.PI)*.09-pose.tilt*.035;
    camera.fov=68+Math.sin(progress*Math.PI)*6;camera.updateProjectionMatrix();
-   uniforms.elapsed.value=elapsed;uniforms.eye.value.copy(camera.position);
-   uniforms.light.value=1.8*(1-T.MathUtils.smoothstep(t,DEFEAT.contact+.25,DEFEAT.black)*.97);
+   uniforms.opening.value=pose.opening;uniforms.flow.value=pose.flow;uniforms.contraction.value=pose.contraction;uniforms.eye.value.copy(camera.position);
+   uniforms.light.value=1.8*(1-T.MathUtils.smoothstep(t,DEFEAT.slideAt+.15,DEFEAT.black)*.97);
    // Capture the back of the gape before the lips pass behind the camera;
    // projecting those same lips afterwards flips the opening under the tongue.
    if(!apertureOrigin){const projected=mouth.upper.clone().project(worldCamera);apertureOrigin=new T.Vector2(T.MathUtils.clamp(projected.x*.5+.5,.4,.6),T.MathUtils.clamp(projected.y*.5+.5,.68,.76));}

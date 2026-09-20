@@ -1,9 +1,15 @@
 // One clock drives the collision, vehicle, camera, weapon and final bite.
-export const DEFEAT={ram:1.65,spinEnd:4.65,walkAt:5,lookAt:8.55,openAt:8.90,lungeAt:9.22,biteSound:9.10,contact:9.56,swallowAt:9.46,bellyAt:11.65,black:12.45,duration:13.0};
+export const DEFEAT={ram:1.65,spinEnd:4.65,walkAt:5,lookAt:8.55,openAt:8.90,lungeAt:9.22,biteSound:9.10,contact:9.56,swallowAt:9.46,headLiftAt:10.20,slideAt:10.85,headLiftEnd:11.10,bellyAt:14.05,black:14.85,duration:15.40};
 const clamp=x=>Math.max(0,Math.min(1,x));
 const ease=(x,a,b)=>{const u=clamp((x-a)/(b-a));return u*u*(3-2*u);};
 const mix=(a,b,u)=>a+(b-a)*u;
 const angle=(a,b,u)=>a+Math.atan2(Math.sin(b-a),Math.cos(b-a))*u;
+// Entry, a still beat, head lift, then gravity takes over. The rig, interior
+// camera and audio cues all use this timeline rather than independent delays.
+export function swallowPose(t){
+ const lift=ease(t,DEFEAT.headLiftAt,DEFEAT.headLiftEnd),progress=ease(t,DEFEAT.slideAt,DEFEAT.bellyAt);
+ return{lift,progress,tilt:lift*(1-ease(progress,.04,.42)),opening:.18+.82*ease(t,DEFEAT.headLiftAt,DEFEAT.slideAt+.18),flow:Math.max(0,t-DEFEAT.slideAt),contraction:ease(t,DEFEAT.slideAt-.08,DEFEAT.slideAt+.28)};
+}
 export function defeatPose(t,start){
  const spin=ease(t,DEFEAT.ram,DEFEAT.spinEnd),after=Math.max(0,t-DEFEAT.ram);
  const jeepX=-1.45*spin,jeepZ=1.1*spin;
@@ -27,16 +33,16 @@ export function defeatPose(t,start){
   const dx=3*v*v*-1+6*v*u*-1.45,dz=3*v*v*-1.8+6*v*u*-2.6+3*u*u*-2.2;
   heading=Math.PI+Math.atan2(-dx,-dz);
  }
- const look=ease(t,DEFEAT.lookAt-.45,DEFEAT.lookAt),lunge=ease(t,DEFEAT.lungeAt,9.55);
+ const look=ease(t,DEFEAT.lookAt-.45,DEFEAT.lookAt),lunge=ease(t,DEFEAT.lungeAt,9.55),swallow=swallowPose(t);
  const rear=ease(t,DEFEAT.openAt+.10,DEFEAT.lungeAt)*(1-ease(t,DEFEAT.lungeAt,9.46)),close=ease(t,9.45,9.69);
  if(t>=DEFEAT.walkAt)z+=.12*rear-2.7*lunge;
- return{x,z,heading,look,rear,lunge,lean:.70*look+.35*lunge,
+ return{x,z,heading,look,rear,lunge,headLift:swallow.lift,lean:.70*look+.35*lunge,
   jaw:1.10*ease(t,DEFEAT.openAt,DEFEAT.openAt+.22)*(1-close)+.025*close,
   ram:Math.sin(Math.PI*ease(t,1.0,2.05)),
   speed:(start.speed??10)*(1-ease(t,DEFEAT.ram,DEFEAT.spinEnd)),
   jeepX,jeepZ,jeepYaw:Math.PI*2*spin,
   jeepRoll:-.12*kick+Math.sin(after*12)*.035*Math.exp(-after*1.7)*ease(t,DEFEAT.ram,DEFEAT.ram+.1),jeepPitch:.07*kick,
   blood:.42*ease(t,DEFEAT.contact-.045,DEFEAT.contact+.035)*(1-ease(t,DEFEAT.contact+.08,DEFEAT.contact+.42)),
-  swallow:ease(t,DEFEAT.swallowAt,DEFEAT.bellyAt),black:ease(t,DEFEAT.bellyAt-.15,DEFEAT.black),
+  swallow:swallow.progress,black:ease(t,DEFEAT.bellyAt-.15,DEFEAT.black),
  };
 }
