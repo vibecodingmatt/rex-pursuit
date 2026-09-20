@@ -43,3 +43,66 @@ body[data-cinematic=defeat] #cinema-bars{border-width:0}
 body[data-cinematic=defeat] #end-screen{background:#000;backdrop-filter:none}
 
 body[data-cinematic=defeat] .end-camera{display:none}
+
+/* Touch input belongs to the game, including long presses and two-thumb play. */
+html,body{overscroll-behavior:none}
+body{-webkit-user-select:none;user-select:none;-webkit-touch-callout:none}
+button,canvas{-webkit-user-select:none;user-select:none;-webkit-touch-callout:none}
+button{touch-action:manipulation}
+.masthead{pointer-events:none}.masthead button,.masthead a{pointer-events:auto}
+#boss{pointer-events:none}
+#touch-controls{pointer-events:none}#touch-controls button{pointer-events:auto;touch-action:none}
+#touch-controls button>*{pointer-events:none}
+#touch-contact{position:fixed;z-index:3;width:34px;height:34px;border:1px solid #f7dfaa70;border-radius:50%;background:#10191026;transform:translate(-50%,-50%);pointer-events:none}
+#touch-contact i{position:absolute;left:50%;bottom:100%;width:1px;height:var(--reach);border-left:1px dashed #f7dfaa65;transform-origin:bottom;transform:rotate(var(--angle))}
+.touch-copy{display:none}
+@media(pointer:coarse){
+ .mouse-copy{display:none!important}.touch-copy{display:block}
+ #touch-controls{left:max(18px,env(safe-area-inset-left));right:max(18px,env(safe-area-inset-right));bottom:calc(192px + env(safe-area-inset-bottom));align-items:flex-end;gap:14px}
+ #touch-controls button{display:flex;flex-direction:column;align-items:center;justify-content:center;gap:7px;min-width:68px;min-height:60px;padding:10px 7px;border:1px solid #ead29e80;border-radius:14px;background:#101c13df;box-shadow:0 4px 20px #0005;font-weight:700;font-size:10px;letter-spacing:.8px;transition:background .08s,transform .08s}
+ #touch-controls small{font-size:8px;font-weight:500;letter-spacing:1px;color:#ded7b6}
+ #touch-controls #touch-fire{width:84px;height:84px;border-radius:50%;border:2px solid #efd29cc9;background:#e8be7526;font-size:14px;letter-spacing:1.5px}
+ #touch-fire.pressed{background:#e8be7560!important;box-shadow:0 0 0 5px #e8be7518!important;transform:scale(.96)}
+ #touch-fire.waiting{border-color:#adad8b!important}#touch-fire.waiting small{color:#f6ce89}
+ #touch-controls button[aria-disabled=true]:not(#touch-fire){opacity:.58}
+ #touch-controls button:active{background:#e8be7545}
+ #hud-bottom #grenade{display:none}
+ #hud-bottom{bottom:calc(24px + env(safe-area-inset-bottom));left:max(20px,env(safe-area-inset-left));right:max(20px,env(safe-area-inset-right))}
+ .center-controls{position:absolute;left:50%;bottom:109px;transform:translateX(-50%);white-space:nowrap}
+ .view-switch button{min-height:44px;padding:10px 13px}
+ .masthead{left:max(18px,env(safe-area-inset-left));right:max(18px,env(safe-area-inset-right));top:calc(12px + env(safe-area-inset-top))}
+ .header-right{gap:3px}.header-right button{min-width:44px;min-height:44px;padding:8px}
+ .menu-footer{bottom:calc(15px + env(safe-area-inset-bottom))}.menu-footer nav{gap:10px}.menu-footer a,.menu-footer button{display:inline-flex;align-items:center;min-height:44px}
+ .start-tip b{white-space:normal;min-width:86px}.start-tip .touch-copy{line-height:1.8}
+ .pause-cameras{display:inline-flex;margin:12px auto 0}.modal-card{max-height:calc(100dvh - 32px);overflow:auto;touch-action:pan-y}
+ body[data-state=playing] #reticle{filter:drop-shadow(0 1px 2px #000) drop-shadow(0 0 4px #000)}
+ body[data-state=playing] #reticle i{background:#fff3d5}
+ body[data-cinematic=intro] #touch-contact,body[data-cinematic=defeat] #touch-contact{display:none}
+ dialog{max-width:calc(100vw - 30px);max-height:calc(100dvh - 40px);overflow:auto;touch-action:pan-y}
+ #credits-close{min-width:44px;min-height:44px;top:3px;right:3px}
+}
+@media(pointer:coarse) and (max-width:800px){#boss{top:calc(74px + env(safe-area-inset-top))}#mission-clock{top:calc(123px + env(safe-area-inset-top))}#challenge-card{top:calc(167px + env(safe-area-inset-top))}}
+@media(pointer:coarse) and (max-height:740px) and (orientation:portrait){#touch-controls{bottom:calc(174px + env(safe-area-inset-bottom))}#touch-controls #touch-fire{width:76px;height:76px}}
+@media(pointer:coarse) and (orientation:portrait){
+ #boss{width:calc(100% - 40px);max-width:530px}.boss-label span:last-child{display:inline}
+ #touch-controls #touch-grenade{position:absolute;left:0;bottom:68px;min-height:56px}
+ #challenge-card{left:50%;top:calc(167px + env(safe-area-inset-top));bottom:auto;transform:translateX(-50%);width:min(350px,calc(100vw - 36px))}
+}
+@media(pointer:coarse) and (orientation:portrait) and (max-height:650px){
+ .center-controls{display:none}
+ #touch-controls{bottom:calc(108px + env(safe-area-inset-bottom))}
+ #touch-controls #touch-fire{width:72px;height:72px}
+ #challenge-card{top:calc(158px + env(safe-area-inset-top));padding:7px 9px}
+ #challenge-card .challenge-heading>span{font-size:17px}#challenge-card .challenge-heading>strong{font-size:19px}
+ #challenge-instruction{font-size:8px;margin:4px 0 6px}.challenge-footer{display:none}
+}
+@media(pointer:coarse) and (orientation:landscape){
+ #touch-controls{bottom:calc(96px + env(safe-area-inset-bottom));left:max(20px,env(safe-area-inset-left));right:max(20px,env(safe-area-inset-right));justify-content:flex-end;gap:14px}
+ #touch-controls button{min-width:64px;min-height:56px}#touch-controls #touch-fire{width:76px;height:76px}
+ #hud-bottom{bottom:calc(12px + env(safe-area-inset-bottom))}.center-controls{position:static;transform:none}
+ #boss{top:calc(22px + env(safe-area-inset-top));width:36%}#mission-clock{top:calc(73px + env(safe-area-inset-top))}
+ #challenge-card{left:max(20px,env(safe-area-inset-left));top:auto;bottom:calc(103px + env(safe-area-inset-bottom));width:206px}
+ .menu-footer{bottom:calc(4px + env(safe-area-inset-bottom))}.menu-footer nav{justify-content:flex-end}.menu-footer>span{display:none}
+ .intro-copy{top:20%;max-width:75%}h1{font-size:52px}
+ .modal-card{padding:16px 22px}.modal-card h2{font-size:42px;margin:12px 0}.modal-card .primary{margin:14px auto}
+}

@@ -11,6 +11,7 @@ import {createTargets} from './chase/targets.js';
 import {createDebris} from './chase/debris.js';
 import {AMBUSH} from './chase/ambush.js';
 import {DEFEAT,defeatPose} from './chase/defeat.js';
+import {createPointerControls} from './chase/pointer-controls.js';
 const $=s=>document.querySelector(s),canvas=$('#scene');
 const renderer=new T.WebGLRenderer({canvas,antialias:true,powerPreference:'high-performance'});renderer.setPixelRatio(Math.min(devicePixelRatio,innerWidth<800?1.35:1.65));renderer.shadowMap.enabled=true;renderer.shadowMap.type=T.PCFSoftShadowMap;renderer.toneMapping=T.ACESFilmicToneMapping;renderer.toneMappingExposure=1.13;
 const scene=new T.Scene();scene.background=new T.Color(0x99a88a);scene.fog=new T.FogExp2(0x99a88a,.0165);
@@ -26,21 +27,24 @@ const raycaster=new T.Raycaster(),pointer=new T.Vector2(),aimTarget=new T.Vector
 const reducedMotion=matchMedia('(prefers-reduced-motion: reduce)').matches;
 const hud={boss:$('#boss-fill'),trail:$('#boss-trail'),percent:$('#boss-percent'),phase:$('#boss-phase'),jeep:$('#jeep-value'),jeepFill:$('#jeep-fill'),ammo:$('#ammo-value'),heat:$('#heat-fill'),weapon:$('#weapon-state'),distance:$('#distance'),grenade:$('#grenade-state'),warning:$('#warning'),warningTitle:$('#warning-title'),warningTip:$('#warning-tip'),reticle:$('#reticle'),hit:$('#hit-marker'),hitLabel:$('#hit-label'),flash:$('#damage-flash')};
 const arcade={clock:$('#mission-clock'),time:$('#time-left'),pressure:$('#pressure-level'),card:$('#challenge-card'),name:$('#challenge-name'),seconds:$('#challenge-seconds'),instruction:$('#challenge-instruction'),fill:$('#challenge-fill'),progress:$('#challenge-progress')};
-function resize(){renderer.setSize(innerWidth,innerHeight);camera.aspect=innerWidth/innerHeight;camera.updateProjectionMatrix();moveReticle();}addEventListener('resize',resize);resize();
-function setMode(next){mode=next;document.body.dataset.state=next;}
+const touchHud={fire:$('#touch-fire'),fireStatus:$('#touch-fire small'),reload:$('#touch-reload'),reloadStatus:$('#touch-reload small'),grenade:$('#touch-grenade'),grenadeStatus:$('#touch-grenade small'),contact:$('#touch-contact')};let controls;
+function resize(){controls?.reset();renderer.setSize(innerWidth,innerHeight);camera.aspect=innerWidth/innerHeight;camera.updateProjectionMatrix();moveReticle();}addEventListener('resize',resize);resize();
+function setMode(next){mode=next;document.body.dataset.state=next;if(next!=='playing')controls?.reset();}
 function setView(next){if(state.result==='lost'&&next!=='first')return;view=next;document.querySelectorAll('[data-camera]').forEach(b=>b.classList.toggle('active',b.dataset.camera===view));}
 function moveReticle(){const x=(pointer.x*.5+.5)*innerWidth,y=(-pointer.y*.5+.5)*innerHeight;hud.reticle.style.left=`${x}px`;hud.reticle.style.top=`${y}px`;}
-function moveAim(e){if(mode!=='playing')return;pointer.set(T.MathUtils.clamp(e.clientX/innerWidth*2-1,-.95,.95),T.MathUtils.clamp(1-e.clientY/innerHeight*2,-.85,.85));moveReticle();}
-canvas.addEventListener('pointermove',moveAim);canvas.addEventListener('pointerdown',e=>{if(mode!=='playing')return;moveAim(e);if(e.pointerType==='mouse'&&e.button===2){grenade();return;}if(e.pointerType==='mouse')firing=true;canvas.setPointerCapture(e.pointerId);});canvas.addEventListener('contextmenu',e=>e.preventDefault());addEventListener('pointerup',()=>firing=false);addEventListener('pointercancel',()=>firing=false);
-$('#touch-fire').addEventListener('pointerdown',e=>{e.preventDefault();firing=true;e.currentTarget.setPointerCapture(e.pointerId);});$('#touch-fire').addEventListener('pointerup',()=>firing=false);$('#touch-reload').onclick=()=>mode==='playing'&&state.startReload();
+controls=createPointerControls({canvas,fireButton:touchHud.fire,isPlaying:()=>mode==='playing'&&!state.result,
+ onAim:point=>{pointer.set(point.x/innerWidth*2-1,1-point.y/innerHeight*2);moveReticle();},onFire:held=>firing=held,onGrenade:grenade,
+ onContact:point=>{touchHud.contact.hidden=!point;if(!point)return;touchHud.contact.style.left=`${point.x}px`;touchHud.contact.style.top=`${point.y}px`;const dx=point.aim.x-point.x,dy=point.aim.y-point.y;touchHud.contact.style.setProperty('--reach',`${Math.max(0,Math.hypot(dx,dy)-22)}px`);touchHud.contact.style.setProperty('--angle',`${Math.atan2(dx,-dy)}rad`);}});
+touchHud.reload.onclick=()=>mode==='playing'&&state.startReload();touchHud.grenade.onclick=grenade;
 document.querySelectorAll('[data-camera]').forEach(b=>b.onclick=()=>setView(b.dataset.camera));$('#grenade').onclick=grenade;
 addEventListener('keydown',e=>{if(e.target.matches('input,textarea'))return;if(['Space','KeyR','KeyV','Escape','KeyP','KeyM'].includes(e.code))e.preventDefault();if(e.repeat)return;if(e.code==='KeyV')setView(view==='first'?'third':'first');if(e.code==='KeyM')toggleSound();if((e.code==='Escape'||e.code==='KeyP')&&['playing','paused'].includes(mode))pause();if(mode!=='playing')return;if(e.code==='KeyR')state.startReload();if(e.code==='Space')grenade();});
 function toggleSound(){const muted=audio.mute();$('#sound').textContent=muted?'SOUND OFF':'SOUND ON';$('#sound').setAttribute('aria-label',muted?'Unmute sound':'Mute sound');}$('#sound').onclick=toggleSound;
 function pause(){firing=false;const paused=mode==='playing';setMode(paused?'paused':'playing');$('#pause-screen').hidden=!paused;audio.pause(paused);hud.warning.style.opacity=0;}
 $('#pause').onclick=()=>['playing','paused'].includes(mode)&&pause();$('#resume').onclick=pause;document.addEventListener('visibilitychange',()=>{if(document.hidden&&mode==='playing')pause();});
+addEventListener('blur',()=>{controls.reset();if(mode==='playing')pause();});
 $('#credits-open').onclick=()=>$('#credits').showModal();$('#credits-close').onclick=()=>$('#credits').close();
 async function start(){
- if(!rex)return;$('#start').disabled=true;$('#start-label').textContent='STARTING THE ENGINE';
+ if(!rex)return;controls.reset();$('#start').disabled=true;$('#start-label').textContent='STARTING THE ENGINE';
  try{await audio.init();}catch(e){console.warn('Audio initialization failed',e.message);}
  audio.stopCalls();state.reset();
  state.introDuration=Math.max(RULES.intro,RULES.roarAt+(audio.buffers.get(audio.roles.opening)?.duration||3.64)/.95+1.5);
@@ -84,6 +88,12 @@ function updateHud(){
  hud.jeep.textContent=state.jeep;hud.jeepFill.style.transform=`scaleX(${state.jeep/100})`;hud.jeepFill.style.background=state.jeep<30?'#e67950':'#e8be75';
  hud.ammo.textContent=String(state.ammo).padStart(3,'0');hud.heat.style.transform=`scaleX(${state.reload?1-state.reload/RULES.reload:state.heat})`;hud.heat.style.background=state.overheated?'#e9794b':'#d4b171';
  hud.weapon.textContent=state.phase==='intro'?'HOLD FIRE':state.phase==='execution'?'OVERRUN':state.reload?`RELOADING ${state.reload.toFixed(1)}s`:state.overheated?'COOLING':state.ammo===0?'PRESS R':'READY';
+ if(state.ammo===0&&!state.reload&&matchMedia('(pointer:coarse)').matches)hud.weapon.textContent='TAP RELOAD';
+ touchHud.fireStatus.textContent=state.weaponsLocked?'WAIT':state.reload?'RELOADING':state.overheated?'COOLING':'HOLD';
+ touchHud.fire.classList.toggle('waiting',!!state.reload||state.overheated||state.weaponsLocked);
+ touchHud.reloadStatus.textContent=state.reload?`${state.reload.toFixed(1)}s`:state.ammo===RULES.magazine?'FULL':'READY';
+ touchHud.reload.setAttribute('aria-disabled',String(!!state.reload||state.ammo===RULES.magazine||!!state.result));
+ touchHud.grenadeStatus.textContent=state.grenade?`${Math.ceil(state.grenade)}s`:'READY';touchHud.grenade.setAttribute('aria-disabled',String(state.grenade>0||state.weaponsLocked||!!state.result));
  if(state.phase==='flank'&&state.weaponsLocked&&!state.reload)hud.weapon.textContent='WATCH THE TREES';
  hud.distance.textContent=`${Math.max(0,Math.round(state.distance-7))} m · ${state.phase==='charge'?'CLOSING FAST':'IN PURSUIT'}`;hud.grenade.textContent=state.grenade?`${Math.ceil(state.grenade)}s`:'READY';
  const o=state.objective,challenge=state.phase==='challenge'&&o?.status==='active'&&!state.result;
@@ -131,9 +141,9 @@ function handleEvents(){for(const event of state.drainEvents()){
  if(event==='impact'){shake=state.lossReason==='timeout'?1:.8;damageFlash=.85;audio.impact();}
  if(event==='stunned'){shake=.13;audio.pain(true);}
  if(event==='reload')audio.reload();
- if(event==='won'){audio.stopCalls();audio.pain(true);firing=false;}
+ if(event==='won'){audio.stopCalls();audio.pain(true);controls.reset();}
  if(event==='lost'){
-  audio.stopCalls();audio.growl();firing=false;endTime=0;damageFlash=0;shake=.16;
+  audio.stopCalls();audio.growl();controls.reset();endTime=0;damageFlash=0;shake=.16;
   state.defeat={time:0,x:rex.actor.position.x,z:rex.actor.position.z,heading:rex.actor.rotation.y,speed:state.phase==='execution'?Math.max(1,10-state.phaseTime*6):10,cues:new Set()};
   if(state.objective)state.objective.status='cancelled';if(state.debris)state.debris.status='cancelled';targets.reset();debris.reset();
   setView('first');camera.position.set(.06,2.4,-.45);cameraLook.set(0,3.4,12);camera.lookAt(cameraLook);camera.fov=62;camera.updateProjectionMatrix();
@@ -165,7 +175,7 @@ function updateCamera(dt){
   fov=T.MathUtils.lerp(third?58:56,third?66:65,returning);
   if(innerWidth<600){cameraTarget.y=T.MathUtils.lerp(3.3,4.1,returning);if(third)cameraPos.x=-1.5;else if(rex)cameraTarget.x=T.MathUtils.lerp(cameraTarget.x,rex.headPosition().x,returning*.85);}
  }
- if(challenge&&innerWidth<600)cameraTarget.y=4.5+Math.max(0,800-innerHeight)*.0065+(innerHeight<740?.25:0);
+ if(challenge&&(innerWidth<600||(matchMedia('(pointer:coarse)').matches&&innerHeight>innerWidth)))cameraTarget.y=4.5+Math.max(0,800-innerHeight)*.0065+(innerHeight<740?.25:0);
  else if(challenge&&innerHeight<570)cameraTarget.y=4.9;
  if(innerWidth<600){fov=intro?70:state.phase==='flank'?72:third?68:64;if(menu){cameraPos.set(3.2,3.3,5);cameraTarget.set(.4,3.3,14);fov=61;}}
  if(fatal){
