@@ -1,0 +1,56 @@
+{
+    "bounds_min":  [
+                       -1.2861120722938417,
+                       -6.980036278891515,
+                       0.004108653622340167
+                   ],
+    "bounds_max":  [
+                       1.2861127039961298,
+                       6.69885498745082,
+                       5.025741974090693
+                   ],
+    "actions":  [
+                    "Bite",
+                    "Idle",
+                    "Recoil",
+                    "Roar",
+                    "Tail"
+                ],
+    "meshes":  [
+                   {
+                       "name":  "TeethUp_ClaTonTeeMat_0",
+                       "vertices":  1134,
+                       "polygons":  1840
+                   },
+                   {
+                       "name":  "Rex_Eyes",
+                       "vertices":  402,
+                       "polygons":  760
+                   },
+                   {
+                       "name":  "Rex_Cornea",
+                       "vertices":  402,
+                       "polygons":  760
+                   },
+                   {
+                       "name":  "TeethDown_ClaTonTeeMat_0",
+                       "vertices":  1045,
+                       "polygons":  1672
+                   },
+                   {
+                       "name":  "Rex_Skin",
+                       "vertices":  23310,
+                       "polygons":  22356
+                   },
+                   {
+                       "name":  "Object_147",
+                       "vertices":  786,
+                       "polygons":  1280
+                   },
+                   {
+                       "name":  "Object_150",
+                       "vertices":  147,
+                       "polygons":  256
+                   }
+               ]
+}

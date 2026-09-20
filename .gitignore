@@ -1,0 +1,14 @@
+node_modules/
+dist/
+art/review/
+art/source-metadata.json
+art/inspection.json
+*.blend1
+audio_reference/
+art/*.blend
+art/*.glb
+art/*preview.png
+art/source-review.png
+*.log
+.env
+.env.*

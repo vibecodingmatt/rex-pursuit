@@ -1,0 +1,320 @@
+{
+    "source":  "joelfazhari-jurassic-dinosaurs-sound-effects-372727.mp3",
+    "duration":  131.16,
+    "threshold":  0.013082529048086128,
+    "clips":  [
+                  {
+                      "id":  1,
+                      "file":  "clip-01.wav",
+                      "start":  0,
+                      "end":  3.64,
+                      "duration":  3.64,
+                      "peak":  0.499,
+                      "label":  "TRex main roar"
+                  },
+                  {
+                      "id":  2,
+                      "file":  "clip-02.wav",
+                      "start":  4.48,
+                      "end":  9.76,
+                      "duration":  5.28,
+                      "peak":  0.367,
+                      "label":  "TRex roar 2"
+                  },
+                  {
+                      "id":  3,
+                      "file":  "clip-03.wav",
+                      "start":  10.18,
+                      "end":  11.14,
+                      "duration":  0.96,
+                      "peak":  0.328,
+                      "label":  "Foot step sound"
+                  },
+                  {
+                      "id":  4,
+                      "file":  "clip-04.wav",
+                      "start":  13.2,
+                      "end":  14.04,
+                      "duration":  0.84,
+                      "peak":  0.329,
+                      "label":  "Foot step sound"
+                  },
+                  {
+                      "id":  5,
+                      "file":  "clip-05.wav",
+                      "start":  15.66,
+                      "end":  16.62,
+                      "duration":  0.96,
+                      "peak":  0.327,
+                      "label":  "Fooot step sound"
+                  },
+                  {
+                      "id":  6,
+                      "file":  "clip-06.wav",
+                      "start":  17.3,
+                      "end":  18.22,
+                      "duration":  0.92,
+                      "peak":  0.323,
+                      "label":  "Foot step sound"
+                  },
+                  {
+                      "id":  7,
+                      "file":  "clip-07.wav",
+                      "start":  18.92,
+                      "end":  19.82,
+                      "duration":  0.9,
+                      "peak":  0.326,
+                      "label":  ""
+                  },
+                  {
+                      "id":  8,
+                      "file":  "clip-08.wav",
+                      "start":  24.58,
+                      "end":  34.4,
+                      "duration":  9.82,
+                      "peak":  0.645,
+                      "label":  ""
+                  },
+                  {
+                      "id":  9,
+                      "file":  "clip-09.wav",
+                      "start":  36.2,
+                      "end":  37.26,
+                      "duration":  1.06,
+                      "peak":  0.23,
+                      "label":  "TRex growl"
+                  },
+                  {
+                      "id":  10,
+                      "file":  "clip-10.wav",
+                      "start":  39.42,
+                      "end":  42.32,
+                      "duration":  2.9,
+                      "peak":  0.161,
+                      "label":  "Raptor growl"
+                  },
+                  {
+                      "id":  11,
+                      "file":  "clip-11.wav",
+                      "start":  43.22,
+                      "end":  45.68,
+                      "duration":  2.46,
+                      "peak":  0.108,
+                      "label":  "Raptor call"
+                  },
+                  {
+                      "id":  12,
+                      "file":  "clip-12.wav",
+                      "start":  46.7,
+                      "end":  47.84,
+                      "duration":  1.14,
+                      "peak":  0.051,
+                      "label":  "Raptor snarl"
+                  },
+                  {
+                      "id":  13,
+                      "file":  "clip-13.wav",
+                      "start":  49.06,
+                      "end":  51.74,
+                      "duration":  2.68,
+                      "peak":  0.337,
+                      "label":  "Raptor squeal"
+                  },
+                  {
+                      "id":  14,
+                      "file":  "clip-14.wav",
+                      "start":  52.02,
+                      "end":  52.92,
+                      "duration":  0.9,
+                      "peak":  0.06,
+                      "label":  "Raptor generic"
+                  },
+                  {
+                      "id":  15,
+                      "file":  "clip-15.wav",
+                      "start":  53.1,
+                      "end":  55.72,
+                      "duration":  2.62,
+                      "peak":  0.347,
+                      "label":  ""
+                  },
+                  {
+                      "id":  16,
+                      "file":  "clip-16.wav",
+                      "start":  56.7,
+                      "end":  58.06,
+                      "duration":  1.36,
+                      "peak":  0.285,
+                      "label":  ""
+                  },
+                  {
+                      "id":  17,
+                      "file":  "clip-17.wav",
+                      "start":  58.8,
+                      "end":  59.78,
+                      "duration":  0.98,
+                      "peak":  0.331,
+                      "label":  ""
+                  },
+                  {
+                      "id":  18,
+                      "file":  "clip-18.wav",
+                      "start":  60.14,
+                      "end":  62.66,
+                      "duration":  2.52,
+                      "peak":  0.328,
+                      "label":  "TRex bite sound"
+                  },
+                  {
+                      "id":  19,
+                      "file":  "clip-19.wav",
+                      "start":  64.28,
+                      "end":  65.24,
+                      "duration":  0.96,
+                      "peak":  0.435,
+                      "label":  ""
+                  },
+                  {
+                      "id":  20,
+                      "file":  "clip-20.wav",
+                      "start":  65.94,
+                      "end":  66.86,
+                      "duration":  0.92,
+                      "peak":  0.327,
+                      "label":  ""
+                  },
+                  {
+                      "id":  21,
+                      "file":  "clip-21.wav",
+                      "start":  67.18,
+                      "end":  68.46,
+                      "duration":  1.28,
+                      "peak":  0.359,
+                      "label":  ""
+                  },
+                  {
+                      "id":  22,
+                      "file":  "clip-22.wav",
+                      "start":  70.12,
+                      "end":  71.46,
+                      "duration":  1.34,
+                      "peak":  0.191,
+                      "label":  ""
+                  },
+                  {
+                      "id":  23,
+                      "file":  "clip-23.wav",
+                      "start":  73.62,
+                      "end":  74.9,
+                      "duration":  1.28,
+                      "peak":  0.272,
+                      "label":  ""
+                  },
+                  {
+                      "id":  24,
+                      "file":  "clip-24.wav",
+                      "start":  77.16,
+                      "end":  79.78,
+                      "duration":  2.62,
+                      "peak":  0.233,
+                      "label":  ""
+                  },
+                  {
+                      "id":  25,
+                      "file":  "clip-25.wav",
+                      "start":  81.86,
+                      "end":  88.18,
+                      "duration":  6.32,
+                      "peak":  0.272,
+                      "label":  ""
+                  },
+                  {
+                      "id":  26,
+                      "file":  "clip-26.wav",
+                      "start":  91.26,
+                      "end":  93.64,
+                      "duration":  2.38,
+                      "peak":  0.298,
+                      "label":  ""
+                  },
+                  {
+                      "id":  27,
+                      "file":  "clip-27.wav",
+                      "start":  96.18,
+                      "end":  97.18,
+                      "duration":  1,
+                      "peak":  0.169,
+                      "label":  "TRex in pain"
+                  },
+                  {
+                      "id":  28,
+                      "file":  "clip-28.wav",
+                      "start":  99.6,
+                      "end":  100.64,
+                      "duration":  1.04,
+                      "peak":  0.146,
+                      "label":  ""
+                  },
+                  {
+                      "id":  29,
+                      "file":  "clip-29.wav",
+                      "start":  102.94,
+                      "end":  104.9,
+                      "duration":  1.96,
+                      "peak":  0.291,
+                      "label":  ""
+                  },
+                  {
+                      "id":  30,
+                      "file":  "clip-30.wav",
+                      "start":  107.78,
+                      "end":  110.42,
+                      "duration":  2.64,
+                      "peak":  0.279,
+                      "label":  "Brachiosaurus trumpet"
+                  },
+                  {
+                      "id":  31,
+                      "file":  "clip-31.wav",
+                      "start":  113.42,
+                      "end":  115.78,
+                      "duration":  2.36,
+                      "peak":  0.234,
+                      "label":  "Brachiosaurus trumpet 2"
+                  },
+                  {
+                      "id":  32,
+                      "file":  "clip-32.wav",
+                      "start":  118.38,
+                      "end":  119.16,
+                      "duration":  0.78,
+                      "peak":  0.109,
+                      "label":  ""
+                  },
+                  {
+                      "id":  33,
+                      "file":  "clip-33.wav",
+                      "start":  121.68,
+                      "end":  122.34,
+                      "duration":  0.66,
+                      "peak":  0.128,
+                      "label":  ""
+                  },
+                  {
+                      "id":  34,
+                      "file":  "clip-34.wav",
+                      "start":  124.34,
+                      "end":  128.22,
+                      "duration":  3.88,
+                      "peak":  0.238,
+                      "label":  ""
+                  }
+              ],
+    "roles":  {
+                  "opening":  1,
+                  "charge":  2,
+                  "growl":  9,
+                  "pain":  27
+              },
+    "revision":  2
+}

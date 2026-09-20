@@ -1,0 +1,22 @@
+<!doctype html>
+<html lang="en"><head><meta charset="UTF-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"><meta name="theme-color" content="#0b1112"><title>Creature lab — Rex: Pursuit</title><meta name="robots" content="noindex,follow"><link rel="icon" type="image/svg+xml" href="./favicon.svg"><link rel="stylesheet" href="/src/style.css"><script type="importmap">{"imports":{"three":"/node_modules/three/build/three.module.js","three/addons/":"/node_modules/three/examples/jsm/"}}</script></head>
+<body>
+ <canvas id="scene" aria-label="Interactive animated T. rex model. Drag to orbit and scroll to zoom."></canvas>
+ <div class="vignette"></div>
+ <header><a class="wordmark" href="./">REX<span> / </span>ENCOUNTER</a><div class="chapter"><span class="signal"></span> CREATURE STUDY <b>001</b></div><button id="hide-ui" class="icon-button" aria-label="Hide interface">↗</button></header>
+ <main class="overlay">
+  <div class="intro"><div class="eyebrow">THE FIRST ENCOUNTER</div><h1>Face the<br><em>tyrant.</em></h1><p>One predator. No place to hide.</p><div class="specimen"><span>TYRANNOSAURUS REX</span><small>1993 design study · Work in progress</small></div></div>
+  <div class="scale-note"><span class="scale-line"></span><div>13.5 <small>METERS</small></div><p>A full-scale encounter.</p></div>
+  <div id="loading" role="status"><span class="loader-ring"></span><span id="loading-text">Preparing the encounter…</span></div>
+  <div class="camera-tools" aria-label="Camera views"><button data-view="portrait" class="selected">01 <span>Portrait</span></button><button data-view="encounter">02 <span>Face to face</span></button><button data-view="detail">03 <span>Skin & skull</span></button><button data-view="side">04 <span>Full profile</span></button></div>
+  <section class="control-deck" aria-label="Creature controls">
+   <div class="motion-panel"><div class="panel-heading">BEHAVIOR <span id="behavior-state">BREATHING</span></div><div class="actions"><button data-action="idle" class="selected">Idle</button><button data-action="roar">Roar</button><button data-action="bite">Bite</button><button data-action="recoil">Recoil</button><button data-action="tail">Tail sweep</button></div></div>
+   <div class="damage-panel"><div class="panel-heading"><label for="damage">BATTLE DAMAGE</label><span id="damage-label">UNMARKED</span></div><input id="damage" type="range" min="0" max="3" step="0.01" value="0" aria-label="Battle damage stage"><div class="range-labels"><span>Unmarked</span><span>Scarred</span><span>Wounded</span><span>Bloodied</span></div></div>
+   <div class="settings-panel"><button id="light-mode">◐ <span>Studio light</span></button><button id="pause">Ⅱ <span>Pause</span></button><button id="sound">♫ <span>Sound off</span></button></div>
+  </section>
+  <footer><span id="hint">DRAG TO ORBIT <i>·</i> SCROLL TO EXPLORE</span><span class="footer-right"><button id="credits-open">Model credits</button><span>REALTIME WEBGL <i> / </i> V.01</span></span></footer>
+ </main>
+ <button id="show-ui" hidden>Show controls</button>
+ <dialog id="credits"><button id="credits-close" aria-label="Close credits">×</button><div class="eyebrow">CREATURE FOUNDATION</div><h2>Tyrannosaurus Rex 2.0</h2><p>Base mesh, textures, rig and original RunRoar animation by <a href="https://sketchfab.com/3dCoast" target="_blank" rel="noreferrer">Stevenson / TStevenz</a>.</p><p>The source GLB distributed by <a href="https://naver.github.io/egjs-view3d/docs/options/model/fixSkinnedBbox" target="_blank" rel="noreferrer">NAVER View3D</a> identifies the asset as <a href="https://creativecommons.org/licenses/by/4.0/" target="_blank" rel="noreferrer">CC BY 4.0</a>.</p><p>This study adds custom behavior animation, material grading, progressive surface wounds, lighting and encounter cameras. It is an artist-created starting model, not a verified replica or an original film production asset.</p><a href="./models/rex-hero.glb" download>Download animated GLB ↗</a></dialog>
+ <script type="module" src="/src/main.js"></script>
+</body></html>

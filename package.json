@@ -1,0 +1,38 @@
+{
+    "name":  "rex-pursuit",
+    "version":  "0.1.0",
+    "private":  true,
+    "type":  "module",
+    "scripts":  {
+                    "dev":  "vite --host 127.0.0.1 --port 5188",
+                    "build":  "vite build",
+                    "preview":  "vite preview --host 127.0.0.1 --port 5188",
+                    "start":  "node scripts/serve.mjs",
+                    "test":  "node scripts/test-combat.mjs && node scripts/verify-chase.cjs",
+                    "test:gaze": "node scripts/verify-gaze.cjs",
+                    "test:logic": "node scripts/test-combat.mjs && node scripts/test-defeat.mjs && node scripts/test-ambush.mjs",
+                    "test:release": "node scripts/test-release.mjs",
+                    "test:pages": "node scripts/verify-pages.cjs",
+                    "social:render": "node scripts/create-social.cjs",
+                    "test:lab":  "node scripts/verify.cjs",
+                    "test:build":  "node scripts/verify-build.cjs",
+                    "test:gait":  "node scripts/verify-gait.cjs",
+                    "test:motion":  "node scripts/verify-motion.cjs",
+                    "test:vehicle":  "node scripts/verify-vehicle.cjs",
+                    "test:arcade":  "node scripts/verify-arcade.cjs",
+                    "test:pressure":  "node scripts/verify-pressure.cjs",
+                    "test:cinematic": "node scripts/test-ambush.mjs && node scripts/verify-cinematic.cjs",
+                    "test:treeline": "node scripts/verify-treeline.cjs",
+                    "test:defeat": "node scripts/test-defeat.mjs && node scripts/verify-defeat.cjs",
+                    "test:balance":  "node scripts/simulate-pressure.mjs",
+                    "audio:split":  "node scripts/split-audio.cjs",
+                    "art:export":  "node scripts/export-model.cjs"
+                },
+    "dependencies":  {
+                         "three":  "0.180.0"
+                     },
+    "devDependencies":  {
+                            "playwright-core":  "^1.61.1",
+                            "vite":  "^5.4.20"
+                        }
+}

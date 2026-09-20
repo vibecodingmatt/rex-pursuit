@@ -1,0 +1,57 @@
+<!doctype html>
+<html lang="en" prefix="og: https://ogp.me/ns#"><head>
+ <meta charset="UTF-8">
+ <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+ <meta name="theme-color" content="#131c15">
+ <title>Rex: Pursuit — Survive the Chase</title>
+ <meta name="description" content="90 seconds. One Jeep. No second chances. Take the gunner's seat, repel a relentless T. rex, and survive a cinematic jungle chase. Play free in your browser.">
+ <meta name="application-name" content="Rex: Pursuit">
+ <meta name="robots" content="index,follow,max-image-preview:large">
+ <link rel="canonical" href="https://vibecodingmatt.github.io/rex-pursuit/">
+ <meta property="og:type" content="website">
+ <meta property="og:site_name" content="Rex: Pursuit">
+ <meta property="og:locale" content="en_US">
+ <meta property="og:url" content="https://vibecodingmatt.github.io/rex-pursuit/">
+ <meta property="og:title" content="Rex: Pursuit — Can You Survive 90 Seconds?">
+ <meta property="og:description" content="One Jeep. One mounted gun. One very angry T. rex. Break her attacks, blast flying branches, and survive the jungle. Play free — no download.">
+ <meta property="og:image" content="https://vibecodingmatt.github.io/rex-pursuit/social/rex-pursuit-v1.jpg">
+ <meta property="og:image:secure_url" content="https://vibecodingmatt.github.io/rex-pursuit/social/rex-pursuit-v1.jpg">
+ <meta property="og:image:type" content="image/jpeg">
+ <meta property="og:image:width" content="1200">
+ <meta property="og:image:height" content="630">
+ <meta property="og:image:alt" content="Rex: Pursuit. A roaring T. rex charges a gun-mounted Jeep on a jungle road. 90 seconds. One Jeep. No second chances.">
+ <meta name="twitter:card" content="summary_large_image">
+ <meta name="twitter:title" content="Rex: Pursuit — Can You Survive 90 Seconds?">
+ <meta name="twitter:description" content="One Jeep. One mounted gun. One very angry T. rex. Break her attacks and survive the jungle. Play free in your browser.">
+ <meta name="twitter:image" content="https://vibecodingmatt.github.io/rex-pursuit/social/rex-pursuit-v1.jpg">
+ <meta name="twitter:image:alt" content="Rex: Pursuit. A roaring T. rex charges a gun-mounted Jeep on a jungle road. 90 seconds. One Jeep. No second chances.">
+ <link rel="icon" type="image/svg+xml" href="./favicon.svg">
+ <link rel="icon" type="image/png" sizes="32x32" href="./icons/icon-32.png">
+ <link rel="apple-touch-icon" sizes="180x180" href="./icons/apple-touch-icon.png">
+ <link rel="manifest" href="./site.webmanifest">
+ <script type="application/ld+json">{"@context":"https://schema.org","@type":"VideoGame","name":"Rex: Pursuit","url":"https://vibecodingmatt.github.io/rex-pursuit/","description":"A free 3D jungle chase. Defend a fleeing Jeep from a T. rex with a mounted gun, timed targets and explosives. Take her down within 90 seconds.","image":"https://vibecodingmatt.github.io/rex-pursuit/social/rex-pursuit-v1.jpg","genre":["Action","Arcade","Survival"],"gamePlatform":"Web browser","operatingSystem":"Any with a WebGL-capable browser","playMode":"SinglePlayer","inLanguage":"en","isAccessibleForFree":true,"author":{"@type":"Person","name":"VibeCodingMatt"},"offers":{"@type":"Offer","price":"0","priceCurrency":"USD","url":"https://vibecodingmatt.github.io/rex-pursuit/"}}</script>
+ <link rel="stylesheet" href="./src/chase.css">
+ <script type="importmap">{"imports":{"three":"./node_modules/three/build/three.module.js","three/addons/":"./node_modules/three/examples/jsm/"}}</script>
+</head>
+<body data-state="loading">
+ <canvas id="scene" aria-label="Jungle chase. Aim with the mouse or drag on the screen."></canvas>
+ <div class="film-grain"></div><div class="vignette"></div><div id="damage-flash"></div>
+ <div id="fatal-blood" aria-hidden="true"></div><div id="fatal-black" aria-hidden="true"></div>
+ <header class="masthead"><a href="./" class="wordmark" aria-label="Rex: Pursuit home">REX<span>:</span>PURSUIT</a><div class="header-right"><span class="live-dot"></span><span>JUNGLE RUN <b>02</b></span><button id="sound" aria-label="Mute sound" title="Sound · M">SOUND ON</button><button id="pause" aria-label="Pause encounter" title="Pause · Esc">Ⅱ</button></div></header>
+ <section id="boss" class="boss-hud" aria-label="Tyrannosaurus health"><div class="boss-label"><span>TYRANNOSAURUS REX</span><span id="boss-status">APEX PREDATOR</span></div><div class="boss-track"><div id="boss-trail"></div><div id="boss-fill"></div></div><div class="boss-details"><span id="boss-phase">THE CHASE BEGINS</span><span id="boss-percent">100%</span></div></section>
+ <div id="warning" role="status"><span id="warning-title"></span><small id="warning-tip"></small></div>
+ <div id="cinema-bars" aria-hidden="true"></div>
+ <div id="mission-clock" hidden><span>OVERRUN IN</span><strong id="time-left">1:30</strong><small id="pressure-level">PRESSURE I</small></div>
+ <div id="target-layer" aria-hidden="true"></div>
+ <section id="challenge-card" hidden aria-label="Attack objective"><div class="challenge-heading"><span id="challenge-name">BREAK THE LUNGE</span><strong id="challenge-seconds">5.2s</strong></div><p id="challenge-instruction">Shoot the numbered targets in order.</p><div class="challenge-track"><i id="challenge-fill"></i></div><div class="challenge-footer"><span id="challenge-progress">TARGET 1 / 3</span><span id="challenge-hazard">MISS IT → TAKE A HIT</span></div></section>
+ <div id="reticle"><i></i><i></i><i></i><i></i><span></span></div><div id="hit-marker">×</div><div id="hit-label"></div>
+ <section id="hud-bottom"><div class="integrity"><div class="hud-label">JEEP INTEGRITY</div><div class="integrity-row"><svg viewBox="0 0 50 25" aria-hidden="true"><path d="M4 19V9h7l5-7h18l5 9h7v8h-5M13 19h23M14 9h20M24 3v7"/><circle cx="9" cy="19" r="4"/><circle cx="40" cy="19" r="4"/></svg><strong id="jeep-value">100</strong><span>%</span></div><div class="integrity-track"><i id="jeep-fill"></i></div><small id="distance">18 m · CLOSING</small></div>
+ <div class="center-controls"><div class="view-switch" aria-label="Camera mode"><button data-camera="first" class="active">1ST PERSON</button><button data-camera="third">3RD PERSON</button></div><p><kbd>V</kbd> VIEW <span>·</span> <kbd>R</kbd> RELOAD <span>·</span> <kbd>SPACE</kbd> GRENADE</p></div>
+ <div class="weapon"><div class="hud-label">MOUNTED .50 CAL</div><div class="ammo"><strong id="ammo-value">080</strong><span>/ 080</span></div><div class="heat-track"><i id="heat-fill"></i></div><div class="weapon-state"><span id="weapon-state">READY</span><button id="grenade" title="Launch grenade · Space">HE <span id="grenade-state">READY</span></button></div></div></section>
+ <div id="touch-controls"><button id="touch-reload">RELOAD</button><button id="touch-fire" aria-label="Hold to fire">FIRE</button></div>
+ <section id="start-screen" class="screen"><div class="intro-copy"><div class="eyebrow"><span></span> ENCOUNTER 02 / THE JUNGLE ROAD</div><h1>Objects in mirror<br>are <em>closer.</em></h1><p>90 seconds to stop her.<br>Break her attacks. Keep the Jeep alive.</p><div class="start-actions"><button id="start" disabled><span id="start-label">PREPARING THE CHASE</span><span class="arrow">↗</span></button><span id="loading-status" role="status">Loading the predator…</span></div><div class="start-tip"><b>HOLD TO FIRE</b><span>Gold targets repel her. Red targets stop debris.<br>R reloads · Space launches a grenade.</span></div></div><div class="menu-footer"><span>REALTIME 3D <i> / </i> PLAYABLE CONCEPT</span><nav><a href="./model-lab.html">Creature lab ↗</a><a href="./sound-library.html">Sound library ↗</a><button id="credits-open">Credits</button></nav></div></section>
+ <section id="pause-screen" class="screen modal-screen" hidden><div class="modal-card"><div class="eyebrow">TAKE A BREATH</div><h2>Chase paused.</h2><p>Hold mouse to fire · R to reload · Space for grenade<br>V changes camera · M toggles audio</p><button id="resume" class="primary">BACK TO THE CHASE ↗</button><a href="./sound-library.html" target="_blank" rel="noopener">Open sound library</a></div></section>
+ <section id="end-screen" class="screen modal-screen" hidden><div class="modal-card"><div class="eyebrow" id="end-eyebrow">ENCOUNTER COMPLETE</div><h2 id="end-title">You made it.</h2><p id="end-copy"></p><div id="end-stats"></div><button id="restart" class="primary">RUN IT AGAIN ↗</button><div class="end-camera">Try the other camera with <kbd>V</kbd></div></div></section>
+ <dialog id="credits"><button id="credits-close" aria-label="Close credits">×</button><div class="eyebrow">REX: PURSUIT</div><h2>Creature & sound</h2><p>T. rex foundation: <a href="https://sketchfab.com/3dCoast" target="_blank" rel="noreferrer">Stevenson / TStevenz</a>, <em>Tyrannosaurus Rex 2.0</em>, distributed by <a href="https://naver.github.io/egjs-view3d/docs/options/model/fixSkinnedBbox" target="_blank" rel="noreferrer">NAVER View3D</a> with embedded <a href="https://creativecommons.org/licenses/by/4.0/" target="_blank" rel="noreferrer">CC BY 4.0</a> attribution. Modified mesh, brown skin finish, rig repair, chase animation and impact materials.</p><p>Dinosaur calls are split from your supplied joelfazhari audio reference. Provisional clip numbers are editable in the sound library. Jeep, jungle scene, effects and gun audio are built for this concept. Foliage texture generated with OpenAI ImageGen.</p><p>An unofficial fan concept. The creature is an artist-created model, not a film production asset.</p></dialog>
+ <script type="module" src="./src/chase.js"></script>
+</body></html>

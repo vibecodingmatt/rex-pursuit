@@ -1,0 +1,155 @@
+# Rex: Pursuit
+
+A playable jungle chase: stand at a mounted .50-cal in an open Jeep while a T. rex runs after you. Switch between first person and an external camera during the same fight.
+
+**Play:** https://vibecodingmatt.github.io/rex-pursuit/
+
+90 seconds. One Jeep. No second chances.
+
+## Run
+
+```powershell
+npm install
+npm start
+```
+
+Open **http://127.0.0.1:5188**. `npm run build` produces a static `dist/` directory with relative asset paths. `npm run preview` serves that build after stopping the development server.
+
+## GitHub Pages and sharing
+
+The `main` branch publishes through `.github/workflows/pages.yml`. CI installs the locked dependencies, checks combat/cinematic logic, builds the site, validates release assets and metadata, then deploys `dist/` to Pages. Raw audio references, Blender sources and local review captures remain outside Git.
+
+The game has static Open Graph and X large-image metadata, canonical URL, VideoGame structured data, favicon/app icons and a manifest. The 1200×630 JPEG at `public/social/rex-pursuit-v1.jpg` uses an in-game capture and is versioned so future artwork can use a fresh URL. `npm run social:render` recreates it from the local game with Chrome. Social services decide when to refresh cached previews; changing the filename and both image tags provides a new image URL.
+
+Before publishing, run `npm run test:logic`, `npm run build`, `npm run test:release` and `npm run test:pages`. The last command serves only the built files under `/rex-pursuit/`, checks gameplay and all three pages, and rejects missing or incorrectly rooted assets. Set `TEST_URL` to the public URL to repeat that browser check against the live deployment. `npm run test:gaze` checks pupil tracking and saves eye closeups locally.
+
+The Rex's eyes aim independently at a shared player position with a damped response. The irises move across the original eye surfaces without moving the sockets or corneas; constrained angles and an optical offset account for the deep brow. First-person and menu views follow the viewer; third-person follows the gunner. Gaze holds when the Rex dies and resets with a new encounter.
+
+- `/` — playable chase.
+- `/model-lab.html` — preserved creature study, camera presets, exported clips, and original damage slider.
+- `/sound-library.html` — audition and name the 34 cuts from the supplied audio reference; assign opening, charge, growl, and pain calls; export a named JSON catalog.
+
+## Play
+
+| Control | Action |
+| --- | --- |
+| Mouse / screen drag | Aim |
+| Hold left mouse / touch FIRE | Fire the mounted gun |
+| R / touch RELOAD | Reload the 80-round box |
+| Space / right mouse / HE button | Explosive shot, with an 11-second cooldown |
+| V / camera buttons | Switch first / third person |
+| Escape or P | Pause |
+| M | Mute |
+
+Take the Rex down within **90 seconds of active chase time**. The opening and midpoint jungle detour do not consume the clock. Head hits deal more damage; grenades provide burst damage. Jeep integrity reaching zero also ends the run. The deadline triggers a final unavoidable bite, so the last seconds matter.
+
+During an attack, the camera moves closer and numbered rings follow the animated face, neck, shoulders and chest. Shoot the highlighted ring, then the next number, before its separate timer expires. Each attack draws a new sequence from 12 sites, alternating head/body regions with small surface-position variations. Only the current and next target appear. Clear the sequence for bonus damage and a retreat window to reload. Failure commits the Rex to a bite or side ram; ordinary headshot stagger cannot cancel that attack. An explosive clears the current ring, including its two-hit requirement. Aim assistance covers the displayed ring; normal bullet wounds still use the first mesh surface hit.
+
+| Pressure | Objective | Time available | Clear bonus |
+| --- | --- | --- | --- |
+| I | 4 targets, 1 hit each | 5.2 seconds | 100 damage |
+| II | 5 targets, 2 hits each | 4.2 seconds | 130 damage |
+| III | 6 targets, 2 hits each | 3.4 seconds | 160 damage |
+
+Pressure increases at 30/60 seconds or 70%/35% remaining Rex health, whichever comes first. Later attacks arrive sooner and damage the Jeep more. The first attack warning arrives after 4.5 seconds of pursuit; subsequent pursuit gaps are 4/3.3/2.6 seconds. Successful sequences buy 3.05 seconds to reload. The Rex has 5,600 health; normal rounds deal 10 body damage or 14 head damage, and explosives deal 190. Head impacts use the same neutral hit feedback as other bullets, with no headshot callout.
+
+Incoming wood debris adds a competing target. A low bough first passes over the Jeep intact, anchored to a roadside tree. When the Rex reaches it, the tip snaps off with a head recoil, wood cracks and splinters; only then does its red target and interception timer appear. Shoot the red square before it reaches the Jeep: it takes 2/3/3 rounds with 1.8/1.5/1.25 seconds to intercept, and a miss costs 8/10/12 integrity. Flight and tumbling are now 2–2.4 times faster than the original branch attack. The first branch approaches after 12 seconds and branches become more frequent under pressure. They can break during a Rex objective. A grenade clears the projectile in one hit, even while the gun reloads, but that spends the same explosive cooldown used against the Rex. A shot into debris does not also damage the animal or complete a gold target.
+
+At 45 seconds or 50% Rex health, whichever comes first, a single 8.3-second jungle detour queues for the next safe break. Active objectives, committed attacks and incoming wood finish first. She veers into the left-hand treeline, disappears behind dense understory for almost three seconds, then bursts back from that same side just behind the Jeep with falling saplings, foliage, dust and a synchronized roar. She remains rendered and animated along a continuous path behind three layers of vegetation; there is no visibility switch or teleport. Reload and weapon cooling continue while the chase clock holds. Fire resumes on her return, followed by a full timed target attack. The cinematic does not inflict automatic Jeep damage. Pause and restart also cover the detour.
+
+Every loss (bite, ram, debris or timeout) cuts to the player's first-person position and locks that view for the finish. The Rex rushes alongside and strikes the Jeep at 1.65 seconds. The complete gun assembly tears free, tumbles through the air and bounces onto the verge. The Jeep and player camera make one full 360-degree spin together, shedding dust as the vehicle skids to a stop at 4.65 seconds. Only then does the Rex walk in with her jaw closed and pause to look at the player. She quickly opens her mouth, throws her head back and lunges forward into a gulp; the wide gape lasts less than half a second. The camera stays at the seat through the windup, then aligns with her jaws for contact. Contact flashes bloody red, fades fully to black, and holds before the retry screen. The finish lasts about 11 seconds; pause freezes the vehicle, gun flight, approach, audio and fade. Restart reattaches the gun, restores the vehicle transform and clears the fatal overlays.
+
+The roadside now has an open verge with small ferns and scattered shrubs. Larger trees stand farther back, and three understory layers become progressively taller and denser deeper in the jungle. The Rex travels farther into that cover during her detour. Scenery and road extend in both directions so the full Jeep spin keeps the player surrounded by jungle.
+
+Tuning values live in `src/chase/combat.js`. Pause freezes the fight, target and debris timers, movement and sound playback. Restart resets the clock, random sequences, incoming debris, damage, entrance props and active calls.
+
+## This iteration
+
+- Stopped-Jeep opening: the camera turns toward the right-hand jungle, the Rex breaks through falling saplings with flying leaves, splinters and dust, turns onto the road and roars. The Jeep accelerates into the chase while her stride follows travel speed. At rest, her feet settle beneath her instead of retaining the last sideways step.
+- Interactive attack cinematics in both camera modes, randomized face/body targets, incoming breakable wood, rising pressure, attack feedback and the 90-second escape deadline. A failed challenge leads into the existing bite/ram animation. Touch reload/fire controls sit on opposite sides to keep the center clear for the additional targets.
+- The supplied named sound catalog now populates the sound library and runtime. Roar jaw motion follows the decoded clip's amplitude envelope and actual audio playback clock, including playback-rate changes and pause/resume. Only one Rex vocal plays at a time. Real footfalls, bite and pain clips accompany actions, with quiet distant raptor/brachiosaur calls between attacks.
+
+- Separate walking and running rhythms: at the menu's 2.2 m/s road speed, the gait uses about 0.96 footfalls per second with overlapping ground support. At the 10 m/s chase speed it uses about 1.94 footfalls per second, down from 2.70, with a broader leg sweep. Swing recovery preserves road velocity near contact and pelvis movement during a charge; the reach reserve prevents a planted knee from locking. These are cinematic game speeds and authored gaits, not a validated reconstruction of dinosaur locomotion.
+- Left-hand steering and a seated Muldoon-inspired driver, visible in the menu and third person. The driver wears a bush hat, stone-colored safari shirt and shorts, utility vest, park ID, belt and boots; both hands follow the steering rim through small corrections. The external camera now sits on the driver's side. Costume reference: [Jurassic Park Motor Pool's Muldoon guide](https://www.jpmotorpool.com/reference/cosplay/muldoon.php). The character is procedural geometry; no reference photography is shipped as its texture.
+
+- Original brown rex hero asset retained, with procedural running on its 130-bone rig. Roaring layers over locomotion: she stands while the Jeep is stopped and keeps running whenever it is moving. Feet plant in scene space and travel with the road during contact, then recover on a lower, smoother arc. Exact toe-off timing avoids double-counting the first airborne frame and snapping the hip. Cadence follows pursuit speed; the torso absorbs each step while the head stays steadier and the tail counterbalances. Bite, ram and stagger also layer onto the gait. Recovery distance changes are limited to keep her moving forward relative to the road.
+- Each foot landing kicks up a small cloud and grit, with a low thump. Dust stays relative to the moving road and fades from a bounded particle pool.
+- Death immediately stops the running cycle and blends from the current stride into buckled legs, a forward fall, partial roll, and friction slide. The supporting leg gives way first. Damped joint responses bend the spine, delay the head and neck, let the arms and feet flop, and carry a diminishing wave along the tail. Skinned contact samples keep the body above the road as those parts settle independently. Larger dust plumes and diminishing impacts accompany the fall. The Jeep coasts and victory waits for the 5.2-second sequence to finish. The fall combines authored motion with damped joints and ground constraints; it is not a general ragdoll simulation.
+- Tongue finish follows the supplied mouth reference: muted rose, a darker root, subtle central shading and a softer moist sheen. Original texture and normal detail remain, with the same finish shared by the chase and creature study.
+- Dirt road, moving jungle layers, photographic foliage cards, detailed fern fronds, trunks, rocks, tire tracks, dust, shadows, sunlight and distance haze.
+- Wrangler-style open Jeep with cage, seats, spare tire, fenders, grille, treads, suspension movement, ammunition box, pintle-mounted gun, brass belt and a gunner visible in third person.
+- Raycasts against the animated mesh. Each impact is mapped back to its undeformed triangle, keeping bullet punctures and explosive scorch/blood on the part hit, including the face. A persistent 1024-pixel wound atlas retains impacts after the 36 detailed recent-wound clusters cycle out. Repeated nearby hits enlarge a cluster. Three cumulative damage stages add irregular bruising, powder burns, dark punctures and short blood runs across the snout, brow, jaw, throat and shoulders. Skin texture remains visible underneath. Marks follow the animated skin through roars, the jungle detour and the death fall, and clear on restart. These are surface effects, without dismemberment or geometry destruction.
+- Reloading, heat, muzzle flashes, tracers, ejected brass, impact particles, grenade blasts, hit confirmation, Jeep damage feedback, boss health, touch controls, pause and win/loss loops.
+- Actual dinosaur calls from the supplied recording. Weapon, engine, wind and impact sounds use Web Audio synthesis. Audio begins with the Start button to meet browser autoplay requirements.
+
+This is a playable visual concept, with the existing artist-authored rex as the strongest art asset. The Jeep, jungle and gunner remain procedural concept art; they are not scanned or film-production assets. The running gait, wounds and chase-specific motions live in the web code, not in the existing exported GLB.
+
+## Audio workflow
+
+The original `audio_reference/joelfazhari-jurassic-dinosaurs-sound-effects-372727.mp3` remains untouched. `npm run audio:split` decodes it with Chrome, finds quiet gaps, and writes numbered mono 24 kHz WAVs with short fades into `audio_reference/clips/`, alongside source timestamps and a waveform SVG. Runtime copies are in `public/audio/` (about 3.5 MB for all 34 clips).
+
+The named catalog from `audio_reference/clips/rex-sound-catalog.json` is incorporated into `public/audio/catalog.json`. Defaults now use 01 for the opening roar, 02 for attack roars, 09 for Rex growls and 27 for pain. Footsteps cycle through 03–06; bites use 18. Distant ambience uses raptor calls 11/12/14 and brachiosaur calls 30/31. The earlier prototype's raptor squeal assignment (13) and unlabeled pain assignment (19) are migrated to the correctly labeled Rex clips. Explicit choices subsequently saved in the sound library remain customizable.
+
+Names and roles save to this browser's local storage; export the catalog for a portable copy. Restart the encounter to reload choices saved from another tab. Roars sample a 60 Hz amplitude envelope from decoded audio and use the AudioContext playback clock. The opening accommodates the selected roar's duration. Ambient dinosaur calls never drive the Rex jaw.
+
+## Model and art files
+
+- `public/models/rex-hero.glb` — brown, refined animated model, approximately 12 MB, 13.7 m long and 5 m high.
+- `art/rex-encounter.blend` — editable Blender master with packed textures and five actions: Idle, Roar, Bite, Recoil, Tail.
+- `public/models/rex-encounter.glb` — intermediate normalized rig and standing animation export.
+- `art/source-draco.glb` — original attributed source distribution.
+- `public/textures/jungle-branch.png` — generated transparent foliage texture.
+- `src/chase/` — environment, Jeep, creature, impact materials, combat, effects and audio modules.
+- `art/review/` — browser captures and verification reports.
+
+Rebuilding the original hero: run the server, `npm run art:export` (visits `model-lab.html?author=1`), then run Blender in background with `art/finish_rex.py`. The chase uses the exported hero without modifying that master file.
+
+## Verification
+
+The park Jeep now has sand-beige paint, red diagonal stripes and steel wheels, square YJ-style headlights, original canvas-drawn park badges, number 18 markings, a winch, mirrors and dust along the sills. Styling reference: [Movie Cars Central's Jurassic Park Jeep gallery](https://www.moviecarscentral.com/en/location-jeep-jurassic-park). Reference photos are not shipped as game textures. The external camera is pulled back to include the front bumper.
+
+The mounted gun uses a shot-driven linked belt, separate pooled brass cases and steel links, receiver/barrel recoil and a short muzzle flash. Its 2.6-second reload opens the cover, withdraws the belt, swaps the can, feeds the new belt, closes the cover and then pulls the charging handle. The gloves have four articulated fingers and a separate thumb, padded palms, knuckles, seams and cuffs. Wrist turns follow the part being handled; a two-bone arm solver preserves upper-arm and forearm lengths, with shoulder reach instead of stretching. The left hand follows the cover, can and feed belt; the right supports the gun before operating the charging handle. Empty-belt, pause and restart states share the game's ammo/reload state. These are authored game animations, not a physics simulation of the mechanism.
+
+With the preview server running:
+
+```powershell
+npm test
+npm run test:gait
+npm run test:motion
+npm run test:vehicle
+npm run test:arcade
+npm run test:pressure
+npm run test:cinematic
+npm run test:treeline
+npm run test:defeat
+npm run test:balance
+npm run build
+npm run test:build
+npm run test:lab
+```
+
+Tests cover combat outcomes at different frame rates; actual browser shooting and head wounds; explosives; reload lockout; charge interruption; rig validity and alternating feet; pause; restart; victory/defeat; phone and landscape controls; sound naming/export; and the packaged site under `/dist/`. The gait check measures planted-foot sliding and leg reach at 30/60/144 fps and verifies running in the first second of the roar. The motion check measures knee/hip rotation speed, alternating dust events, road-relative drift, stopped stride after death, full skinned ground clearance and final settling. It captures side and game views of the fall. The packaged-site check also pauses a fall and verifies delayed victory and reset. Browser tests use locally installed Chrome via Playwright. Runtime performance still depends on the target device; phone checks are viewport/touch emulation, not physical-device profiling.
+
+The arcade check exercises the full entrance, stationary road before launch, actual roar/jaw playback, audio pause, ordered target shots in both views, the harder two-hit sequence, committed attacks after failure, deadline damage lock, timeout defeat, restart and phone/landscape objective layouts. Combat tests cover all pressure tiers and timer boundaries at 30/60/144 Hz.
+
+The pressure check shoots all 12 anchors in both cameras and phone/landscape viewports, verifies clear target paths past the HUD, intercepts debris with bullets and grenades, checks concurrent objective accounting and pause, and confirms that head impacts no longer show special text or color. Seeded combat checks cover randomized orders, every site, missed/lethal debris and reset. `test:balance` simulates 80 runs for each aim/accuracy profile and saves `art/review/pressure-balance.json`; these are tuning regressions, not human playtests. Ignoring every threat loses despite perfect head fire; fast/accurate play remains viable across multiple escalating attacks. Real player difficulty still needs playtesting.
+
+The cinematic check covers the physical branch contact and full projectile window; both midpoint triggers and deferred objectives; paused fight time with continued reload; continuous travel through the concealed route; close return and roar/jaw synchronization; knee/hip continuity at 30/60/144 Hz; persistent wound-atlas overflow; damage-stage closeups; both camera views and phone framing; and clean restart. Captures and the report use the `art/review/cinematic-*` prefix. The treeline check renders a diagnostic silhouette with and without surrounding scenery to measure actual foliage occlusion from both camera views. The defeat check exercises all four loss causes, forced first person, view/fire lockout, gun detachment, exactly one vehicle revolution, a stopped Jeep before the walking approach, a closed-jaw stare, a brief gape, visible head-back motion, a fast gulping lunge, jaw framing, red/black overlays, pause during the spin and full reset. Pure timeline checks run at 30/60/144 Hz; browser captures include phone and landscape framing.
+
+The vehicle check verifies shot/feed/ejection counts at 30/60/144 fps, empty-belt and reload presentation, rejected shots, case expiry, finite transforms and reset. Reload checks verify fixed upper-arm/forearm lengths and contact with the moving cover, can and charging handle in both views. The driver and wheel stay in the left seat, hands remain on the animated rim, and driver visibility follows the camera. The gait check includes six seconds of menu walking at each frame rate, requiring continuous ground support, a slower cadence, broad leg sweep and alternating contacts. These checks save first-person, third-person, driver-detail, walk/run and reload-stage captures in `art/review/`.
+
+## Attribution
+
+Base mesh, textures, rig and original **RunRoar** animation: **Tyrannosaurus Rex 2.0**, by **Stevenson / TStevenz**.
+
+- Original: https://sketchfab.com/3d-models/tyrannosaurus-rex-20-512712b314404760a860389ebd0ce78a
+- Creator: https://sketchfab.com/3dCoast
+- Source distribution: https://naver.github.io/egjs-view3d/model/draco/trex.glb
+- Distribution attribution: https://naver.github.io/egjs-view3d/docs/options/model/fixSkinnedBbox
+- License embedded in that distributed GLB: **CC BY 4.0**, https://creativecommons.org/licenses/by/4.0/
+
+Modifications: skull proportions, standing pose, outline-shell removal, clean skeleton rebind, jaw hierarchy repair, brown palette, skin subdivision, original behavior clips, procedural running, impact materials, lighting and web presentation. The current Sketchfab listing has different license metadata; provenance here is the CC BY 4.0 copy distributed by NAVER and its embedded author/license/source fields. The source is retained in `art/`.
+
+Dinosaur audio was supplied by the user in the reference MP3; its filename identifies joelfazhari. Foliage texture generated using OpenAI ImageGen. Jeep, environment geometry, effects and synthesized sounds authored for this prototype.
+
+The 1993 Jurassic Park T. rex is the visual reference for this unofficial fan concept. The model is an attributed artist-created foundation, not a verified movie replica or an original film production mesh.

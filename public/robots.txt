@@ -1,0 +1,4 @@
+User-agent: *
+Allow: /
+
+Sitemap: https://vibecodingmatt.github.io/rex-pursuit/sitemap.xml
