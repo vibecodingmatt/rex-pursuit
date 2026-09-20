@@ -77,7 +77,8 @@ export async function createRex(scene,onProgress){
   if(fatal){jaw=Math.max(fatal.jaw,state.defeat.time<6.5?(vocal?.jaw||0):0);roar=0;pose('neck_01_',-.12*fatal.lean+.14*fatal.rear-.11*fatal.ram);pose('neck_03_',-.08*fatal.lean+.095*fatal.rear);pose('head_',.045*fatal.lean+.075*fatal.rear);pose('back_04_',.018*fatal.rear-.025*fatal.lunge);pose('head_',-.14*fatal.ram,Z);}
   lastVocal={...(vocal||{}),jaw,roar};pose('jaw_01_',-.68*jaw);pose('neck_01_',.10*roar-.23*bite);pose('neck_03_',.065*roar-.16*bite);pose('head_',.035*roar+.07*bite);pose('back_04_',-.065*bite);actor.position.z-=bite;
   reaction=Math.max(0,reaction-dt);const hurt=state.phase==='stunned'?Math.exp(-state.phaseTime*1.7):reaction*.8;pose('head_',hurt*.12);pose('neck_01_',hurt*.1);pose('head_',hurt*.13,Z);pose('jaw_01_',hurt*-.13);
-  actor.updateMatrixWorld(true);gait.solve(dt,actor.rotation.y,!!fatal||!!ambush||(!!opening&&state.phaseTime<state.introDuration-3.2));actor.updateMatrixWorld(true);
+  const recoil=fatal?T.MathUtils.smoothstep(state.defeat.time,DEFEAT.ram+.1,DEFEAT.ram+.5)*(1-T.MathUtils.smoothstep(state.defeat.time,DEFEAT.spinEnd,DEFEAT.walkAt)):0;
+  actor.updateMatrixWorld(true);gait.solve(dt,actor.rotation.y,!!fatal||!!ambush||(!!opening&&state.phaseTime<state.introDuration-3.2),recoil);actor.updateMatrixWorld(true);
   updateSkeleton();
  },headPosition(){return head.getWorldPosition(new T.Vector3());}};
 }

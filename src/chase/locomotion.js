@@ -63,10 +63,18 @@ export class RunGait {
   this.rootVelocity = new T.Vector3();
   this.groundVelocity = new T.Vector3(0, 0, 10);
   this.footfalls = [];
+  this.approaching = false;
   for (const leg of this.legs) leg.initialized = false;
  }
 
  advance(dt, position, roadSpeed = 10, strength = 1, approach = false) {
+  if(approach&&!this.approaching){
+   // Both feet have settled during the pause after the spin. Begin a fresh
+   // walking step, rather than resuming whichever recoil swing was interrupted.
+   this.phase=0;this.speed=0;this.rootVelocity.set(0,0,0);
+   for(const leg of this.legs)leg.initialized=false;
+  }
+  this.approaching=approach;
   const velocity = new T.Vector3();
   if(!this.lastPosition)this.speed=Math.max(0,roadSpeed);
   if (this.lastPosition && dt > 0) {
@@ -104,10 +112,15 @@ export class RunGait {
   };
  }
 
- solve(dt, heading, turningEntry=false) {
+ solve(dt, heading, turningEntry=false, recoil=0) {
   const actor = this.actor;
   const headingQ = new T.Quaternion().setFromAxisAngle(UP, heading);
   const footAxis = LOCAL_RIGHT.clone().applyQuaternion(headingQ);
+  // After the ram the torso still faces the Jeep while the body recoils.
+  // Plant toward the actual motion relative to the road during that recovery,
+  // instead of reaching forward and lifting a foot to rescue an impossible IK target.
+  const travelAxis=new T.Vector3(0,0,1).applyQuaternion(headingQ);
+  if(recoil>0)travelAxis.lerp(this.rootVelocity.clone().sub(this.groundVelocity).normalize(),recoil).normalize();
   for (const leg of this.legs) {
    const phase = (this.phase + leg.index * .5) % 1;
    // Braking changes the walk/run duty cycle. Keep each entrance step's
@@ -117,7 +130,7 @@ export class RunGait {
    const duty=leg.duty,stance = phase < duty;
    const wasStance = leg.stance;
    const baseQ = headingQ.clone().multiply(leg.restQ);
-   const front = actor.localToWorld(new T.Vector3(leg.contactX, 0, leg.centerZ + this.travel / 2));
+   const front = actor.localToWorld(new T.Vector3(leg.contactX, 0, leg.centerZ)).addScaledVector(travelAxis,this.travel/2);
    front.y = leg.groundY;
    let pitch, curl = 0,turnBlend=1;
 
@@ -144,7 +157,7 @@ export class RunGait {
     turnBlend=smooth(u,0,.45);
     if (!leg.initialized) {
      leg.plantedQ.copy(baseQ);
-     leg.swingFrom.copy(actor.localToWorld(new T.Vector3(leg.contactX, 0, leg.centerZ - this.travel / 2)));
+     leg.swingFrom.copy(actor.localToWorld(new T.Vector3(leg.contactX, 0, leg.centerZ))).addScaledVector(travelAxis,-this.travel/2);
      leg.swingFrom.y = leg.groundY;
      leg.swingFrom.addScaledVector(this.rootVelocity, -u * swingDuration);
     } else if (wasStance) {
@@ -185,7 +198,8 @@ export class RunGait {
     const horizontal = (target.x - hip.x) ** 2 + (target.z - hip.z) ** 2;
     // A loaded foot may be nearly extended during a hard turn. Build the
     // swing's flexion reserve after toe-off instead of lifting it in one frame.
-    const reserve=turningEntry?T.MathUtils.lerp(.025,.10,smooth((phase-duty)/(1-duty),0,.18)):.10;
+    const swing=(phase-duty)/(1-duty);
+    const reserve=turningEntry?.025+.075*smooth(swing,0,.18)*(1-recoil*smooth(swing,.78,1)):.10;
     const reach = leg.upperLength + leg.lowerLength - reserve;
     const lowest = hip.y - Math.sqrt(Math.max(.05, reach * reach - horizontal));
     if (target.y < lowest) {
