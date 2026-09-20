@@ -7,15 +7,22 @@ for(const fps of [30,60,144])for(const start of [{x:0,z:19,heading:Math.PI,speed
   assert.ok(p.jeepYaw>=last.jeepYaw&&p.jeepYaw<=Math.PI*2,'Spin proceeds forward exactly once');
   assert.ok(Math.hypot(p.x-last.x,p.z-last.z)<24/fps,'Rex never teleports');
   if(t>=DEFEAT.spinEnd){assert.equal(p.jeepYaw,Math.PI*2);assert.equal(p.speed,0);}
-  if(t>=DEFEAT.walkAt&&t<DEFEAT.lookAt)assert.ok(Math.hypot(p.x-last.x,p.z-last.z)*fps<3.5,'Final approach is a walking pace');
+  if(t>=DEFEAT.walkAt&&t<DEFEAT.lookAt){
+   const dx=p.x-last.x,dz=p.z-last.z,speed=Math.hypot(dx,dz)*fps;
+   assert.ok(speed<3.5,'Final approach is a walking pace');
+   if(speed>.05)assert.ok((dx*Math.sin(p.heading)+dz*Math.cos(p.heading))/Math.hypot(dx,dz)>.995,'Body faces the curved walking path instead of crossing sideways over planted feet');
+  }
   if(t<DEFEAT.openAt)assert.equal(p.jaw,0,'She approaches and looks with her jaw relaxed');
-  if(t>=DEFEAT.lookAt&&t<DEFEAT.openAt){assert.equal(p.x,-1.4500000000000002);assert.equal(p.z,9.9);}
+  if(t>=DEFEAT.lookAt&&t<DEFEAT.openAt){assert.ok(Math.abs(p.x+1.45)<1e-9);assert.equal(p.z,9.9);}
   if(p.jaw>.85)wideJawTime+=1/fps;
   if(t>=DEFEAT.lungeAt&&t<DEFEAT.contact)peakLungeSpeed=Math.max(peakLungeSpeed,(last.z-p.z)*fps);
   if(t<DEFEAT.contact-.045)assert.equal(p.blood,0);
+  if(t>=DEFEAT.contact+.42)assert.equal(p.blood,0,'Impact red clears so the throat remains visible');
+  assert.ok(p.swallow>=last.swallow&&p.swallow<=1,'Swallow moves forward continuously');
+  if(t<DEFEAT.bellyAt-.15)assert.equal(p.black,0,'Darkness follows the interior slide');
   if(t>=DEFEAT.black)assert.equal(p.black,1);last=p;
  }
  assert.ok(wideJawTime<.55,'The mouth is held wide for less than half a second');assert.ok(peakLungeSpeed>10,'The gulp is a distinct fast lunge');assert.ok(defeatPose(DEFEAT.lungeAt,start).rear>.95,'The head draws back before lunging');
 }
 assert.ok(DEFEAT.ram<DEFEAT.spinEnd&&DEFEAT.spinEnd<DEFEAT.walkAt&&DEFEAT.walkAt<DEFEAT.contact&&DEFEAT.black<DEFEAT.duration);
-console.log('Defeat timeline passed at 30/60/144 Hz: continuous ram/spin, walking approach, closed-jaw stare, brief gape, head-back windup, fast gulp and held blackout.');
+console.log('Defeat timeline passed at 30/60/144 Hz: ram/spin, path-aligned walking, stare, brief gape, windup/gulp, clearing impact flash, throat slide and held blackout.');

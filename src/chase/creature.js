@@ -8,7 +8,7 @@ import {finishTongue} from '../creature-materials.js';
 import {openingPose} from './opening.js';
 import {AMBUSH,ambushPose} from './ambush.js';
 import {RULES} from './combat.js';
-import {defeatPose} from './defeat.js';
+import {DEFEAT,defeatPose} from './defeat.js';
 import {createGaze} from './gaze.js';
 const X=new T.Vector3(1,0,0),Y=new T.Vector3(0,1,0),Z=new T.Vector3(0,0,1);
 export async function createRex(scene,onProgress){
@@ -48,7 +48,7 @@ export async function createRex(scene,onProgress){
    gait.rootVelocity.set((lane-prior.x)/dt,0,(distance-prior.z)/dt);
    gait.speed=Math.hypot(gait.rootVelocity.x,roadSpeed-gait.rootVelocity.z);
   }
-  const motion=gait.advance(dt,new T.Vector3(lane,0,distance),roadSpeed,run);
+  const motion=gait.advance(dt,new T.Vector3(lane,0,distance),roadSpeed,run,!!fatal&&state.defeat.time>=DEFEAT.walkAt);
   const stride=motion.cycle,heading=scripted?scripted.heading+Math.sin(time*.73)*.027*settle:Math.PI+Math.sin(time*.73)*.027;
   actor.visible=scripted?scripted.visible!==false:true;
   actor.position.set(lane+motion.sway,motion.height,distance);actor.rotation.set(0,heading,motion.roll);

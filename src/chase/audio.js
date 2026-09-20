@@ -52,6 +52,16 @@ export class ChaseAudio {
   const s=c.createBufferSource(),f=c.createBiquadFilter(),g=c.createGain();s.buffer=this.noise;s.loop=true;f.type='bandpass';f.frequency.setValueAtTime(1050,t);f.frequency.exponentialRampToValueAtTime(340,t+2.8);f.Q.value=.7;g.gain.setValueAtTime(2.3,t);g.gain.exponentialRampToValueAtTime(.001,t+2.9);s.connect(f);f.connect(g);g.connect(this.master);s.start();s.stop(t+3);s.onended=()=>{s.disconnect();f.disconnect();g.disconnect();};
   for(const hz of [390,630,970]){const o=c.createOscillator(),gain=c.createGain();o.type='triangle';o.frequency.setValueAtTime(hz,t);o.frequency.exponentialRampToValueAtTime(hz*.65,t+.3);gain.gain.setValueAtTime(.12,t);gain.gain.exponentialRampToValueAtTime(.001,t+.5);o.connect(gain);gain.connect(this.master);o.start();o.stop(t+.52);o.onended=()=>{o.disconnect();gain.disconnect();};}
  }
+ swallow(){
+  if(!this.context)return;const c=this.context,t=c.currentTime;
+  // Low, enclosed movement takes over as the jaws shut out the jungle.
+  const s=c.createBufferSource(),f=c.createBiquadFilter(),g=c.createGain();s.buffer=this.noise;s.loop=true;
+  f.type='lowpass';f.frequency.setValueAtTime(540,t);f.frequency.exponentialRampToValueAtTime(70,t+2.4);f.Q.value=1.1;
+  g.gain.setValueAtTime(.001,t);g.gain.linearRampToValueAtTime(1.05,t+.18);g.gain.exponentialRampToValueAtTime(.001,t+2.5);
+  s.connect(f);f.connect(g);g.connect(this.master);s.start();s.stop(t+2.55);this.active.push(s);
+  s.onended=()=>{this.active=this.active.filter(x=>x!==s);s.disconnect();f.disconnect();g.disconnect();};
+  this.groundImpact(.45);
+ }
  update(speed,dt=0,playing=false,allowAmbience=true){
   if(!this.context)return;const t=this.context.currentTime;this.engineGain.gain.setTargetAtTime(playing?.035+speed*.0075:0,t,.2);this.windGain.gain.setTargetAtTime(playing?Math.min(.6,speed*.055):0,t,.2);this.engine.frequency.setTargetAtTime(36+speed*1.5,t,.25);this.ambienceGain.gain.setTargetAtTime(playing?.085:0,t,.4);
   if(playing&&allowAmbience){this.ambientWait-=dt;if(this.ambientWait<=0&&!this.voice){const calls=[11,30,12,31,14],n=calls[this.ambientIndex++%calls.length];this.play(n,n>=30?.10:.08,.94,{vocal:false,pan:this.ambientIndex%2?-.72:.68});this.ambientWait=12+(this.ambientIndex%3)*4;}}

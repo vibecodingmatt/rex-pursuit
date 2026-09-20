@@ -1,5 +1,5 @@
 // One clock drives the collision, vehicle, camera, weapon and final bite.
-export const DEFEAT={ram:1.65,spinEnd:4.65,walkAt:5,lookAt:8.55,openAt:8.90,lungeAt:9.22,biteSound:9.10,contact:9.56,black:10.50,duration:11.05};
+export const DEFEAT={ram:1.65,spinEnd:4.65,walkAt:5,lookAt:8.55,openAt:8.90,lungeAt:9.22,biteSound:9.10,contact:9.56,swallowAt:9.46,bellyAt:11.65,black:12.45,duration:13.0};
 const clamp=x=>Math.max(0,Math.min(1,x));
 const ease=(x,a,b)=>{const u=clamp((x-a)/(b-a));return u*u*(3-2*u);};
 const mix=(a,b,u)=>a+(b-a)*u;
@@ -15,12 +15,17 @@ export function defeatPose(t,start){
   heading=angle(running,Math.PI+1.05,ease(t,.85,DEFEAT.ram));
  }else if(t<DEFEAT.walkAt){
   // Follow through beside the spinning Jeep, then turn to face it.
-  const follow=ease(t,DEFEAT.ram,DEFEAT.spinEnd);x=mix(6.2,6.5,follow);z=mix(4.4,12,follow);
-  heading=angle(Math.PI+1.05,Math.PI+.88,follow);
+  const follow=ease(t,DEFEAT.ram,DEFEAT.spinEnd);x=mix(6.2,1,follow);z=mix(4.4,16.5,follow);
+  heading=angle(Math.PI+1.05,Math.PI+Math.atan2(1,1.8),follow);
  }else{
   // Approach with a relaxed jaw, stop to look, then push off into one gulp.
-  const walk=ease(t,DEFEAT.walkAt,DEFEAT.lookAt);x=mix(6.5,-1.45,walk);z=mix(12,9.9,walk);
-  heading=angle(Math.PI+.88,Math.PI,ease(t,DEFEAT.walkAt,DEFEAT.lookAt-.1));
+  // Follow a curved path, facing its tangent. Translating sideways while
+  // facing the Jeep dragged the planted legs across the pelvis.
+  const u=ease(t,DEFEAT.walkAt,DEFEAT.lookAt),v=1-u;
+  x=v*v*v+3*v*u*u*-1.45+u*u*u*-1.45;
+  z=v*v*v*16.5+3*v*v*u*14.7+3*v*u*u*12.1+u*u*u*9.9;
+  const dx=3*v*v*-1+6*v*u*-1.45,dz=3*v*v*-1.8+6*v*u*-2.6+3*u*u*-2.2;
+  heading=Math.PI+Math.atan2(-dx,-dz);
  }
  const look=ease(t,DEFEAT.lookAt-.45,DEFEAT.lookAt),lunge=ease(t,DEFEAT.lungeAt,9.55);
  const rear=ease(t,DEFEAT.openAt+.10,DEFEAT.lungeAt)*(1-ease(t,DEFEAT.lungeAt,9.46)),close=ease(t,9.45,9.69);
@@ -31,6 +36,7 @@ export function defeatPose(t,start){
   speed:(start.speed??10)*(1-ease(t,DEFEAT.ram,DEFEAT.spinEnd)),
   jeepX,jeepZ,jeepYaw:Math.PI*2*spin,
   jeepRoll:-.12*kick+Math.sin(after*12)*.035*Math.exp(-after*1.7)*ease(t,DEFEAT.ram,DEFEAT.ram+.1),jeepPitch:.07*kick,
-  blood:ease(t,DEFEAT.contact-.045,DEFEAT.contact+.035),black:ease(t,DEFEAT.contact+.28,DEFEAT.black),
+  blood:.42*ease(t,DEFEAT.contact-.045,DEFEAT.contact+.035)*(1-ease(t,DEFEAT.contact+.08,DEFEAT.contact+.42)),
+  swallow:ease(t,DEFEAT.swallowAt,DEFEAT.bellyAt),black:ease(t,DEFEAT.bellyAt-.15,DEFEAT.black),
  };
 }

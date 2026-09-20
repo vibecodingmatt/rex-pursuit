@@ -66,7 +66,7 @@ export class RunGait {
   for (const leg of this.legs) leg.initialized = false;
  }
 
- advance(dt, position, roadSpeed = 10, strength = 1) {
+ advance(dt, position, roadSpeed = 10, strength = 1, approach = false) {
   const velocity = new T.Vector3();
   if(!this.lastPosition)this.speed=Math.max(0,roadSpeed);
   if (this.lastPosition && dt > 0) {
@@ -82,11 +82,13 @@ export class RunGait {
   this.groundVelocity.set(0, 0, Math.max(0, roadSpeed));
   const speed = clamp(Math.hypot(roadSpeed-this.rootVelocity.z,this.rootVelocity.x),0,17);
   this.speed = T.MathUtils.damp(this.speed, speed, 7, dt);
-  this.frequency = (.34 + this.speed * .063)*smooth(this.speed,.02,.45);
+  this.frequency = ((approach?.42:.34) + this.speed * .063)*smooth(this.speed,.02,.45);
   this.runBlend = smooth(this.speed,3.4,6.5);
   // Keep a little reach in reserve for the pelvis accelerating over a planted foot.
   const reach=2.90+.23*smooth(this.speed,2.2,10)-.18*smooth(this.speed,10,15.3);
-  this.stanceFraction = clamp(reach*this.frequency/Math.max(.01,this.speed),.25,.68);
+  // The final approach accelerates from rest. Transfer weight a little sooner
+  // so the pelvis cannot outrun a long, low-speed plant and lock the knee.
+  this.stanceFraction = clamp(reach*this.frequency/Math.max(.01,this.speed),.25,approach?.55:.68);
   this.travel = this.frequency>0?this.speed*this.stanceFraction/this.frequency:0;
   this.strideLength = this.frequency>0?this.speed/this.frequency:0;
   this.phase = (this.phase + dt * this.frequency * strength) % 1;
