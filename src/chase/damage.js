@@ -73,8 +73,15 @@ export class ImpactDamage {
     diffuseColor.rgb=mix(diffuseColor.rgb,diffuseColor.rgb*.19+vec3(.014,.011,.008),soot);
     diffuseColor.rgb=mix(diffuseColor.rgb,diffuseColor.rgb*.18+vec3(.105,.013,.008),blood*.86);
     diffuseColor.rgb=mix(diffuseColor.rgb,vec3(.019,.004,.003),pit*.91);
-   `).replace('#include <roughnessmap_fragment>','#include <roughnessmap_fragment>\nroughnessFactor=mix(roughnessFactor,.46,blood*.68); roughnessFactor=mix(roughnessFactor,.31,pit*.6);');
-  };material.customProgramCacheKey=()=> 'persistent-ballistic-wear-5';material.needsUpdate=true;
+   `).replace('#include <roughnessmap_fragment>',`#include <roughnessmap_fragment>
+    // Preserve the scale-to-scale map variation within a dry, leathery range.
+    // Multiplying the source map by .72 made the clean hide look wet up close.
+    roughnessFactor=mix(.48,.86,clamp(roughnessFactor,0.,1.));
+    roughnessFactor=mix(roughnessFactor,.96,soot*.65);
+    roughnessFactor=mix(roughnessFactor,.55,blood*.65);
+    roughnessFactor=mix(roughnessFactor,.49,pit*.45);
+   `);
+  };material.customProgramCacheKey=()=> 'persistent-ballistic-wear-6';material.needsUpdate=true;
  }
  restPoint(hit){
   const mesh=hit.object,face=hit.face;if(!face)return null;

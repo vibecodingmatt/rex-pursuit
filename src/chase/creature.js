@@ -16,7 +16,7 @@ export async function createRex(scene,onProgress){
  const gltf=await loader.loadAsync('./models/rex-hero.glb',onProgress);draco.dispose();
  const actor=new T.Group();actor.rotation.y=Math.PI;actor.position.z=24;scene.add(actor);actor.add(gltf.scene);
  const bones=[],meshes=[],rest=new Map(),damage=new ImpactDamage();let skin;
- gltf.scene.traverse(o=>{if(o.isBone){bones.push(o);rest.set(o,{p:o.position.clone(),q:o.quaternion.clone(),s:o.scale.clone()});}if(o.isMesh){meshes.push(o);o.castShadow=true;o.receiveShadow=true;o.frustumCulled=false;o.material.envMapIntensity=.45;if(o.name==='Rex_Skin'){skin=o;o.material.roughness=.72;damage.install(o.material);}if(o.material.name==='GlassMat'){o.material.transparent=true;o.material.opacity=.26;}}});
+ gltf.scene.traverse(o=>{if(o.isBone){bones.push(o);rest.set(o,{p:o.position.clone(),q:o.quaternion.clone(),s:o.scale.clone()});}if(o.isMesh){meshes.push(o);o.castShadow=true;o.receiveShadow=true;o.frustumCulled=false;o.material.envMapIntensity=.45;if(o.name==='Rex_Skin'){skin=o;o.material.roughness=1;o.material.envMapIntensity=.3;damage.install(o.material);}if(o.material.name==='GlassMat'){o.material.transparent=true;o.material.opacity=.26;}}});
  meshes.forEach(finishTongue);
  damage.prepareStages(skin);
  const find=prefix=>bones.find(b=>b.name.startsWith(prefix));const q=new T.Quaternion();

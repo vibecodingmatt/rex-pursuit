@@ -69,6 +69,7 @@ Tuning values live in `src/chase/combat.js`. Pause freezes the fight, target and
 
 ## This iteration
 
+- Leathery skin finish: the chase remaps the authored roughness texture into a softer highlight range and lowers reflections on the hide. Scale normals remain intact; powder burns stay dry, wounds retain restrained moisture, and the eye and mouth materials keep their existing finish.
 - Stopped-Jeep opening: the camera turns toward the right-hand jungle, the Rex breaks through falling saplings with flying leaves, splinters and dust, turns onto the road and roars. The Jeep accelerates into the chase while her stride follows travel speed. At rest, her feet settle beneath her instead of retaining the last sideways step.
 - Interactive attack cinematics in both camera modes, randomized face/body targets, incoming breakable wood, rising pressure, attack feedback and the 90-second escape deadline. A failed challenge leads into the existing bite/ram animation. Touch reload/fire controls sit on opposite sides to keep the center clear for the additional targets.
 - The supplied named sound catalog now populates the sound library and runtime. Roar jaw motion follows the decoded clip's amplitude envelope and actual audio playback clock, including playback-rate changes and pause/resume. Only one Rex vocal plays at a time. Real footfalls, bite and pain clips accompany actions, with quiet distant raptor/brachiosaur calls between attacks.
