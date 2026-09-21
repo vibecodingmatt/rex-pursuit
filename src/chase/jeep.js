@@ -1,8 +1,9 @@
 import * as T from 'three';
-import {box,cylinder as cyl,tube,sphere,mergeStatic} from './vehicle-geometry.js';
+import {box,cylinder as cyl,tube,mergeStatic} from './vehicle-geometry.js';
 import {addParkLivery} from './park-livery.js';
 import {createMountedGun} from './mounted-gun.js';
 import {createParkDriver} from './park-driver.js';
+import {createPlayerCharacter} from './player-character.js';
 import {defeatPose} from './defeat.js';
 import {victoryPose} from './victory.js';
 export function createJeep(scene){
@@ -41,22 +42,20 @@ export function createJeep(scene){
  for(const x of [-1,1])for(const z of [-1.16,1.16])wheels.push(wheel(jeep,x,.49,z));wheel(body,0,1.17,1.98,true);
  const mats={paint,accent,edge,black,rubber,steel,fabric,glass};addParkLivery(body,mats);
  const driver=createParkDriver(body,mats);
- const weapon=createMountedGun(body,scene,mats),{gun,yaw,muzzle,flash}=weapon;
- // A clothed gunner gives the external camera a clear human scale.
- const gunner=new T.Group();body.add(gunner);box(gunner,fabric,[.45,.58,.26],[0,1.75,-.21]);box(gunner,black,[.43,.39,.12],[0,1.78,-.04]);sphere(gunner,new T.MeshStandardMaterial({color:0x96775a,roughness:.9}),.16,[0,2.19,-.17],[.83,1.15,.85]);sphere(gunner,paint,.19,[0,2.28,-.17],[1,.75,1]);for(const s of [-1,1]){tube(gunner,fabric,[s*.16,1.48,-.2],[s*.22,.93,-.07],.095);box(gunner,black,[.14,.12,.26],[s*.22,.85,.01]);}
- gunner.position.z=.88;
- mergeStatic(body);mergeStatic(gunner);
- function reset(){jeep.position.set(0,0,0);jeep.rotation.set(0,0,0);body.position.set(0,0,0);body.rotation.set(0,0,0);weapon.reset();}
+ const character=createPlayerCharacter(body),gunner=character.root;
+ const weapon=createMountedGun(body,scene,mats,character),{gun,yaw,muzzle,flash}=weapon;
+ mergeStatic(body);
+ function reset(){jeep.position.set(0,0,0);jeep.rotation.set(0,0,0);body.position.set(0,0,0);body.rotation.set(0,0,0);weapon.reset();character.reset();}
  function pose(time,speed,state){
   const fatal=state.result==='lost'&&state.defeat?defeatPose(state.defeat.time,state.defeat):null;
   const arrival=state.result==='won'&&state.victory?victoryPose(state.victory.time,state.distance):null,travel=arrival||fatal;
   jeep.position.set(travel?.jeepX||0,0,travel?.jeepZ||0);jeep.rotation.set(0,travel?.jeepYaw||0,0);
   const bounce=Math.min(1,speed/5);body.position.y=(Math.sin(time*18)*.013+Math.sin(time*29)*.007)*bounce;body.rotation.z=Math.sin(time*7)*.006*bounce+(fatal?.jeepRoll||0);body.rotation.x=Math.sin(time*11)*.004*bounce+(fatal?.jeepPitch||0);jeep.updateMatrixWorld(true);
  }
- return{root:jeep,body,muzzle,gun,yaw,gunner,driver,flash,weapon,pose,shoot:weapon.shoot,reset,update(dt,time,speed,aim,third,state){
+ return{root:jeep,body,muzzle,gun,yaw,gunner,character,driver,flash,weapon,pose,shoot:weapon.shoot,reset,update(dt,time,speed,aim,third,state){
   rearCrossbar.visible=third;
   pose(time,speed,state);
   for(const w of wheels)w.rotation.x+=speed*dt/.43;
-  gunner.visible=third;driver.update(dt,time,speed,third);weapon.update(dt,time,speed,aim,third,state);
+  gunner.visible=third;driver.update(dt,time,speed,third);character.pose(time,speed,yaw.rotation.y,state);weapon.update(dt,time,speed,aim,third,state);if(third)character.fitArms(weapon.armRig);
  }};
 }

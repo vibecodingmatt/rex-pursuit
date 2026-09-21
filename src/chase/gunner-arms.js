@@ -10,12 +10,13 @@ const path=[
 ];
 function handPath(p){for(let i=1;i<path.length;i++)if(p<=path[i][0]){const a=path[i-1],b=path[i];return new T.Vector3(...a.slice(1)).lerp(new T.Vector3(...b.slice(1)),smooth(p,a[0],b[0]));}return new T.Vector3(...path.at(-1).slice(1));}
 
-export function createGunnerArms(gun,body,mats){
+export function createGunnerArms(gun,body,mats,character){
  const root=new T.Group();gun.add(root);
  const glove=new T.MeshStandardMaterial({color:0x665f4c,roughness:.95,map:mats.fabric.map});
  const palm=new T.MeshStandardMaterial({color:0x363c31,roughness:.92});
  const seam=new T.MeshStandardMaterial({color:0x8c8570,roughness:1});
- const sleeve=new T.MeshStandardMaterial({color:0x4b5441,roughness:1,map:mats.paint.map,bumpMap:mats.paint.bumpMap,bumpScale:.0007});
+ const sleeve=character?.materials.shirt||new T.MeshStandardMaterial({color:0x4b5441,roughness:1,map:mats.paint.map,bumpMap:mats.paint.bumpMap,bumpScale:.0007});
+ const forearm=character?.materials.skin||sleeve;
  function limb(radius,mat){
   const geometry=new T.CylinderGeometry(radius*.78,radius,1,16,16),p=geometry.attributes.position;
   if(mat===sleeve)for(let i=0;i<p.count;i++){const y=p.getY(i),angle=Math.atan2(p.getZ(i),p.getX(i)),fold=1+.035*Math.sin((y+.5)*Math.PI*9+angle*.4)+.018*Math.sin(angle*5);p.setX(i,p.getX(i)*fold);p.setZ(i,p.getZ(i)*fold);}geometry.computeVertexNormals();
@@ -46,7 +47,7 @@ export function createGunnerArms(gun,body,mats){
   mergeStatic(thumb);mergeStatic(thumbTip);mergeStatic(hand);
   return{hand,fingers,thumb,thumbTip};
  }
- const arms=[1,-1].map(s=>({s,...makeHand(s),upper:limb(.078,sleeve),fore:limb(.065,sleeve),cuff:limb(.055,palm),elbow:sphere(root,sleeve,.068,[0,0,0]),shoulder:new T.Vector3(),wrist:new T.Vector3(),bend:new T.Vector3(),upperLength:.37,foreLength:.35,contact:'grip'}));
+ const arms=[1,-1].map(s=>({s,...makeHand(s),upper:limb(.078,sleeve),bicep:limb(.054,forearm),fore:limb(.049,forearm),roll:limb(.074,sleeve),cuff:limb(.055,palm),elbow:sphere(root,forearm,.052,[0,0,0]),shoulder:new T.Vector3(),wrist:new T.Vector3(),bend:new T.Vector3(),upperLength:.37,foreLength:.35,contact:'grip'}));
  function segment(mesh,a,b){const d=b.clone().sub(a);mesh.position.copy(a).add(b).multiplyScalar(.5);mesh.scale.y=d.length();mesh.quaternion.setFromUnitVectors(UP,d.normalize());}
  function solve(arm,shoulder,wrist){
   const delta=wrist.clone().sub(shoulder),length=delta.length(),dir=delta.normalize(),reach=arm.upperLength+arm.foreLength-.006;
@@ -55,7 +56,7 @@ export function createGunnerArms(gun,body,mats){
   const d=Math.max(.06,wrist.distanceTo(shoulder)),along=(arm.upperLength**2-arm.foreLength**2+d*d)/(2*d),height=Math.sqrt(Math.max(0,arm.upperLength**2-along*along));
   const pole=new T.Vector3(arm.s*.7,-.65,-.25);pole.addScaledVector(dir,-pole.dot(dir)).normalize();
   const elbow=shoulder.clone().addScaledVector(dir,along).addScaledVector(pole,height);
-  segment(arm.upper,shoulder,elbow);segment(arm.fore,elbow,wrist);segment(arm.cuff,wrist.clone().lerp(elbow,.16),wrist);arm.elbow.position.copy(elbow);
+  const sleeveEnd=shoulder.clone().lerp(elbow,.86);segment(arm.upper,shoulder,sleeveEnd);segment(arm.roll,shoulder.clone().lerp(elbow,.76),sleeveEnd);segment(arm.bicep,sleeveEnd,elbow);segment(arm.fore,elbow,wrist);segment(arm.cuff,wrist.clone().lerp(elbow,.16),wrist);arm.elbow.position.copy(elbow);
   arm.shoulder.copy(shoulder);arm.wrist.copy(wrist);arm.bend.copy(elbow);
  }
  function update(p,reloading,third,cover,can,charging,recoil=0){
@@ -74,7 +75,7 @@ export function createGunnerArms(gun,body,mats){
    a.thumb.rotation.x=.45+curl*.52;a.thumb.rotation.y=-a.s*(.25+curl*.36);a.thumbTip.rotation.x=curl*.78;
    const lean=reloading?pulse(p,.02,.16,.84,1):0;
    let shoulder=new T.Vector3(a.s*.34,-.30,-.79+lean*.20);
-   if(third){shoulder.set(a.s*.225,1.97,.72+lean*.16);body.localToWorld(shoulder);gun.worldToLocal(shoulder);}
+   if(third){if(character)character.shoulder(a.s,shoulder);else{shoulder.set(a.s*.225,1.97,.72+lean*.16);body.localToWorld(shoulder);}gun.worldToLocal(shoulder);}
    const wrist=new T.Vector3(0,-.059,0).applyQuaternion(orientation).add(target);solve(a,shoulder,wrist);
   }
  }

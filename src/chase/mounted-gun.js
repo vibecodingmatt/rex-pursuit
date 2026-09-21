@@ -10,7 +10,7 @@ const pulse=(x,a,b,c,d)=>smooth(x,a,b)*(1-smooth(x,c,d));
 
 // The belt and the two ejecta streams are driven by accepted game shots.
 // No time-based scrolling: releasing the trigger leaves the belt in its new position.
-export function createMountedGun(body,scene,mats){
+export function createMountedGun(body,scene,mats,character){
  const {black,steel}=mats;
  const finish=new T.MeshStandardMaterial({color:0x202724,metalness:.52,roughness:.59,map:steel.map,bumpMap:steel.bumpMap,bumpScale:.001});
  const worn=new T.MeshStandardMaterial({color:0x525950,metalness:.7,roughness:.47});
@@ -97,7 +97,7 @@ export function createMountedGun(body,scene,mats){
  function eject(stream,port,isCase){const p=stream.items[stream.cursor++%stream.items.length];port.getWorldPosition(p.p);port.getWorldQuaternion(p.q);p.v.set(isCase?-.65-random()*.6:-1.2-random()*.7,isCase?-.55: .35+random()*.4,random()*.6-.3).applyQuaternion(p.q);p.spin.set((random()-.5)*20,(random()-.5)*25,(random()-.5)*15);p.age=0;p.bounces=0;stats[isCase?'cases':'links']++;}
  function updatePool(stream,dt){for(let i=0;i<stream.items.length;i++){const p=stream.items[i];if(p.age<0){for(const m of stream.meshes)m.setMatrixAt(i,hidden);continue;}p.age+=dt;if(p.age>2.4){p.age=-1;for(const m of stream.meshes)m.setMatrixAt(i,hidden);continue;}p.v.y-=9.81*dt;p.v.z+=dt*2.6;p.p.addScaledVector(p.v,dt);const inTub=Math.abs(p.p.x)<.82&&p.p.z>-.02&&p.p.z<1.76;const floor=inTub?.91:.025;if(p.p.y<floor&&p.v.y<0){p.p.y=floor;p.v.y*=-.24;p.v.x*=.7;p.v.z*=.65;p.spin.multiplyScalar(.55);p.bounces++;}dummy.position.copy(p.p);dummy.quaternion.copy(p.q);dummy.rotateX(p.spin.x*dt);dummy.rotateY(p.spin.y*dt);dummy.rotateZ(p.spin.z*dt);p.q.copy(dummy.quaternion);dummy.scale.setScalar(1);dummy.updateMatrix();for(const m of stream.meshes)m.setMatrixAt(i,dummy.matrix);}for(const m of stream.meshes)m.instanceMatrix.needsUpdate=true;}
 
- const armRig=createGunnerArms(gun,body,mats),hands=armRig.root;
+ const armRig=createGunnerArms(gun,body,mats,character),hands=armRig.root;
  const muzzle=new T.Object3D();muzzle.position.set(0,.008,2.025);barrel.add(muzzle);
  const flash=new T.Group();muzzle.add(flash);const glow=new T.MeshBasicMaterial({color:0xffce76,transparent:true,opacity:.72,blending:T.AdditiveBlending,depthWrite:false});
  for(let i=0;i<3;i++){const m=new T.Mesh(new T.ConeGeometry(.095,.43,5),glow);m.rotation.x=Math.PI/2;m.rotation.z=i*2.1;m.position.z=.15;flash.add(m);}flash.visible=false;
@@ -135,8 +135,9 @@ export function createMountedGun(body,scene,mats){
   receiver.position.z=-kick*.033;barrel.position.z=-kick*.017;
   flash.visible=shotAge<.027;light.intensity=flash.visible?3.7:0;
   const local=body.worldToLocal(aim.clone()).sub(yaw.position);
-  yaw.rotation.y=T.MathUtils.damp(yaw.rotation.y,T.MathUtils.clamp(Math.atan2(local.x,local.z),-.68,.68),15,dt);
-  const pitch=-Math.atan2(local.y,Math.hypot(local.x,local.z));gun.rotation.x=T.MathUtils.damp(gun.rotation.x,T.MathUtils.clamp(pitch,-.42,.32)+(reloading?.10:0),14,dt);
+  const reloadCenter=third&&reloading?pulse(p,0,.12,.86,1):0;
+  yaw.rotation.y=T.MathUtils.damp(yaw.rotation.y,T.MathUtils.clamp(Math.atan2(local.x,local.z),-.68,.68)*(1-reloadCenter),15,dt);
+  const pitch=-Math.atan2(local.y,Math.hypot(local.x,local.z));gun.rotation.x=T.MathUtils.damp(gun.rotation.x,(T.MathUtils.clamp(pitch,-.42,.32)+(reloading?.10:0))*(1-reloadCenter),14,dt);
   gun.updateWorldMatrix(true,true);
   for(let i=pending.length-1;i>=0;i--){pending[i]-=dt;if(pending[i]<=0){eject(cases,casePort,true);eject(links,linkPort,false);pending.splice(i,1);}}
   const visibleAmmo=reloading&&p>.60?RULES.magazine:(state.ammo??RULES.magazine);

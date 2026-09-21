@@ -20,6 +20,7 @@
                     "test:gait":  "node scripts/verify-gait.cjs",
                     "test:motion":  "node scripts/verify-motion.cjs",
                     "test:vehicle":  "node scripts/verify-vehicle.cjs",
+                    "test:gunner": "node scripts/verify-gunner.cjs",
                     "test:arcade":  "node scripts/verify-arcade.cjs",
                     "test:pressure":  "node scripts/verify-pressure.cjs",
                     "test:cinematic": "node scripts/test-ambush.mjs && node scripts/verify-cinematic.cjs",

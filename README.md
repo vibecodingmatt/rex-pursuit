@@ -127,6 +127,7 @@ npm test
 npm run test:gait
 npm run test:motion
 npm run test:vehicle
+npm run test:gunner
 npm run test:arcade
 npm run test:pressure
 npm run test:cinematic
@@ -148,6 +149,8 @@ The pressure check shoots all 12 anchors in both cameras and phone/landscape vie
 The cinematic check covers the physical branch contact and full projectile window; both midpoint triggers and deferred objectives; paused fight time with continued reload; continuous travel through the concealed route; close return and roar/jaw synchronization; knee/hip continuity at 30/60/144 Hz; persistent wound-atlas overflow; damage-stage closeups; both camera views and phone framing; and clean restart. Captures and the report use the `art/review/cinematic-*` prefix. The treeline check renders a diagnostic silhouette with and without surrounding scenery to measure actual foliage occlusion from both camera views. The defeat check exercises all four loss causes, forced first person, view/fire lockout, gun detachment, exactly one vehicle revolution, a stopped Jeep before the walking approach, a closed-jaw stare, a brief gape, visible head-back motion, a fast gulping lunge, jaw framing, a clearing red flash, the throat slide, full blackout, pause during the spin/interior and full reset. A separate rig check covers the braking steps before the walk as well as the curved approach at 30/60/144 Hz, with varied starting strides and timeout speeds. It checks foot/knee separation, leg reach, low foot clearance and continuous recovery motion. Recoil steps follow actual travel relative to the road, taper smoothly into contact, and settle before a fresh walking cycle starts. Pure timeline checks run at 30/60/144 Hz; browser captures include phone and landscape framing.
 
 The vehicle check verifies shot/feed/ejection counts at 30/60/144 fps, empty-belt and reload presentation, rejected shots, case expiry, finite transforms and reset. Reload checks verify fixed upper-arm/forearm lengths and contact with the moving cover, can and charging handle in both views. The driver and wheel stay in the left seat, hands remain on the animated rim, and driver visibility follows the camera. The gait check includes six seconds of menu walking at each frame rate, requiring continuous ground support, a slower cadence, broad leg sweep and alternating contacts. These checks save first-person, third-person, driver-detail, walk/run and reload-stage captures in `art/review/`.
+
+The rear player is a field palaeontologist inspired by [Alan Grant's 1993 outfit](https://bamfstyle.com/2019/09/14/jurassic-park-alan-grant/), with a blue work shirt, red neckerchief, woven hat, khaki trousers and boots. Its face, clothing and textures are original procedural geometry/materials in `player-character.js`. The braced stance clears the Jeep cage, and the torso follows the exterior reload. `test:gunner` checks head/hat clearance, shoulder reach, camera visibility, winning arrival and phone framing.
 
 ## Attribution
 

@@ -1,6 +1,13 @@
 # Rex: Pursuit handoff
 
-Checkpoint: 2026-09-20. The previous deployed gameplay checkpoint was `27f9a36` (softer Rex skin highlights). This release adds the reference-guided Visitor Center victory arrival, results sharing and production navigation cleanup. The user explicitly authorized production publication after the visitor-center art pass.
+Checkpoint: 2026-09-20. `8335022` deployed the reference-guided Visitor Center victory arrival, results sharing and production navigation cleanup. The next release improves the rear player character and fixes roll-cage clipping; the user explicitly authorized publishing this character update.
+
+## Rear player character
+
+- `src/chase/player-character.js` replaces the old box torso and featureless head with an Alan Grant-inspired field palaeontologist: blue woven work shirt, pockets/collar/stitching, red patterned neckerchief, khaki trousers, belt pouch, boots, sculpted face, eyes, continuous hair surface and a woven pinched-crown hat. Geometry and textures are authored procedurally; no new external model or image download is required. Costume reference: [1993 film stills and outfit study](https://bamfstyle.com/2019/09/14/jurassic-park-alan-grant/).
+- Preserve the intact Jeep cage. The player now takes a lower braced stance, with the head/hat below its crossbar and feet inside the rear tub. The head and torso track gun yaw subtly. `jeep.character` exposes the rig; `jeep.gunner` remains its root group for existing visibility checks.
+- The exterior reload centers the weapon smoothly, leans the torso toward the cover/can and returns to aim. First-person weapon aiming and the established hand-contact choreography are preserved. Both views share the blue rolled sleeves and bare forearms. Shoulder anchors come from the character rig, with small cloth bridges for IK reach; upper/forearm lengths stay fixed.
+- `test:gunner` samples aim limits and reload transitions at 30/60/144 Hz, measures actual head/hat surface clearance against the cage, limits shoulder reach, captures close-ups and third-person desktop/phone views, and checks the real winning arrival and restart. The current 298-pose sweep keeps at least 6 cm of clearance. `test:vehicle` continues to cover reload contact and weapon/driver behavior. Images/reports use ignored `art/review/gunner-*`.
 
 ## Victory arrival and results sharing
 
