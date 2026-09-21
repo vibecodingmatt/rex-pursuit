@@ -23,7 +23,7 @@ Open **http://127.0.0.1:5188**. `npm run build` produces a static `dist/` direct
 
 The `main` branch publishes through `.github/workflows/pages.yml`. CI installs the locked dependencies, checks combat/cinematic logic, builds the site, validates release assets and metadata, then deploys `dist/` to Pages. Raw audio references, Blender sources and local review captures remain outside Git.
 
-The game has static Open Graph and X large-image metadata, canonical URL, VideoGame structured data, favicon/app icons and a manifest. The 1200×630 JPEG at `public/social/rex-pursuit-v1.jpg` uses an in-game capture and is versioned so future artwork can use a fresh URL. `npm run social:render` recreates it from the local game with Chrome. Social services decide when to refresh cached previews; changing the filename and both image tags provides a new image URL.
+The game has static Open Graph and X large-image metadata, canonical URL, VideoGame structured data, favicon/app icons and a manifest. The 1200×630 JPEG at `public/social/rex-pursuit-v2.jpg` uses the approved, text-free promotional artwork. `npm run social:render` packages it from the preserved source in `art/rex-pursuit-keyart-v2.png` using Chrome, without a running game. See [art provenance](art/rex-pursuit-keyart-v2.md). Social services decide when to refresh cached previews; keep Open Graph, X and structured data on the same versioned image URL when changing artwork.
 
 Before publishing, run `npm run test:logic`, `npm run build`, `npm run test:release` and `npm run test:pages`. The last command serves only the built files under `/rex-pursuit/`, checks gameplay and all three pages, and rejects missing or incorrectly rooted assets. Set `TEST_URL` to the public URL to repeat that browser check against the live deployment. `npm run test:gaze` checks pupil tracking and saves eye closeups locally.
 
@@ -108,6 +108,7 @@ Names and roles save to this browser's local storage; export the catalog for a p
 - `public/models/rex-encounter.glb` — intermediate normalized rig and standing animation export.
 - `art/source-draco.glb` — original attributed source distribution.
 - `public/textures/jungle-branch.png` — generated transparent foliage texture.
+- `public/textures/visitor-fossil-relief-v1.png` — generated carved entrance relief; see [Visitor Center references and provenance](art/visitor-center-references.md).
 - `src/chase/` — environment, Jeep, creature, impact materials, combat, effects and audio modules.
 - `art/review/` — browser captures and verification reports.
 
@@ -131,6 +132,7 @@ npm run test:pressure
 npm run test:cinematic
 npm run test:treeline
 npm run test:defeat
+npm run test:victory
 npm run test:balance
 npm run build
 npm run test:build

@@ -4,6 +4,30 @@
 @media(max-width:800px){.masthead{left:20px;right:20px;top:20px}.wordmark{font-size:20px}.header-right{gap:10px}.header-right>span{display:none}.boss-hud{top:74px;width:calc(100% - 42px);max-width:530px}.intro-copy{left:7%;top:24%;max-width:82%}h1{font-size:65px}.menu-footer{left:20px;right:20px;font-size:8px}.menu-footer>span{display:none}.menu-footer nav{width:100%;justify-content:space-between}.intro-copy>p{font-size:12px}.start-actions{margin-top:25px}#hud-bottom{left:20px;right:20px;bottom:24px}.integrity{width:100px}.weapon{width:118px}.center-controls{position:absolute;left:50%;bottom:109px;transform:translateX(-50%);white-space:nowrap}.center-controls p{display:none}.view-switch button{font-size:8px;padding:8px 12px}.hud-label{font-size:8px;letter-spacing:1px}.ammo strong{font-size:40px}.ammo>span{font-size:9px}.integrity-row svg{width:30px}.integrity-row strong{font-size:30px}#warning{top:24%}#warning-title{font-size:23px;letter-spacing:2px}#warning-tip{font-size:8px}.start-tip{margin-top:22px}#touch-controls{bottom:192px;right:20px}#touch-fire{width:68px;height:68px}#touch-reload{padding:15px}}
 @media(max-height:570px){.intro-copy{top:23%;max-width:75%}h1{font-size:53px;margin:15px 0}.intro-copy>p,.start-tip{display:none}.start-actions{margin-top:20px}#start{padding:14px 20px}.menu-footer{bottom:15px}.boss-hud{top:22px;width:40%}.boss-label span:last-child{display:none}.masthead{top:16px}#hud-bottom{bottom:18px}.center-controls{position:static;transform:none}.center-controls p{display:none}#warning{top:23%}#touch-controls{bottom:120px;right:22px}.modal-card{padding:20px}.modal-card h2{font-size:46px;margin:15px 0}.modal-card .primary{margin:16px auto}.weapon .hud-label{display:none}}
 @media(prefers-reduced-motion:reduce){*{scroll-behavior:auto!important;transition:none!important}}
+/* Victory frames and results sharing. */
+#arrival-caption{position:fixed;z-index:6;left:0;right:0;bottom:12%;text-align:center;pointer-events:none;opacity:0;text-shadow:0 2px 18px #000,0 2px 5px #000}
+#arrival-caption span,#arrival-caption small{display:block;font-size:10px;letter-spacing:4px;color:#f0d5a0}
+#arrival-caption strong{display:block;font:500 clamp(30px,4vw,52px)/1.2 'Barlow Condensed',Impact,sans-serif;text-transform:uppercase;letter-spacing:3px;margin:9px 0}
+body[data-cinematic=victory] #cinema-bars{border-width:6vh 0}
+body[data-cinematic=victory] #boss,body[data-cinematic=victory] #hud-bottom,body[data-cinematic=victory] #reticle,body[data-cinematic=victory] #hit-marker,body[data-cinematic=victory] #hit-label{opacity:0!important;pointer-events:none}
+body[data-cinematic=victory] #mission-clock,body[data-cinematic=victory] #touch-controls,body[data-cinematic=victory] #touch-contact,body[data-cinematic=victory] #target-layer,body[data-cinematic=victory] #warning,body[data-cinematic=victory] .wordmark,body[data-cinematic=victory] .header-right>span{display:none!important}
+body[data-cinematic=victory] .masthead{justify-content:flex-end}
+body[data-cinematic=victory] #end-screen{background:#000;backdrop-filter:none}
+body[data-cinematic=victory] .end-camera{display:none}
+#end-screen{overflow-y:auto;padding:24px max(16px,env(safe-area-inset-right)) max(24px,env(safe-area-inset-bottom));align-items:safe center}
+#end-screen .modal-card{width:min(540px,100%);max-width:540px;margin:0 auto;padding:26px 12px;animation:results-in .8s ease both}
+.end-actions{display:flex;justify-content:center;gap:12px;flex-wrap:wrap;margin-top:24px}
+.modal-card .end-actions .primary,.share-button{min-width:200px;min-height:48px;margin:0;padding:16px 18px;font-size:10px;font-weight:700;letter-spacing:1.2px}
+.share-button{display:flex;align-items:center;justify-content:center;gap:10px;border:1px solid #e8be7580;background:#e8be7510;color:var(--amber)}
+.share-button:hover{background:#e8be7525}.share-button svg{width:17px;height:17px;fill:none;stroke:currentColor;stroke-width:1.5}
+.share-tools{margin:12px 0 18px}.share-tools>button{font-size:11px;color:#cdd3c0;text-decoration:underline;text-underline-offset:4px;min-height:44px;padding:8px 16px}
+#share-status{margin:0;font-size:11px;color:var(--amber)}#share-status:empty{display:none}
+#share-fallback{margin:10px auto;max-width:400px}#share-fallback label{display:block;text-align:left;font-size:10px;color:var(--muted);margin-bottom:7px}
+#share-link{width:100%;padding:12px;background:#152018;border:1px solid #e8be7580;color:#f0efdd;font:12px Arial;user-select:text;-webkit-user-select:text}
+@keyframes results-in{from{opacity:0;transform:translateY(8px)}to{opacity:1;transform:translateY(0)}}
+@media(max-width:540px){.end-actions{gap:10px}.end-actions>button{flex:1 1 100%}#end-screen .modal-card{padding:18px 6px}#arrival-caption{bottom:13%}#arrival-caption strong{font-size:34px}}
+@media(max-height:570px){#end-screen{padding-top:12px;padding-bottom:12px}#end-screen .modal-card{padding:6px 12px}#end-screen .modal-card h2{font-size:38px;margin:10px 0}#end-screen .modal-card p{margin:8px 0}#end-stats{margin-top:8px}.end-actions{margin-top:12px}.share-tools{margin:4px 0}.share-tools>button{min-height:36px}#arrival-caption{bottom:10%}#arrival-caption strong{font-size:30px;margin:4px 0}}
+@media(prefers-reduced-motion:reduce){#end-screen .modal-card{animation:none}}
 /* Arcade beats keep the playfield live: no overlay captures aiming input. */
 #cinema-bars{position:fixed;inset:0;pointer-events:none;z-index:2;border-top:0 solid #070c09;border-bottom:0 solid #070c09;transition:border-width .45s}
 body[data-cinematic=intro] #cinema-bars{border-width:25px 0}body[data-cinematic=challenge] #cinema-bars{border-width:12px 0}

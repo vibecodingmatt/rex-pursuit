@@ -4,6 +4,7 @@ import {addParkLivery} from './park-livery.js';
 import {createMountedGun} from './mounted-gun.js';
 import {createParkDriver} from './park-driver.js';
 import {defeatPose} from './defeat.js';
+import {victoryPose} from './victory.js';
 export function createJeep(scene){
  const jeep=new T.Group(),body=new T.Group();jeep.add(body);scene.add(jeep);
  const paint=new T.MeshStandardMaterial({color:0xc7b88e,metalness:.23,roughness:.58});
@@ -48,7 +49,8 @@ export function createJeep(scene){
  function reset(){jeep.position.set(0,0,0);jeep.rotation.set(0,0,0);body.position.set(0,0,0);body.rotation.set(0,0,0);weapon.reset();}
  function pose(time,speed,state){
   const fatal=state.result==='lost'&&state.defeat?defeatPose(state.defeat.time,state.defeat):null;
-  jeep.position.set(fatal?.jeepX||0,0,fatal?.jeepZ||0);jeep.rotation.set(0,fatal?.jeepYaw||0,0);
+  const arrival=state.result==='won'&&state.victory?victoryPose(state.victory.time,state.distance):null,travel=arrival||fatal;
+  jeep.position.set(travel?.jeepX||0,0,travel?.jeepZ||0);jeep.rotation.set(0,travel?.jeepYaw||0,0);
   const bounce=Math.min(1,speed/5);body.position.y=(Math.sin(time*18)*.013+Math.sin(time*29)*.007)*bounce;body.rotation.z=Math.sin(time*7)*.006*bounce+(fatal?.jeepRoll||0);body.rotation.x=Math.sin(time*11)*.004*bounce+(fatal?.jeepPitch||0);jeep.updateMatrixWorld(true);
  }
  return{root:jeep,body,muzzle,gun,yaw,gunner,driver,flash,weapon,pose,shoot:weapon.shoot,reset,update(dt,time,speed,aim,third,state){

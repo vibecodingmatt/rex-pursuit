@@ -3,6 +3,8 @@ import {readFile,stat,readdir} from 'node:fs/promises';
 import {join} from 'node:path';
 const root='https://vibecodingmatt.github.io/rex-pursuit/';
 const html=await readFile('dist/index.html','utf8');
+assert.ok(!/<a\b[^>]*href="[^\"]*(?:model-lab|sound-library)\.html"/.test(html),'Production game must omit development tool links');
+assert.ok((await stat('dist/textures/visitor-fossil-relief-v1.png')).size>0,'Visitor entrance relief must be packaged');
 const meta=name=>{const tag=html.match(new RegExp(`<meta\\s+(?:name|property)="${name}"[^>]*>`))?.[0];assert.ok(tag,`Missing ${name}`);return tag.match(/content="([^"]*)"/)[1];};
 assert.match(html,/<title>Rex: Pursuit/);assert.ok(html.includes(`<link rel="canonical" href="${root}">`));
 assert.equal(meta('og:url'),root);assert.equal(meta('og:type'),'website');assert.equal(meta('og:site_name'),'Rex: Pursuit');assert.equal(meta('twitter:card'),'summary_large_image');

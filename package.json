@@ -11,7 +11,7 @@
                     "test":  "node scripts/test-combat.mjs && node scripts/verify-chase.cjs",
                     "test:touch": "node scripts/test-touch.mjs && node scripts/verify-touch.cjs",
                     "test:gaze": "node scripts/verify-gaze.cjs",
-                    "test:logic": "node scripts/test-combat.mjs && node scripts/test-defeat.mjs && node scripts/test-ambush.mjs && node scripts/test-touch.mjs",
+                    "test:logic": "node scripts/test-combat.mjs && node scripts/test-defeat.mjs && node scripts/test-ambush.mjs && node scripts/test-touch.mjs && node scripts/test-victory.mjs",
                     "test:release": "node scripts/test-release.mjs",
                     "test:pages": "node scripts/verify-pages.cjs",
                     "social:render": "node scripts/create-social.cjs",
@@ -25,6 +25,7 @@
                     "test:cinematic": "node scripts/test-ambush.mjs && node scripts/verify-cinematic.cjs",
                     "test:treeline": "node scripts/verify-treeline.cjs",
                     "test:defeat": "node scripts/test-defeat.mjs && node scripts/verify-defeat-gait.cjs && node scripts/verify-defeat.cjs",
+                    "test:victory": "node scripts/test-victory.mjs && node scripts/verify-victory.cjs",
                     "test:balance":  "node scripts/simulate-pressure.mjs",
                     "audio:split":  "node scripts/split-audio.cjs",
                     "art:export":  "node scripts/export-model.cjs"
