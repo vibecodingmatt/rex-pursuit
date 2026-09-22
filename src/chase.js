@@ -10,7 +10,7 @@ import {openingPose,createOpeningScenery} from './chase/opening.js';
 import {createTargets} from './chase/targets.js';
 import {createDebris} from './chase/debris.js';
 import {AMBUSH} from './chase/ambush.js';
-import {DEFEAT,defeatPose} from './chase/defeat.js';
+import {DEFEAT,defeatPose,defeatVision} from './chase/defeat.js';
 import {createPointerControls} from './chase/pointer-controls.js';
 import {createSwallow} from './chase/swallow.js';
 import {VICTORY,victoryPose} from './chase/victory.js';
@@ -59,7 +59,7 @@ async function start(){
  jungleRoot.visible=true;rex.actor.visible=true;scene.background.setHex(0x99a88a);scene.fog.color.setHex(0x99a88a);scene.fog.density=.0165;sun.position.set(-16,29,-5);sun.target.position.set(0,1,16);Object.assign(sun.shadow.camera,{left:-23,right:23,top:25,bottom:-25,far:85});sun.shadow.camera.updateProjectionMatrix();
  $('#arrival-caption').style.opacity=0;
  time=0;endTime=0;shake=0;damageFlash=0;firing=false;pointer.set(0,.08);moveReticle();
- $('#fatal-blood').style.opacity=$('#fatal-black').style.opacity=0;jeep.root.visible=true;
+ $('#fatal-blood').style.opacity=$('#fatal-black').style.opacity=0;jeep.root.visible=true;updateVision();
  camera.position.set(.06,2.4,-.45);cameraLook.set(-10,3.2,16);camera.lookAt(cameraLook);
  $('#start-screen').hidden=true;$('#end-screen').hidden=true;$('#pause-screen').hidden=true;setMode('playing');updateHud();
 }
@@ -220,7 +220,16 @@ function updateCamera(dt){
  if(fatal){camera.position.copy(cameraPos);cameraLook.copy(cameraTarget);}else{camera.position.lerp(cameraPos,1-Math.exp(-dt*7));cameraLook.lerp(cameraTarget,1-Math.exp(-dt*8));}camera.lookAt(cameraLook);camera.fov=T.MathUtils.damp(camera.fov,fov,7,dt);camera.rotation.z+=(Math.sin(time*13)*.0015*speed+Math.sin(time*44)*shake*.024+(fatal?.jeepRoll||0))*intensity;camera.updateProjectionMatrix();camera.updateMatrixWorld();
 }
 camera.position.set(-5.4,3,-1.3);camera.lookAt(-2.2,2.65,17);
-function renderFrame(){if(!swallow.coversFrame)renderer.render(scene,camera);swallow.render();}
+function updateVision(){
+ const amount=state.result==='lost'&&state.defeat?defeatVision(state.defeat.time):0,shortEdge=Math.min(innerWidth,innerHeight);
+ const radius=+(amount*Math.min(12,Math.max(6,shortEdge*.012))*(reducedMotion?.65:1)).toFixed(3);
+ // Blur only the world canvas. Small overscan keeps the filter's transparent
+ // edge outside the viewport; both properties follow the paused game clock.
+ const filter=radius?`blur(${radius}px)`:'',transform=radius?`scale(${+(1+6*radius/shortEdge).toFixed(5)})`:'';
+ if(canvas.style.filter!==filter)canvas.style.filter=filter;
+ if(canvas.style.transform!==transform)canvas.style.transform=transform;
+}
+function renderFrame(){updateVision();if(!swallow.coversFrame)renderer.render(scene,camera);swallow.render();}
 function frame(now){
  requestAnimationFrame(frame);const dt=Math.min(.045,(now-last)/1000);last=now;frameCount++;
  if(mode==='paused'||mode==='ended'||freeze){renderFrame();return;}

@@ -4,6 +4,14 @@ const clamp=x=>Math.max(0,Math.min(1,x));
 const ease=(x,a,b)=>{const u=clamp((x-a)/(b-a));return u*u*(3-2*u);};
 const mix=(a,b,u)=>a+(b-a)*u;
 const angle=(a,b,u)=>a+Math.atan2(Math.sin(b-a),Math.cos(b-a))*u;
+// Lose focus on impact, then steadily recover through the spin and approach.
+// The last trace of softness resolves just 100 ms before the final lunge.
+export function defeatVision(t){
+ const peakAt=DEFEAT.ram+.28,resolveAt=DEFEAT.openAt-.28;
+ const dazed=ease(t,DEFEAT.ram,peakAt);
+ const recovery=1-.85*clamp((t-peakAt)/(resolveAt-peakAt));
+ return dazed*recovery*(1-ease(t,resolveAt,DEFEAT.lungeAt-.10));
+}
 // Entry, a still beat, head lift, then gravity takes over. The rig, interior
 // camera and audio cues all use this timeline rather than independent delays.
 export function swallowPose(t){

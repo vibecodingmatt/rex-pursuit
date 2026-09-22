@@ -1,6 +1,14 @@
 # Rex: Pursuit handoff
 
-Checkpoint: 2026-09-20. `8335022` deployed the reference-guided Visitor Center victory arrival, results sharing and production navigation cleanup. The next release improves the rear player character and fixes roll-cage clipping; the user explicitly authorized publishing this character update.
+Checkpoint: 2026-09-22. This release adds the user-approved impact blur and gradual vision recovery during player defeat. It follows `0b89de4` (improved rear player character and roll-cage clearance) and `8335022` (Visitor Center victory arrival, results sharing and production navigation cleanup).
+
+## Defeat vision recovery
+
+- `defeatVision()` in `src/chase/defeat.js` shares the defeat clock. Blur starts at the Rex's impact (1.65 seconds) and ramps up over 0.28 seconds. The user requested twice the initial shock and more visible recovery: strength now steadily decreases throughout the spin and approach, reaching 15% at 8.62 seconds before the final smooth resolve. It clears at 9.12 seconds, just before the 9.22-second lunge. Existing camera, rig, audio and swallow timing are unchanged. Recovery is monotonic, without a hold, flashing or focus pulses.
+- `updateVision()` in `src/chase.js` blurs only the world canvas, up to 12 CSS pixels on desktop / 6 on a small phone; reduced motion lowers the strength to 65%. A small scale increase conceals the filter's transparent edges. The fixed `#scene-viewport` wrapper clips that overscan so fractional transforms cannot cause page overflow. Both blur and scale follow the game clock, not CSS transitions, and reset before the bite/interior and on restart. Pause controls and results stay sharp.
+- `npm run test:vision` checks recovery timing, real pause/audio suspension, restarting while blurred, victory isolation, clear bite/interior/results, reduced motion and desktop/phone portrait/landscape captures. Review images and reports are ignored under `art/review/vision-*`; the existing full defeat browser check continues to cover all loss routes and the swallow sequence.
+- Verified with `test:logic`, `test:vision`, `build` and `verify-defeat.cjs` against the built game. Before/after approach and clear-windup captures were inspected at desktop and both phone orientations. Chrome reported no runtime errors; phone emulation does not establish physical-device performance.
+- The final approved strength/recovery passed `test:vision` on desktop, phone portrait/landscape and reduced-motion settings. The release passed `test:logic`, `build`, `test:release` and the isolated `test:pages` check, including all 34 published sounds and production navigation.
 
 ## Rear player character
 
