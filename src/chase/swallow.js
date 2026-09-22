@@ -1,5 +1,6 @@
 import * as T from 'three';
-import {DEFEAT,swallowPose} from './defeat.js';
+import {DEFEAT,swallowPose,stomachPlunge} from './defeat.js';
+import {createStomachGuest} from './stomach-guest.js';
 
 // A short, self-contained interior shot. Composite through an expanding soft
 // aperture in the visible mouth, then travel down a curved, contracting lumen.
@@ -56,17 +57,21 @@ export function createSwallow(renderer){
    #include <colorspace_fragment>
   }`});
  const tube=new T.Mesh(geometry,material);tube.frustumCulled=false;scene.add(tube);
- const blend={image:{value:target.texture},center:{value:new T.Vector2(.5,.55)},radii:{value:new T.Vector2()},alpha:{value:0},full:{value:0}};
+ const guest=createStomachGuest(scene);
+ const blend={image:{value:target.texture},center:{value:new T.Vector2(.5,.55)},radii:{value:new T.Vector2()},alpha:{value:0},full:{value:0},immersion:{value:0}};
  const composite=new T.ShaderMaterial({transparent:true,depthTest:false,depthWrite:false,toneMapped:false,dithering:true,uniforms:blend,
   vertexShader:'varying vec2 coord;void main(){coord=uv;gl_Position=vec4(position.xy,0.,1.);}',fragmentShader:`
    #include <common>
    #include <dithering_pars_fragment>
-   uniform sampler2D image;uniform vec2 center;uniform vec2 radii;uniform float alpha;uniform float full;varying vec2 coord;
+   uniform sampler2D image;uniform vec2 center;uniform vec2 radii;uniform float alpha;uniform float full;uniform float immersion;varying vec2 coord;
    void main(){vec2 p=(coord-center)/radii;float a=atan(p.y,p.x),edge=length(p);
     edge+=.018*sin(a*5.)+.012*sin(a*9.+.8);
     float mask=1.-smoothstep(.66,1.,edge);
     vec2 sampleUv=mix(p*.44+.5,coord,full);
-    gl_FragColor=vec4(texture2D(image,clamp(sampleUv,0.,1.)).rgb,alpha*mix(mask,1.,full));
+    vec3 color=texture2D(image,clamp(sampleUv,0.,1.)).rgb;
+    // Thick fluid occludes the chamber almost immediately after contact.
+    color=mix(color,vec3(.012,.020,.003),1.-exp(-immersion*28.));
+    gl_FragColor=vec4(color,alpha*mix(mask,1.,full));
     #include <colorspace_fragment>
     #include <dithering_fragment>
    }`});
@@ -74,17 +79,25 @@ export function createSwallow(renderer){
  let active=false,progress=0,apertureOrigin=null;
  const centerAt=z=>new T.Vector3(.12*Math.sin(z*.42),-.036*z*z,z);
  function resize(width,height){const scale=Math.min(1,1280/width,900/height);target.setSize(Math.round(width*scale),Math.round(height*scale));camera.aspect=width/height;camera.updateProjectionMatrix();}
- return{get active(){return active;},get coversFrame(){return active&&blend.full.value===1;},get progress(){return progress;},camera,resize,
-  reset(){active=false;progress=0;apertureOrigin=null;blend.alpha.value=0;},
+ return{get active(){return active;},get coversFrame(){return active&&blend.full.value===1;},get progress(){return progress;},get immersion(){return blend.immersion.value;},camera,resize,guest,
+  async prepare(){guest.root.visible=true;try{await renderer.compileAsync(scene,camera);}finally{guest.reset();}},
+  reset(){active=false;progress=0;apertureOrigin=null;blend.alpha.value=blend.immersion.value=0;guest.reset();},
   update(t,worldCamera,mouth,reducedMotion=false){
-   active=t>=DEFEAT.swallowAt&&t<DEFEAT.black;if(!active)return;
+   active=t>=DEFEAT.swallowAt&&t<DEFEAT.black;if(!active){guest.reset();return;}
    const elapsed=t-DEFEAT.swallowAt,entry=T.MathUtils.smoothstep(elapsed,0,.36),pose=swallowPose(t);
    progress=pose.progress;
-   const z=T.MathUtils.lerp(-1.1,9.4,progress);camera.position.copy(centerAt(z));
+   guest.update(t,progress,reducedMotion);
+   const z=T.MathUtils.lerp(-1.1,9.4,progress),plunge=stomachPlunge(t);camera.position.copy(centerAt(z));
+   camera.position.y+=(guest.pool.position.y-centerAt(9.4).y)*plunge.travel;
+   camera.position.z+=1.5*plunge.travel;blend.immersion.value=plunge.immersion;
    // Remain at the mouth while it closes. Tip the view with her head before
    // releasing the player into the throat, then settle along the descent.
    const look=centerAt(z+2);look.y+=pose.tilt*(reducedMotion?.16:.58);
-   camera.lookAt(look);camera.rotation.z+=reducedMotion?0:Math.sin(progress*Math.PI)*.09-pose.tilt*.035;
+   // Notice the figure against the chamber wall as the last bend opens up.
+   // Keep the reveal, then tip face first into the acid without stopping above it.
+   look.lerp(new T.Vector3(1.65,-4.40,11.65),T.MathUtils.smoothstep(progress,.64,.96)*.93);
+   look.lerp(camera.position.clone().add(new T.Vector3(.05,reducedMotion?-1.35:-1.55,.65)),plunge.look);
+   camera.lookAt(look);camera.rotation.z+=reducedMotion?0:(Math.sin(progress*Math.PI)*.09-pose.tilt*.035)*(1-plunge.look);
    camera.fov=68+Math.sin(progress*Math.PI)*6;camera.updateProjectionMatrix();
    uniforms.opening.value=pose.opening;uniforms.flow.value=pose.flow;uniforms.contraction.value=pose.contraction;uniforms.eye.value.copy(camera.position);
    uniforms.light.value=1.8*(1-T.MathUtils.smoothstep(t,DEFEAT.slideAt+.15,DEFEAT.black)*.97);

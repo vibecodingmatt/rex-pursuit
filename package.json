@@ -23,6 +23,7 @@
                     "test:gunner": "node scripts/verify-gunner.cjs",
                     "test:arcade":  "node scripts/verify-arcade.cjs",
                     "test:pressure":  "node scripts/verify-pressure.cjs",
+                    "test:debris": "node scripts/verify-debris.cjs",
                     "test:cinematic": "node scripts/test-ambush.mjs && node scripts/verify-cinematic.cjs",
                     "test:treeline": "node scripts/verify-treeline.cjs",
                     "test:defeat": "node scripts/test-defeat.mjs && node scripts/verify-defeat-gait.cjs && node scripts/verify-defeat.cjs",

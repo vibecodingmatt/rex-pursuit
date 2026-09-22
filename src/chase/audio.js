@@ -62,6 +62,25 @@ export class ChaseAudio {
   s.onended=()=>{this.active=this.active.filter(x=>x!==s);s.disconnect();f.disconnect();g.disconnect();};
   this.groundImpact(.45);
  }
+ acidSplash(){
+  if(!this.context)return;const c=this.context,t=c.currentTime;
+  const source=c.createBufferSource(),filter=c.createBiquadFilter(),gain=c.createGain();source.buffer=this.noise;
+  filter.type='lowpass';filter.frequency.setValueAtTime(1250,t);filter.frequency.exponentialRampToValueAtTime(85,t+.42);filter.Q.value=.8;
+  gain.gain.setValueAtTime(.001,t);gain.gain.linearRampToValueAtTime(2.3,t+.025);gain.gain.exponentialRampToValueAtTime(.001,t+.5);
+  source.connect(filter);filter.connect(gain);gain.connect(this.master);source.start(t,0,.52);this.active.push(source);
+  source.onended=()=>{this.active=this.active.filter(s=>s!==source);source.disconnect();filter.disconnect();gain.disconnect();};
+ }
+ digest(){
+  if(!this.context)return;const c=this.context,t=c.currentTime;
+  // A few subdued, enclosed bubbles punctuate the late chamber reveal.
+  for(const [delay,hz,volume]of [[0,132,.085],[.24,91,.11],[.58,155,.06]]){
+   const source=c.createOscillator(),gain=c.createGain(),at=t+delay;source.type='sine';
+   source.frequency.setValueAtTime(hz,at);source.frequency.exponentialRampToValueAtTime(hz*.38,at+.22);
+   gain.gain.setValueAtTime(.001,at);gain.gain.exponentialRampToValueAtTime(volume,at+.045);gain.gain.exponentialRampToValueAtTime(.001,at+.28);
+   source.connect(gain);gain.connect(this.master);source.start(at);source.stop(at+.3);this.active.push(source);
+   source.onended=()=>{this.active=this.active.filter(s=>s!==source);source.disconnect();gain.disconnect();};
+  }
+ }
  update(speed,dt=0,playing=false,allowAmbience=true){
   if(!this.context)return;const t=this.context.currentTime;this.engineGain.gain.setTargetAtTime(playing?.035+speed*.0075:0,t,.2);this.windGain.gain.setTargetAtTime(playing?Math.min(.6,speed*.055):0,t,.2);this.engine.frequency.setTargetAtTime(36+speed*1.5,t,.25);this.ambienceGain.gain.setTargetAtTime(playing?.085:0,t,.4);
   if(playing&&allowAmbience){this.ambientWait-=dt;if(this.ambientWait<=0&&!this.voice){const calls=[11,30,12,31,14],n=calls[this.ambientIndex++%calls.length];this.play(n,n>=30?.10:.08,.94,{vocal:false,pan:this.ambientIndex%2?-.72:.68});this.ambientWait=12+(this.ambientIndex%3)*4;}}

@@ -1,5 +1,5 @@
 // One clock drives the collision, vehicle, camera, weapon and final bite.
-export const DEFEAT={ram:1.65,spinEnd:4.65,walkAt:5,lookAt:8.55,openAt:8.90,lungeAt:9.22,biteSound:9.10,contact:9.56,swallowAt:9.46,headLiftAt:10.20,slideAt:10.85,headLiftEnd:11.10,bellyAt:14.05,black:14.85,duration:15.40};
+export const DEFEAT={ram:1.65,spinEnd:4.65,walkAt:5,lookAt:8.55,openAt:8.90,lungeAt:9.22,biteSound:9.10,contact:9.56,swallowAt:9.46,headLiftAt:10.20,slideAt:10.85,headLiftEnd:11.10,bellyAt:14.05,plungeAt:13.70,acidAt:15.00,black:15.60,duration:16.15};
 const clamp=x=>Math.max(0,Math.min(1,x));
 const ease=(x,a,b)=>{const u=clamp((x-a)/(b-a));return u*u*(3-2*u);};
 const mix=(a,b,u)=>a+(b-a)*u;
@@ -17,6 +17,13 @@ export function defeatVision(t){
 export function swallowPose(t){
  const lift=ease(t,DEFEAT.headLiftAt,DEFEAT.headLiftEnd),progress=ease(t,DEFEAT.slideAt,DEFEAT.bellyAt);
  return{lift,progress,tilt:lift*(1-ease(progress,.04,.42)),opening:.18+.82*ease(t,DEFEAT.headLiftAt,DEFEAT.slideAt+.18),flow:Math.max(0,t-DEFEAT.slideAt),contraction:ease(t,DEFEAT.slideAt-.08,DEFEAT.slideAt+.28)};
+}
+// Overlap the throat's slowing exit with a gravity-led drop into the pool.
+// Travel reaches the surface at 1, then loses speed smoothly under the fluid.
+export function stomachPlunge(t){
+ const duration=DEFEAT.acidAt-DEFEAT.plungeAt,u=clamp((t-DEFEAT.plungeAt)/duration);
+ const submerged=Math.max(0,t-DEFEAT.acidAt),drag=.20;
+ return{travel:u*u+2*drag/duration*(1-Math.exp(-submerged/drag)),look:ease(t,DEFEAT.bellyAt-.03,DEFEAT.acidAt-.12),immersion:ease(t,DEFEAT.acidAt,DEFEAT.acidAt+.16)};
 }
 export function defeatPose(t,start){
  const spin=ease(t,DEFEAT.ram,DEFEAT.spinEnd),after=Math.max(0,t-DEFEAT.ram);
@@ -51,6 +58,6 @@ export function defeatPose(t,start){
   jeepX,jeepZ,jeepYaw:Math.PI*2*spin,
   jeepRoll:-.12*kick+Math.sin(after*12)*.035*Math.exp(-after*1.7)*ease(t,DEFEAT.ram,DEFEAT.ram+.1),jeepPitch:.07*kick,
   blood:.42*ease(t,DEFEAT.contact-.045,DEFEAT.contact+.035)*(1-ease(t,DEFEAT.contact+.08,DEFEAT.contact+.42)),
-  swallow:swallow.progress,black:ease(t,DEFEAT.bellyAt-.15,DEFEAT.black),
+  swallow:swallow.progress,black:ease(t,DEFEAT.acidAt,DEFEAT.black),
  };
 }
