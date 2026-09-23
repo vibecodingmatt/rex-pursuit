@@ -7,25 +7,32 @@ export function createGaze(mesh,head){
  const boxes=[new T.Box3(),new T.Box3()],p=new T.Vector3();
  for(let i=0;i<a.count;i++){p.fromBufferAttribute(a,i);boxes[p.x<mid?0:1].expandByPoint(p);}
  const centers=boxes.map(b=>b.getCenter(new T.Vector3())),directions=[new T.Vector3(0,0,1),new T.Vector3(0,0,1)];
- const uniforms={rexEyeLeft:{value:directions[0]},rexEyeRight:{value:directions[1]},rexEyeSplit:{value:mid}};
- const material=mesh.material=mesh.material.clone();material.roughness=.42;
+ const uniforms={rexEyeLeft:{value:directions[0]},rexEyeRight:{value:directions[1]},rexEyeSplit:{value:mid},blink:{value:0}};
+ const material=mesh.material=mesh.material.clone();material.roughness=.42;material.color.setRGB(1,.74,.3);
  material.onBeforeCompile=shader=>{
   Object.assign(shader.uniforms,uniforms);
   shader.vertexShader=shader.vertexShader.replace('#include <common>','#include <common>\nvarying vec3 rexEyeNormal;\nvarying float rexEyeSide;\nuniform float rexEyeSplit;')
    .replace('#include <begin_vertex>','#include <begin_vertex>\nrexEyeNormal=normal;\nrexEyeSide=step(rexEyeSplit,position.x);');
-  shader.fragmentShader=shader.fragmentShader.replace('#include <common>','#include <common>\nvarying vec3 rexEyeNormal;\nvarying float rexEyeSide;\nuniform vec3 rexEyeLeft;\nuniform vec3 rexEyeRight;')
+  shader.fragmentShader=shader.fragmentShader.replace('#include <common>','#include <common>\nvarying vec3 rexEyeNormal;\nvarying float rexEyeSide;\nuniform vec3 rexEyeLeft;\nuniform vec3 rexEyeRight;\nuniform float blink;')
    .replace('#include <map_fragment>',`vec3 eyeForward=normalize(mix(rexEyeLeft,rexEyeRight,rexEyeSide));
     vec3 eyeRight=normalize(cross(vec3(0.0,1.0,0.0),eyeForward));
     vec3 eyeUp=cross(eyeForward,eyeRight);
     vec3 eyeNormal=normalize(rexEyeNormal);
     vec2 eyeUV=vec2(dot(eyeNormal,eyeRight),dot(eyeNormal,eyeUp))*.23+.5;
-    diffuseColor*=texture2D(map,eyeUV);`);
+    diffuseColor*=texture2D(map,eyeUV);
+    // Dark limbal ring, then an upper lid that sweeps down on each blink.
+    float eyeR=length(eyeUV-.5);diffuseColor.rgb*=mix(1.,.62,smoothstep(.15,.225,eyeR));
+    float lidEdge=mix(.78,.2,blink)+.9*(eyeUV.x-.5)*(eyeUV.x-.5);
+    diffuseColor.rgb=mix(diffuseColor.rgb,vec3(.055,.038,.028),smoothstep(lidEdge-.015,lidEdge+.015,eyeUV.y));`);
  };
- material.customProgramCacheKey=()=> 'rex-converging-eyes-v1';
+ material.customProgramCacheKey=()=> 'rex-converging-eyes-v2';
+ // Natural blinks every few seconds; impacts can force one.
+ let blinkAge=1,nextBlink=2.4;const blinkCurve=a=>a<.07?a/.07:a<.1?1:Math.max(0,1-(a-.1)/.11);
  const inverse=new T.Matrix4(),localTarget=new T.Vector3(),desired=new T.Vector3();
  const boneInverse=mesh.skeleton.boneInverses[mesh.skeleton.bones.indexOf(head)];
- return{centers,directions,reset(){directions.forEach(d=>d.set(0,0,1));},update(dt,target){
+ return{centers,directions,uniforms,blink(){if(blinkAge>.25)blinkAge=0;},reset(){directions.forEach(d=>d.set(0,0,1));blinkAge=1;nextBlink=2.4;uniforms.blink.value=0;},update(dt,target){
   if(dt<=0)return;
+  blinkAge+=dt;nextBlink-=dt;if(nextBlink<=0){blinkAge=0;nextBlink=2.2+Math.random()*4.5;}uniforms.blink.value=blinkAge<.21?blinkCurve(blinkAge):0;
   inverse.copy(head.matrixWorld).multiply(boneInverse).multiply(mesh.bindMatrix).invert();
   localTarget.copy(target).applyMatrix4(inverse);
   for(let i=0;i<2;i++){

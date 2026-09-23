@@ -29,7 +29,7 @@ export class ImpactDamage {
  }
  setHealth(fraction,dt){this.worst=Math.max(this.worst,1-T.MathUtils.clamp(fraction,0,1));this.wear.value=T.MathUtils.damp(this.wear.value,this.worst,5,dt);}
  get stage(){return this.worst>=.8?3:this.worst>=.5?2:this.worst>=.22?1:0;}
- install(material){
+ install(material,finish=null){
   material.onBeforeCompile=s=>{
    s.uniforms.uWounds={value:this.points};
    s.uniforms.uWoundAtlas={value:this.atlas};s.uniforms.uWear=this.wear;s.uniforms.uWearSites={value:this.stages};
@@ -81,7 +81,9 @@ export class ImpactDamage {
     roughnessFactor=mix(roughnessFactor,.55,blood*.65);
     roughnessFactor=mix(roughnessFactor,.49,pit*.45);
    `);
-  };material.customProgramCacheKey=()=> 'persistent-ballistic-wear-6';material.needsUpdate=true;
+   // The hide finish composes after the wound code so its inserts sit beneath it.
+   finish?.extend(s);
+  };material.customProgramCacheKey=()=>`persistent-ballistic-wear-6${finish?'-'+finish.key:''}`;material.needsUpdate=true;
  }
  restPoint(hit){
   const mesh=hit.object,face=hit.face;if(!face)return null;

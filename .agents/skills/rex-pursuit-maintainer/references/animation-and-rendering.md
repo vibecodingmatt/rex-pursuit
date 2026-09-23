@@ -54,13 +54,24 @@ The wide gape lasts less than half a second. The external camera stays at the se
 - Cap the target resolution at 1280 by 900, skip normal-world rendering while the interior covers the frame, and preserve/restore render target and `autoClear` state.
 - Reduced motion lowers tilt/roll. A paused frame still renders the same interior composition. Darkness follows the descent rather than immediately covering it.
 
+## Rendering pipeline and scenery (September 2026 overhaul)
+
+See the dated handoff entry for the full description. Invariants:
+
+- Only `renderFrame()` goes through `post.render()`. Diagnostics that call `renderer.render()` directly (treeline masks, reflections) still work. The swallow composite must stay after the post pass.
+- Tone mapping and sRGB conversion happen once, in the final post pass. Scene materials render linear HDR into the half-float target; do not add `colorspace_fragment` to post shaders or tone-map twice.
+- The canopy shadow caster lives on layer 0 with `colorWrite:false`. three picks shadow casters by the main camera's layers, so moving it to another layer silently removes the dappled light.
+- Keep the 15-27 m understory belt dense and unthinned; `test:treeline` measures concealment through it. Tier thinning only touches shuffled optional planting via draw ranges.
+- Ground noise frequencies must repeat over 28 m (`28*k` whole) or every chunk boundary shows a seam.
+- `frame()` clamps negative time steps. A negative `dt` makes every damped blend diverge (camera FOV went to about -1e11 on phones).
+
 ## Skin, wounds, tongue, eyes
 
 The runtime skin is `Rex_Skin` / `BodyMat`. The original texture includes a roughness map; setting `material.roughness=.72` multiplies its green channel rather than setting the final roughness to .72. Inspection found an average around .48 after that multiplication, producing strong wet-looking highlights on the face, body and feet.
 
 The accepted correction in `creature.js` / `damage.js` sets the base factor to 1, remaps the sampled roughness with `mix(.48,.86,clamp(roughnessFactor,0.,1.))`, and reduces skin `envMapIntensity` from .45 to .30. Soot roughens the surface; wounds use restrained local moisture. An earlier .70-.94 remap looked too matte, so keep some highlight definition. Preserve authored color and scale normals. Do not dim all scene lighting to fix only the hide.
 
-`ImpactDamage.install()` owns the skin's `onBeforeCompile`. Apply or compose skin shader edits there rather than overwriting the damage hook elsewhere. Update `customProgramCacheKey` when changing shader structure. Verify clean, staged damage and actual impact marks, not only pristine skin.
+`ImpactDamage.install(material, finish)` owns the skin's `onBeforeCompile`; the hide finish from `rex-skin.js` is passed as `finish` and extends the shader after the wound code, so wounds render on top of it. Apply or compose skin shader edits there rather than overwriting the damage hook elsewhere. Update `customProgramCacheKey` when changing shader structure. Verify clean, staged damage and actual impact marks, not only pristine skin.
 
 Hits map from deformed triangles back to rest space. A persistent 1024px UV atlas retains damage when the 36 recent clusters wrap; stage sites add face/body wear based on the worst health reached. Do not return to dinosaur claw-like scratches or erase older wounds during the jungle detour.
 
@@ -79,3 +90,11 @@ Named runtime clips live in `public/audio/catalog.json` and `public/audio/clip-N
 Keep `user-select`, WebKit callout suppression, touch actions, pointer capture/cancel handling, and large buttons coordinated. Pause, blur, orientation changes and restart clear held input. Short portrait layouts put camera choices in Pause. Test actual Playwright touch events, not only synthetic mouse clicks.
 
 The left-seat driver and wheel, shot-driven ammo belt/case/link pools, and 2.6-second articulated reload use the game state. Arm IK preserves limb lengths while shoulders accommodate reach. Do not fix a reload contact error by stretching forearms or driving the belt from elapsed time when no shot was accepted.
+
+## Hide sheen and mouth interior
+
+The user asked that the Rex not look washed out or too shiny, and that the open mouth look natural and high fidelity. Keep these in mind:
+
+- Legibility first: the sun must light her face as she chases (key from above and behind the Jeep). A sun behind her made her a dark silhouette, and the user flagged it. Compare against the pre-overhaul `art/review/before-*` captures when changing lights, fog or haze.
+- The dry hide has a `.62` roughness floor outside the lips and mouth, on top of the accepted `.48-.86` remap. Its direct specular is scaled to 40%. The rim light stays low (about 0.6): stronger rim specular sparkles on the brow's fine scale bump.
+- The mouth mask (`rexMouthMask` plus the `rexGape` membrane attribute) switches to dark wet flesh with occluded ambient and direct specular damped to 10%. Without that damping, the cool rim/fill lights turn the flattened corner membrane lilac. Check the mask with `uRexDebug=1` and inspect held-roar views (front, low front, three-quarter, side) with `art/review/capture-mouth.cjs` after any skin, lighting or rig change.

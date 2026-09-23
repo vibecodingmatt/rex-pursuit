@@ -99,9 +99,9 @@ export function createMountedGun(body,scene,mats,character){
 
  const armRig=createGunnerArms(gun,body,mats,character),hands=armRig.root;
  const muzzle=new T.Object3D();muzzle.position.set(0,.008,2.025);barrel.add(muzzle);
- const flash=new T.Group();muzzle.add(flash);const glow=new T.MeshBasicMaterial({color:0xffce76,transparent:true,opacity:.72,blending:T.AdditiveBlending,depthWrite:false});
+ const flash=new T.Group();muzzle.add(flash);const glow=new T.MeshBasicMaterial({color:0xffce76,transparent:true,opacity:.72,blending:T.AdditiveBlending,depthWrite:false,toneMapped:false});glow.color.setRGB(7,4.2,1.6);
  for(let i=0;i<3;i++){const m=new T.Mesh(new T.ConeGeometry(.095,.43,5),glow);m.rotation.x=Math.PI/2;m.rotation.z=i*2.1;m.position.z=.15;flash.add(m);}flash.visible=false;
- const light=new T.PointLight(0xffbd76,0,5,2);muzzle.add(light);
+ const light=new T.PointLight(0xffb566,0,9,2);muzzle.add(light);
  for(const g of [receiver,barrel,cover,charging,can,gun])mergeStatic(g);
  let shotAge=10,feed=0,feedFrom=0,feedTarget=0,reloading=false,reloadProgress=0,beltVisibility=1,beltJiggle=0;
  const pending=[];
@@ -133,11 +133,11 @@ export function createMountedGun(body,scene,mats,character){
   beltJiggle*=Math.exp(-dt*12);
   const kick=shotAge<.12?Math.sin(Math.min(1,shotAge/.025)*Math.PI/2)*Math.exp(-Math.max(0,shotAge-.025)*36):0;
   receiver.position.z=-kick*.033;barrel.position.z=-kick*.017;
-  flash.visible=shotAge<.027;light.intensity=flash.visible?3.7:0;
+  flash.visible=shotAge<.027;light.intensity=flash.visible?11:0;
   const local=body.worldToLocal(aim.clone()).sub(yaw.position);
   const reloadCenter=third&&reloading?pulse(p,0,.12,.86,1):0;
-  yaw.rotation.y=T.MathUtils.damp(yaw.rotation.y,T.MathUtils.clamp(Math.atan2(local.x,local.z),-.68,.68)*(1-reloadCenter),15,dt);
-  const pitch=-Math.atan2(local.y,Math.hypot(local.x,local.z));gun.rotation.x=T.MathUtils.damp(gun.rotation.x,(T.MathUtils.clamp(pitch,-.42,.32)+(reloading?.10:0))*(1-reloadCenter),14,dt);
+  yaw.rotation.y=T.MathUtils.damp(yaw.rotation.y,T.MathUtils.clamp(Math.atan2(local.x,local.z),-.68,.68)*(1-reloadCenter),26,dt);
+  const pitch=-Math.atan2(local.y,Math.hypot(local.x,local.z));gun.rotation.x=T.MathUtils.damp(gun.rotation.x,(T.MathUtils.clamp(pitch,-.42,.32)+(reloading?.10:0))*(1-reloadCenter),26,dt);
   gun.updateWorldMatrix(true,true);
   for(let i=pending.length-1;i>=0;i--){pending[i]-=dt;if(pending[i]<=0){eject(cases,casePort,true);eject(links,linkPort,false);pending.splice(i,1);}}
   const visibleAmmo=reloading&&p>.60?RULES.magazine:(state.ammo??RULES.magazine);

@@ -1,55 +1,188 @@
 import * as T from 'three';
 import {mergeGeometries} from 'three/addons/utils/BufferGeometryUtils.js';
-export function createJungle(scene){
- let seed=7481;const rand=()=>{seed=(1664525*seed+1013904223)>>>0;return seed/4294967296;};
- const canvas=document.createElement('canvas');canvas.width=canvas.height=1024;const c=canvas.getContext('2d');c.fillStyle='#6e5940';c.fillRect(0,0,1024,1024);
- for(let i=0;i<125000;i++){const b=45+rand()*88;c.fillStyle=`rgba(${b*1.18},${b*.92},${b*.63},${.12+rand()*.4})`;c.fillRect(rand()*1024,rand()*1024,rand()*4+1,rand()*3+1);}
- for(const x of [388,636]){const g=c.createLinearGradient(x-76,0,x+76,0);g.addColorStop(0,'#00000000');g.addColorStop(.35,'#211a1270');g.addColorStop(.6,'#34281990');g.addColorStop(1,'#00000000');c.fillStyle=g;c.fillRect(x-76,0,152,1024);for(let y=0;y<1024;y+=14){c.fillStyle='#211b1328';c.fillRect(x-27,y,54,4);}}
- for(let i=0;i<2600;i++){const x=rand()*1024,y=rand()*1024,r=rand()*3+.4;c.fillStyle=rand()>.5?'#95856a70':'#231e1670';c.beginPath();c.ellipse(x,y,r,r*.5,0,0,7);c.fill();}
- const soil=new T.CanvasTexture(canvas);soil.colorSpace=T.SRGBColorSpace;soil.wrapS=soil.wrapT=T.RepeatWrapping;soil.repeat.set(1,24);soil.anisotropy=8;
- const road=new T.Mesh(new T.PlaneGeometry(10,480,1,1),new T.MeshStandardMaterial({map:soil,bumpMap:soil,bumpScale:.095,roughness:.94,color:0xa79575}));road.rotation.x=-Math.PI/2;road.position.set(0,-.025,60);road.receiveShadow=true;scene.add(road);
- const ground=new T.Mesh(new T.PlaneGeometry(220,480),new T.MeshStandardMaterial({color:0x343c24,roughness:1}));ground.rotation.x=-Math.PI/2;ground.position.set(0,-.06,60);ground.receiveShadow=true;scene.add(ground);
- const barkCanvas=document.createElement('canvas');barkCanvas.width=128;barkCanvas.height=512;const bc=barkCanvas.getContext('2d');bc.fillStyle='#696b51';bc.fillRect(0,0,128,512);for(let i=0;i<1100;i++){const l=25+rand()*65;bc.strokeStyle=`rgba(${l},${l*1.03},${l*.8},.6)`;bc.lineWidth=rand()*2;bc.beginPath();const x=rand()*128,y=rand()*512;bc.moveTo(x,y);bc.lineTo(x+rand()*8-4,y+rand()*120);bc.stroke();}
- const bark=new T.CanvasTexture(barkCanvas);bark.colorSpace=T.SRGBColorSpace;bark.wrapS=bark.wrapT=T.RepeatWrapping;
- const trunkMat=new T.MeshStandardMaterial({map:bark,bumpMap:bark,bumpScale:.09,roughness:1,color:0x9a9772});
- const foliage=new T.TextureLoader().load('./textures/jungle-branch.png');foliage.colorSpace=T.SRGBColorSpace;foliage.anisotropy=4;
- const leafMat=new T.MeshStandardMaterial({map:foliage,alphaTest:.46,side:T.DoubleSide,roughness:.86,color:0xa8c98d});
- const shrubMat=leafMat.clone();shrubMat.color.setHex(0x829d5d);
- const trunkGeo=new T.CylinderGeometry(.34,.56,1,14,4),leafGeo=new T.PlaneGeometry(1,1);
- const fernVertices=[];
- for(let f=0;f<9;f++){const angle=f*Math.PI*2/9;for(let i=1;i<15;i++){const u=i/15,rad=u*1.45,y=.12+Math.sin(u*Math.PI*.88)*.85;for(const side of [-1,1]){const start=new T.Vector3(Math.sin(angle)*rad,y,Math.cos(angle)*rad),dir=new T.Vector3(Math.sin(angle+side*.94),-.25,Math.cos(angle+side*.94));const length=(1-u)*.45+.045;const tip=start.clone().addScaledVector(dir,length),mid=start.clone().lerp(tip,.48);mid.y+=.025;const width=new T.Vector3(Math.cos(angle+side*.94),0,-Math.sin(angle+side*.94)).multiplyScalar(length*.105);const a=mid.clone().add(width),b=mid.clone().sub(width);for(const v of [start,a,mid,a,tip,mid,tip,b,mid,b,start,mid])fernVertices.push(v.x,v.y,v.z);}}}
- const fernGeo=new T.BufferGeometry();fernGeo.setAttribute('position',new T.Float32BufferAttribute(fernVertices,3));fernGeo.computeVertexNormals();const fernMat=new T.MeshStandardMaterial({color:0x436936,roughness:.82,side:T.DoubleSide});
- const rockGeo=new T.DodecahedronGeometry(1,0),rockMat=new T.MeshStandardMaterial({color:0x747465,roughness:.97});
- const chunks=[],obj=new T.Object3D(),color=new T.Color();
- // Scenery extends ahead as well as behind for the complete first-person spin.
- const chunkCount=12,chunkStart=-122;
- for(let k=0;k<chunkCount;k++){
-  const group=new T.Group();group.position.z=k*28+chunkStart;group.scale.x=.72;scene.add(group);chunks.push(group);
-  const trunks=new T.InstancedMesh(trunkGeo,trunkMat,28),leaves=new T.InstancedMesh(leafGeo,leafMat,336),shrubs=new T.InstancedMesh(leafGeo,shrubMat,60),ferns=new T.InstancedMesh(fernGeo,fernMat,20),rocks=new T.InstancedMesh(rockGeo,rockMat,24);group.add(trunks,leaves,shrubs,ferns,rocks);trunks.castShadow=true;rocks.castShadow=true;rocks.receiveShadow=true;
-  for(let i=0;i<28;i++){
-   const side=i%2?1:-1,x=side*(i%7===0?12+rand()*6:16+Math.sqrt(rand())*30),z=(rand()-.5)*28,h=12+rand()*17,r=.65+rand()*.8;
-   obj.position.set(x,h/2-.8,z);obj.rotation.set((rand()-.5)*.1,rand()*6.28,(rand()-.5)*.08);obj.scale.set(r,h,r);obj.updateMatrix();trunks.setMatrixAt(i,obj.matrix);
-   for(let j=0;j<12;j++){const a=rand()*6.28,spread=rand()*4.4;obj.position.set(x+Math.sin(a)*spread,h-2+rand()*5,z+Math.cos(a)*spread);obj.rotation.set(-.35+rand()*1.2,rand()*6.28,rand()*6.28);obj.scale.setScalar(3.8+rand()*3.8);obj.updateMatrix();leaves.setMatrixAt(i*12+j,obj.matrix);color.setHSL(.22+rand()*.06,.28+rand()*.15,.35+rand()*.2);leaves.setColorAt(i*12+j,color);}
+import {createFoliageKit,dustTexture,seeded,WIND} from './foliage.js';
+import {SUN_DIRECTION} from './atmosphere.js';
+// Scrolling rainforest road. Twelve 28 m chunks recycle along +Z; six unique
+// layouts are shared by chunk pairs 168 m apart. Every layout is merged per
+// material (a handful of draw calls per chunk) and optional planting is ordered
+// randomly so a draw range can thin it for lighter quality tiers without
+// touching the concealing understory the midpoint feint depends on.
+
+const CHUNK=28,COUNT=12,START=-122,UNIQUE=6,TAU=Math.PI*2;
+const smooth=(a,b,x)=>{const t=Math.min(1,Math.max(0,(x-a)/(b-a)));return t*t*(3-2*t);};
+/** Road stays flat for the rig; banks rise gently beyond the understory. Periodic over one chunk. */
+export function groundHeight(x,z){
+ const ax=Math.abs(x),side=x>0?1:-1;
+ const wave=Math.sin(z*TAU/CHUNK+side*1.3+ax*.13)*.5+Math.sin(z*TAU*2/CHUNK+ax*.29)*.3+Math.sin(z*TAU*3/CHUNK-ax*.41)*.2;
+ return smooth(16,40,ax)*(1.05+wave*.55)+smooth(28,62,ax)*2.4;
+}
+
+function groundGeometry(){
+ const xs=[];for(let x=-70;x<-30;x+=5)xs.push(x);for(let x=-30;x<-12;x+=2)xs.push(x);for(let x=-12;x<12;x+=.5)xs.push(x);for(let x=12;x<30;x+=2)xs.push(x);for(let x=30;x<=70;x+=5)xs.push(x);
+ const rows=57,P=[],U=[],I=[];
+ for(let r=0;r<rows;r++){const z=-CHUNK/2+r*CHUNK/(rows-1);for(const x of xs){P.push(x,groundHeight(x,z),z);U.push(x/3.5,z/3.5);}}
+ const cols=xs.length;for(let r=0;r<rows-1;r++)for(let c=0;c<cols-1;c++){const a=r*cols+c,b=a+cols;I.push(a,b,a+1,a+1,b,b+1);}
+ const g=new T.BufferGeometry();g.setAttribute('position',new T.Float32BufferAttribute(P,3));g.setAttribute('uv',new T.Float32BufferAttribute(U,2));g.setIndex(I);g.computeVertexNormals();return g;
+}
+function groundMaterial(kit){
+ const t=kit.textures.ground,m=new T.MeshStandardMaterial({map:t.dirt,normalMap:t.dirtNormal,normalScale:new T.Vector2(1.1,1.1),roughness:.85});
+ m.onBeforeCompile=s=>{
+  s.uniforms.tLitter={value:t.litter};s.uniforms.tLitterNormal={value:t.litterNormal};
+  s.vertexShader=s.vertexShader.replace('#include <common>','#include <common>\nvarying vec3 vGround;').replace('#include <begin_vertex>','#include <begin_vertex>\nvGround=position;');
+  s.fragmentShader=s.fragmentShader.replace('#include <common>',`#include <common>
+   varying vec3 vGround;uniform sampler2D tLitter,tLitterNormal;
+   float gh(vec2 p){p=fract(p*vec2(233.34,851.73));p+=dot(p,p+23.45);return fract(p.x*p.y);}
+   // Value noise whose lattice wraps in z; 28*k must be a whole number so
+   // every chunk boundary meets its neighbour without a seam.
+   float gn(vec2 p,float P){vec2 i=floor(p),f=fract(p);f=f*f*(3.-2.*f);float y0=mod(i.y,P),y1=mod(i.y+1.,P);
+    return mix(mix(gh(vec2(i.x,y0)),gh(vec2(i.x+1.,y0)),f.x),mix(gh(vec2(i.x,y1)),gh(vec2(i.x+1.,y1)),f.x),f.y);}
+   float gp(vec2 p,float k){return gn(p*k,floor(28.*k+.5));}
+   float mRoad,mRut,mHump,mVerge,mForest,mPuddle,mDetail;`)
+  .replace('#include <map_fragment>',`
+   {
+    vec2 p=vGround.xz;float ax=abs(p.x);
+    float n1=gp(p,10./28.),n2=gp(p,35./28.),n3=gp(p,2./28.);
+    float wob=(gp(vec2(p.x>0.?12.:36.,p.y),.25)-.5)*1.3;
+    mRoad=1.-smoothstep(3.8+wob,4.9+wob,ax);
+    mRut=(1.-smoothstep(.1,.38,abs(ax-1.02-wob*.06)))*mRoad;
+    mHump=(1.-smoothstep(.1,.55,ax))*mRoad;
+    mVerge=smoothstep(3.9+wob,5.4+wob,ax)*(1.-smoothstep(8.,13.,ax+wob*2.5));
+    mForest=smoothstep(8.,13.5,ax+wob*2.5+n3*3.);
+    mPuddle=smoothstep(.72,.8,gp(p+vec2(3.,0.),12./28.)*(.45+mRut*.7)+n2*.08)*mRoad;
+    mDetail=texture2D(map,vMapUv).r;
+    vec3 mud=vec3(.07,.047,.03),dirt=vec3(.19,.135,.087),dry=vec3(.3,.23,.155);
+    vec3 road=mix(dirt,dry,smoothstep(.3,.85,n1)*.75)*(.6+.8*mDetail);
+    road=mix(road,mud*(.75+.5*mDetail),max(mRut*.9,mHump*.15));
+    vec3 litter=texture2D(tLitter,vMapUv*.5).rgb;
+    vec3 moss=vec3(.05,.08,.022)*(.7+.6*n2),grassy=vec3(.07,.092,.032)*(.8+.4*mDetail);
+    vec3 verge=mix(mix(litter*.55,grassy,.55),moss,.35+.3*n1);
+    vec3 forest=mix(litter*.62,moss,smoothstep(.5,.8,n2)*.55)*(.75+.4*n1);
+    vec3 col=mix(road,verge,mVerge);col=mix(col,forest,mForest);
+    col=mix(col,col*.68,mPuddle);
+    diffuseColor.rgb*=col*1.05;
+   }`)
+  .replace('#include <roughnessmap_fragment>',`#include <roughnessmap_fragment>
+   roughnessFactor=mix(.94,.86,mRoad);roughnessFactor=mix(roughnessFactor,.6,mRut*.8);roughnessFactor=mix(roughnessFactor,.96,mForest);
+   roughnessFactor=mix(roughnessFactor,.72,mPuddle);`)
+  .replace('#include <normal_fragment_maps>',`
+   {
+    vec3 dn=texture2D(normalMap,vNormalMapUv).xyz*2.-1.,ln=texture2D(tLitterNormal,vNormalMapUv*.5).xyz*2.-1.;
+    vec3 mapN=normalize(mix(dn*vec3(1.2,1.2,1.),ln*vec3(1.4,1.4,1.),mForest));
+    mapN.xy*=normalScale*(1.+mRut*.5)*(1.-mPuddle*.3);
+    normal=normalize(tbn*mapN);
+   }`);
+ };
+ m.customProgramCacheKey=()=> 'rex-jungle-ground-v1';return m;
+}
+
+export function createJungle(root,{canopy}={}){
+ const branchMap=new T.TextureLoader().load('./textures/jungle-branch.png');branchMap.colorSpace=T.SRGBColorSpace;branchMap.anisotropy=8;
+ const kit=createFoliageKit(branchMap),M=kit.materials;
+ const ground=groundGeometry(),groundMat=groundMaterial(kit);
+ const obj=new T.Object3D(),matrix=new T.Matrix4(),q=new T.Quaternion(),e=new T.Euler(),v=new T.Vector3(),s=new T.Vector3();
+ const at=(x,z,y=0,rotY=0,scale=1,tilt=[0,0])=>matrix.compose(v.set(x,groundHeight(x,z)+y,z),q.setFromEuler(e.set(tilt[0],rotY,tilt[1],'YXZ')),typeof scale==='number'?s.setScalar(scale):s.set(...scale));
+ const recolor=(g,rgb)=>{const c=g.attributes.color;for(let i=0;i<c.count;i++)c.setXYZ(i,c.getX(i)*rgb[0],c.getY(i)*rgb[1],c.getZ(i)*rgb[2]);return g;};
+
+ // Build six unique layouts. Each entry: {material, required geometries[], optional geometries[]}.
+ function layout(seed){
+  const rand=seeded(seed),buckets=new Map(),add=(material,geometry,optional=false)=>{if(!buckets.has(material))buckets.set(material,{required:[],optional:[]});buckets.get(material)[optional?'optional':'required'].push(geometry);};
+  const put=(material,source,m,optional,tone)=>{const g=source.clone().applyMatrix4(m);if(tone)recolor(g,tone);add(material,g,optional);};
+  const side=()=>rand()<.5?-1:1,zz=()=>(rand()-.5)*CHUNK;
+  // Rainforest giants: a few frame the verge, most stand back in the haze.
+  for(let i=0;i<8;i++){const sd=i%2?1:-1,x=sd*(i<2?12.5+rand()*3:16+Math.pow(rand(),.7)*28),z=zz(),h=17+rand()*15,t=kit.giants[Math.floor(rand()*kit.giants.length)],m=at(x,z,-.3,rand()*TAU,[h*(.85+rand()*.3),h,h*(.85+rand()*.3)]),tone=[.85+rand()*.25,.85+rand()*.2,.8+rand()*.2];put(M.bark,t.wood,m,false,tone);put(M.canopy,t.leaves,m,false,[.8+rand()*.3,.85+rand()*.25,.75+rand()*.25]);}
+  // Leaning edge trees close a canopy tunnel over the road at 10-17 m.
+  for(let i=0;i<4;i++){const sd=i%2?1:-1,x=sd*(10.5+rand()*3.5),z=zz(),h=15+rand()*6,t=kit.leaners[Math.floor(rand()*kit.leaners.length)],m=at(x,z,-.2,(sd>0?Math.PI:0)+(rand()-.5)*.5,[h,h,h]);put(M.bark,t.wood,m,false,[.85+rand()*.2,.85+rand()*.2,.8+rand()*.2]);put(M.canopy,t.leaves,m,false,[.75+rand()*.3,.82+rand()*.25,.7+rand()*.25]);}
+  // Palms lean toward the light over the road edge; tree ferns fill the mid layer.
+  for(let i=0;i<5;i++){const sd=side(),x=sd*(7+rand()*13),z=zz(),h=9+rand()*6,t=kit.palms[Math.floor(rand()*kit.palms.length)],m=at(x,z,-.1,sd>0?Math.PI+(rand()-.5)*.8:(rand()-.5)*.8,h);put(M.bark,t.wood,m,false);put(M.palm,t.fronds,m,false,[.9+rand()*.2,.9+rand()*.2,.85+rand()*.2]);}
+  for(let i=0;i<5;i++){const x=side()*(8.8+rand()*9),z=zz(),h=2.6+rand()*2.6,t=kit.treeFerns[Math.floor(rand()*kit.treeFerns.length)],m=at(x,z,0,rand()*TAU,h);put(M.bark,t.wood,m,true);put(M.fern,t.fronds,m,true,[.95,1,.95]);}
+  // Concealing understory belt: dense, layered and never thinned.
+  for(const sd of [-1,1])for(const [x0,n,size]of [[15,7,0],[19.5,8,1],[23.5,9,2],[27,7,2]])for(let k=0;k<n;k++){const z=k*CHUNK/n-CHUNK/2+rand()*2,x=sd*(x0+rand()*2.4),b=kit.bushes[size],m=at(x,z,-.2,rand()*TAU,size?1.25+rand()*.35:1+rand()*.3);put(M.shrub,b,m,false,[.85+rand()*.3,.9+rand()*.2,.8+rand()*.25]);if(rand()<.6){const e2=kit.elephant[Math.floor(rand()*2)],m2=at(x+(rand()-.5)*3,z+(rand()-.5)*3,0,rand()*TAU,2.2+rand()*1.4);put(M.broad,e2,m2,false);}}
+  // Verge planting stays low and open: ferns, broad leaves, rocks.
+  for(let i=0;i<16;i++){const x=side()*(5.4+Math.pow(rand(),.8)*9),z=zz(),m=at(x,z,0,rand()*TAU,.8+rand()*.9);put(M.fern,kit.ferns[Math.floor(rand()*3)],m,true,[.85+rand()*.3,.9+rand()*.2,.8+rand()*.25]);}
+  for(let i=0;i<9;i++){const x=side()*(6.6+rand()*8.5),z=zz(),banana=rand()<.3,m=at(x,z,0,rand()*TAU,banana?1.4+rand()*.8:1+rand()*1.1);put(M.broad,banana?kit.banana[0]:kit.elephant[Math.floor(rand()*2)],m,true,[.9+rand()*.2,.95+rand()*.15,.85+rand()*.2]);}
+  for(let i=0;i<10;i++){const sd=side(),x=sd*(5.2+rand()*10),z=zz(),big=rand()<.2,sc=big?.8+rand()*.8:.16+rand()*.42,m=at(x,z,-sc*.15,rand()*TAU,[sc*(1+rand()*.4),sc,sc*(1+rand()*.4)]);put(M.rock,kit.rocks[Math.floor(rand()*3)],m,!big,[.85+rand()*.2,.85+rand()*.2,.82+rand()*.2]);}
+  // Mossy fallen log.
+  if(rand()<.7){const x=side()*(9+rand()*8),z=zz(),m=at(x,z,.25,rand()*TAU,[.55,6+rand()*4,.55],[Math.PI/2,0]);put(M.bark,kit.giants[0].wood,m,false,[.8,.85,.75]);}
+  const meshes=[];
+  for(const [material,{required,optional}]of buckets){
+   for(let i=optional.length-1;i>0;i--){const j=Math.floor(rand()*(i+1));[optional[i],optional[j]]=[optional[j],optional[i]];}
+   const all=[...required,...optional],geometry=mergeGeometries(all);if(!geometry)continue;
+   // Index offsets let a draw range drop a fraction of the optional plants.
+   let offset=0;const marks=[];for(const g of all){offset+=g.index?g.index.count:g.attributes.position.count;marks.push(offset);}
+   meshes.push({material,geometry,requiredEnd:required.length?marks[required.length-1]:0,marks:marks.slice(required.length),total:offset});
+   all.forEach(g=>g.dispose());
   }
-  for(let i=0;i<60;i++){const near=i<12,size=near?.7+rand()*.9:1.7+rand()*2.4;obj.position.set((i%2?1:-1)*(near?9.5+rand()*5:17+rand()*22),size*.37,rand()*28-14);obj.rotation.set(rand()*.55-.25,rand()*6.28,rand()*1.6-.8);obj.scale.setScalar(size);obj.updateMatrix();shrubs.setMatrixAt(i,obj.matrix);}
-  // Open verge, scattered bushes, then progressively denser deep understory.
-  const layers=[{x:16,n:4,h:2,size:3.5},{x:21,n:6,h:3,size:5.2},{x:26,n:8,h:3,size:6.8}];
-  const thicket=new T.InstancedMesh(leafGeo,shrubMat,100);group.add(thicket);let leafIndex=0;
-  for(const side of [-1,1])for(const layer of layers)for(let z=0;z<layer.n;z++)for(let h=0;h<layer.h;h++){
-   obj.position.set(side*(layer.x+rand()*1.4),1.7+h*2.6,z*28/layer.n-12+rand()*.8);
-   obj.rotation.set((rand()-.5)*.24,Math.PI/2+(rand()-.5)*1.2,(rand()-.5)*.25);
-   obj.scale.set(layer.size+rand(),layer.size*.78+rand()*.6,1);obj.updateMatrix();thicket.setMatrixAt(leafIndex++,obj.matrix);
-  }
-  for(let i=0;i<20;i++){obj.position.set((i%2?1:-1)*(7.6+rand()*8),0,rand()*28-14);obj.rotation.set(0,rand()*6.28,0);obj.scale.setScalar(.45+rand()*.55);obj.updateMatrix();ferns.setMatrixAt(i,obj.matrix);}
-  for(let i=0;i<24;i++){obj.position.set((i%2?1:-1)*(5.6+rand()*10),rand()*.12,rand()*28-14);obj.rotation.set(rand(),rand(),rand());obj.scale.set(.2+rand()*.9,.1+rand()*.45,.2+rand()*.7);obj.updateMatrix();rocks.setMatrixAt(i,obj.matrix);}
+  // Grass: instanced tufts with distance thinning; dense at the road edge, a
+  // sparse strip on the crown between the ruts, none in the wheel tracks.
+  const tufts=[];for(let c=0;c<110;c++){const crown=rand()<.1,cx=crown?(rand()-.5)*.5:side()*(4.2+Math.pow(rand(),1.35)*9),cz=zz(),n=crown?5:6+Math.floor(rand()*12),spread=crown?.5:.5+rand()*1.3;for(let i=0;i<n;i++){const a=rand()*TAU,d=Math.sqrt(rand())*spread,x=cx+Math.cos(a)*d*(crown?.35:1),z=Math.max(-13.9,Math.min(13.9,cz+Math.sin(a)*d)),sc=(.55+rand()*.75)*(1-d/spread*.35);if(Math.abs(Math.abs(x)-1.02)<.35)continue;tufts.push(at(x,z,0,rand()*TAU,crown?sc*.6:sc).clone());}}
+  for(let i=tufts.length-1;i>0;i--){const j=Math.floor(rand()*(i+1));[tufts[i],tufts[j]]=[tufts[j],tufts[i]];}
+  return{meshes,tufts};
  }
- const dustCanvas=document.createElement('canvas');dustCanvas.width=dustCanvas.height=64;const dc=dustCanvas.getContext('2d'),grad=dc.createRadialGradient(32,32,0,32,32,32);grad.addColorStop(0,'rgba(217,190,139,.5)');grad.addColorStop(.3,'rgba(210,186,141,.2)');grad.addColorStop(1,'rgba(210,186,141,0)');dc.fillStyle=grad;dc.fillRect(0,0,64,64);const dustMap=new T.CanvasTexture(dustCanvas);
- const positions=new Float32Array(110*3),dustLife=[];for(let i=0;i<110;i++){dustLife.push(rand());positions[i*3]=(rand()-.5)*6;positions[i*3+1]=rand()*2;positions[i*3+2]=rand()*45;}
- const dustGeo=new T.BufferGeometry();dustGeo.setAttribute('position',new T.BufferAttribute(positions,3));const dust=new T.Points(dustGeo,new T.PointsMaterial({map:dustMap,color:0xc7b694,size:3.2,transparent:true,opacity:.17,depthWrite:false,sizeAttenuation:true}));scene.add(dust);
- // Tall, faint shafts make the canopy light readable without covering the animal.
- const shaftMat=new T.MeshBasicMaterial({color:0xffe2a3,transparent:true,opacity:.022,depthWrite:false,side:T.DoubleSide,blending:T.AdditiveBlending});for(let i=0;i<7;i++){const shaft=new T.Mesh(new T.CylinderGeometry(.25,2,32,12,1,true),shaftMat);shaft.position.set(10-i*3,13,30+i*15);shaft.rotation.z=-.37;scene.add(shaft);}
- return {reset(){soil.offset.y=0;chunks.forEach((chunk,k)=>chunk.position.z=k*28+chunkStart);},update(dt,speed,time){soil.offset.y=(soil.offset.y+speed*dt/20)%1;for(const chunk of chunks){chunk.position.z+=speed*dt;if(chunk.position.z>200)chunk.position.z-=chunkCount*28;}
-  for(let i=0;i<110;i++){const n=i*3;positions[n+2]+=speed*dt*.7;positions[n]+=Math.sin(time*.5+i)*dt*.12;positions[n+1]+=dt*.13;if(positions[n+2]>50){positions[n]=(rand()-.5)*3;positions[n+1]=rand()*.5;positions[n+2]=2;}}
-  dustGeo.attributes.position.needsUpdate=true;
- },dustMap};
+ const layouts=Array.from({length:UNIQUE},(_,i)=>layout(9001+i*37));
+ const tuftGeometry=mergeGeometries([kit.grass[0]]);
+ const chunks=[];
+ for(let k=0;k<COUNT;k++){
+  const group=new T.Group(),data=layouts[k%UNIQUE];group.position.z=k*CHUNK+START;root.add(group);
+  const floor=new T.Mesh(ground,groundMat);floor.receiveShadow=true;floor.name='Jungle ground';group.add(floor);
+  const parts=data.meshes.map(d=>{const mesh=new T.Mesh(d.geometry,d.material);mesh.castShadow=d.material===M.bark||d.material===M.rock;mesh.receiveShadow=true;group.add(mesh);return{mesh,data:d};});
+  const grass=new T.InstancedMesh(tuftGeometry,M.grass,data.tufts.length);data.tufts.forEach((m,i)=>grass.setMatrixAt(i,m));grass.receiveShadow=true;grass.computeBoundingSphere();group.add(grass);
+  chunks.push({group,parts,grass});
+ }
+
+ // ---- Air: sunbeam motes and falling leaves -------------------------------
+ const moteCount=900,moteSeeds=new Float32Array(moteCount*4),rnd=seeded(606);for(let i=0;i<moteCount*4;i++)moteSeeds[i]=rnd();
+ const moteGeo=new T.BufferGeometry();moteGeo.setAttribute('position',new T.BufferAttribute(new Float32Array(moteCount*3),3));moteGeo.setAttribute('seed',new T.BufferAttribute(moteSeeds,4));
+ const moteUniforms={time:{value:0},scroll:{value:0},tCanopy:{value:canopy?.texture||null},canopyHeight:{value:canopy?.height||17},canopyScale:{value:canopy?.scale||72},canopyScroll:{value:0},canopyOffset:{value:canopy?.offset||new T.Vector2()},sunDir:{value:SUN_DIRECTION.clone()},pixel:{value:1},strength:{value:1}};
+ const motes=new T.Points(moteGeo,new T.ShaderMaterial({uniforms:moteUniforms,transparent:true,depthWrite:false,blending:T.AdditiveBlending,fog:false,
+  vertexShader:`attribute vec4 seed;uniform float time,scroll,canopyHeight,canopyScale,canopyScroll,pixel;uniform vec3 sunDir;uniform vec2 canopyOffset;uniform sampler2D tCanopy;varying float vLight;
+   void main(){
+    vec3 box=vec3(30.,11.,54.);
+    vec3 p=vec3(seed.x*box.x-box.x*.5+sin(time*.21+seed.w*20.)*.6,.3+mod(seed.y*box.y+time*(.05+seed.w*.08),box.y),mod(seed.z*box.z+scroll*.98+sin(time*.3+seed.x*9.)*.4,box.z)-6.);
+    vec2 q=p.xz+sunDir.xz*(canopyHeight-p.y)/sunDir.y-canopyOffset;
+    float lit=texture2D(tCanopy,vec2(q.x/canopyScale+.5,(q.y-canopyScroll)/canopyScale)).r;
+    vec4 mv=modelViewMatrix*vec4(p,1.);gl_Position=projectionMatrix*mv;
+    float d=-mv.z;vLight=lit*smoothstep(1.5,5.,d)*(1.-smoothstep(28.,46.,d))*(.35+.65*seed.w);
+    gl_PointSize=pixel*(1.4+seed.w*2.4)*18./max(d,1.);
+   }`,
+  fragmentShader:`uniform float strength;varying float vLight;void main(){vec2 c=gl_PointCoord-.5;float a=exp(-dot(c,c)*18.);gl_FragColor=vec4(vec3(1.,.88,.64)*a*vLight*.9*strength,1.);}`}));
+ motes.frustumCulled=false;motes.name='Sunbeam motes';root.add(motes);
+
+ const leafCanvas=document.createElement('canvas');leafCanvas.width=leafCanvas.height=64;{const x=leafCanvas.getContext('2d');x.translate(32,32);x.rotate(.6);const g=x.createLinearGradient(-20,0,20,0);g.addColorStop(0,'#6d4a22');g.addColorStop(1,'#a07a3a');x.fillStyle=g;x.beginPath();x.ellipse(0,0,24,10,0,0,7);x.fill();x.strokeStyle='#4a3218';x.lineWidth=1.5;x.beginPath();x.moveTo(-24,0);x.lineTo(24,0);x.stroke();}
+ const leafTex=new T.CanvasTexture(leafCanvas);leafTex.colorSpace=T.SRGBColorSpace;
+ const fallingCount=70,falling=new T.InstancedMesh(new T.PlaneGeometry(.16,.16),new T.MeshStandardMaterial({map:leafTex,alphaTest:.4,side:T.DoubleSide,roughness:.8}),fallingCount);
+ const leafState=Array.from({length:fallingCount},()=>({p:new T.Vector3((rnd()-.5)*24,rnd()*14,rnd()*50-4),spin:new T.Vector3(rnd()*3,rnd()*3,rnd()*3),phase:rnd()*TAU,fall:.35+rnd()*.5}));
+ falling.frustumCulled=false;falling.name='Falling leaves';root.add(falling);
+
+ // Low tier: faint painted shafts stand in for the ray-marched scattering.
+ const shaftMat=new T.MeshBasicMaterial({color:0xffe2a3,transparent:true,opacity:.02,depthWrite:false,side:T.DoubleSide,blending:T.AdditiveBlending,fog:false});
+ const shafts=new T.Group();for(let i=0;i<7;i++){const shaft=new T.Mesh(new T.CylinderGeometry(.25,2,32,12,1,true),shaftMat);shaft.position.set(-4+i*2.5,13,24+i*14);shaft.rotation.z=.55;shaft.rotation.x=-.42;shafts.add(shaft);}shafts.visible=false;root.add(shafts);
+
+ const dustMap=dustTexture();
+ let grassFactor=1,floraFactor=1,particleFactor=1;
+ function thin(){for(const c of chunks)for(const {mesh,data}of c.parts){const n=Math.floor(data.marks.length*floraFactor);mesh.geometry.setDrawRange(0,n?data.marks[n-1]:data.requiredEnd||0);if(!n&&!data.requiredEnd)mesh.geometry.setDrawRange(0,0);}}
+ function positionChunks(){chunks.forEach((c,k)=>c.group.position.z=k*CHUNK+START);}
+ return{
+  kit,chunks,motes,dustMap,
+  setQuality(t){grassFactor=t.grass;floraFactor=t.flora;particleFactor=t.particles;shafts.visible=!!t.beams;motes.visible=!t.beams;moteGeo.setDrawRange(0,Math.floor(moteCount*particleFactor));falling.count=Math.floor(fallingCount*particleFactor);thin();},
+  reset(){positionChunks();},
+  update(dt,speed,time,camera){
+   WIND.value=time;
+   for(const c of chunks){
+    c.group.position.z+=speed*dt;if(c.group.position.z>200)c.group.position.z-=COUNT*CHUNK;
+    // Beyond ~140 m ahead the fog is opaque; far behind is only seen during the defeat spin.
+    c.group.visible=c.group.position.z<150&&c.group.position.z>-96;
+    // Distance thinning: full density near the camera, a sparse carpet far away.
+    const d=Math.abs(c.group.position.z-6),lod=Math.max(.12,1-Math.max(0,d-18)/70);
+    c.grass.count=Math.floor(c.grass.instanceMatrix.count*Math.min(1,grassFactor)*lod);
+   }
+   moteUniforms.time.value=time;moteUniforms.scroll.value=(moteUniforms.scroll.value+speed*dt)%54;moteUniforms.pixel.value=Math.min(2,devicePixelRatio);
+   if(canopy){moteUniforms.canopyScroll.value=canopy.scroll%canopy.scale;}
+   for(let i=0;i<falling.count;i++){
+    const l=leafState[i];l.p.y-=l.fall*dt;l.p.z+=speed*dt*.97;l.p.x+=Math.sin(time*1.3+l.phase)*dt*.6;
+    if(l.p.y<.05||l.p.z>48){l.p.set((rnd()-.5)*24,9+rnd()*6,rnd()*40-4);}
+    obj.position.copy(l.p);obj.rotation.set(time*l.spin.x+l.phase,time*l.spin.y,time*l.spin.z);obj.updateMatrix();falling.setMatrixAt(i,obj.matrix);
+   }
+   falling.instanceMatrix.needsUpdate=true;
+  }
+ };
 }

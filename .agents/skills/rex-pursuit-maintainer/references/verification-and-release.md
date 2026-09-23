@@ -18,6 +18,14 @@ git -c safe.directory=C:/Users/burns/dev/games-playground/rex-encounter status -
 
 Use that exact checkout if needed; do not globally disable ownership checks. Node/Chrome and authenticated network commands may need the environment's escalation tool. A permission denial is not evidence that the code is broken; use the available approval mechanism within the authorized scope.
 
+## Test tiers (keep runs proportional)
+
+The user asked that test effort match the change. Do not run the whole suite for small edits.
+
+1. **Smoke** — `npm run test:smoke` (about 30 s): load, fire/hit, grenade, camera switch, pause, win transition and phone layout, with no page or console errors. Run it for any runtime change.
+2. **Focused** — add only the checks from the table below that cover the systems touched (e.g. gun aim: `test:gunner`; understory/foliage placement: `test:treeline`; HUD/camera framing: `test:pressure`). Visual-only material, lighting or effect tweaks need the smoke run plus before/after captures, not the browser suites.
+3. **Full** — every suite plus `build`, `test:release`, `test:pages` and `test:build` only before a publish or after broad cross-cutting changes (rig, timing, combat rules, render pipeline structure).
+
 ## Focused checks
 
 Read `package.json` and the selected script before running it. There is no need to rerun every long browser sequence for a narrow visual edit.

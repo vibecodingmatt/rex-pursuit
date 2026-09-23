@@ -6,9 +6,37 @@ import {createParkDriver} from './park-driver.js';
 import {createPlayerCharacter} from './player-character.js';
 import {defeatPose} from './defeat.js';
 import {victoryPose} from './victory.js';
+// Field-worn finish: mud caked low and splattered up the panels, a dust film on
+// upward faces, cleaner metal where hands and boots rub. Object-space noise keeps
+// the pattern fixed to the body; world height drives how high mud reaches.
+function grime(material,{mud=1,dust=1,key}){
+ material.onBeforeCompile=s=>{
+  s.vertexShader=s.vertexShader.replace('#include <common>',`#include <common>
+varying vec3 vGrimeObj;varying vec3 vGrimeWorld;varying float vGrimeUp;`)
+   .replace('#include <begin_vertex>',`#include <begin_vertex>
+vGrimeObj=position;vGrimeWorld=(modelMatrix*vec4(transformed,1.)).xyz;vGrimeUp=normalize(mat3(modelMatrix)*objectNormal).y;`);
+  s.fragmentShader=s.fragmentShader.replace('#include <common>',`#include <common>
+   varying vec3 vGrimeObj;varying vec3 vGrimeWorld;varying float vGrimeUp;float grimeMud;
+   float gHash(vec3 p){return fract(sin(dot(p,vec3(17.1,113.3,61.7)))*43758.5453);}
+   float gNoise(vec3 p){vec3 i=floor(p),f=fract(p);f=f*f*(3.-2.*f);return mix(mix(mix(gHash(i),gHash(i+vec3(1,0,0)),f.x),mix(gHash(i+vec3(0,1,0)),gHash(i+vec3(1,1,0)),f.x),f.y),mix(mix(gHash(i+vec3(0,0,1)),gHash(i+vec3(1,0,1)),f.x),mix(gHash(i+vec3(0,1,1)),gHash(i+vec3(1,1,1)),f.x),f.y),f.z);}`)
+  .replace('#include <color_fragment>',`#include <color_fragment>
+   {
+    float n=gNoise(vGrimeObj*5.3),n2=gNoise(vGrimeObj*21.),n3=gNoise(vGrimeObj*61.);
+    float h=vGrimeWorld.y+n*.32-.16;
+    grimeMud=(1.-smoothstep(.42,1.02,h))+smoothstep(.7,.86,n2+n3*.18)*(1.-smoothstep(.75,1.55,h));
+    grimeMud=clamp(grimeMud,0.,1.)*${mud.toFixed(2)};
+    float film=(smoothstep(.2,.9,vGrimeUp)*.55+.18)*(.7+.6*n)*${dust.toFixed(2)};
+    diffuseColor.rgb=mix(diffuseColor.rgb,vec3(.36,.3,.22)*(.85+.3*n3),clamp(film,0.,.7));
+    diffuseColor.rgb=mix(diffuseColor.rgb,vec3(.085,.062,.043)*(.8+.4*n3),grimeMud*.9);
+   }`)
+  .replace('#include <roughnessmap_fragment>',`#include <roughnessmap_fragment>
+roughnessFactor=mix(roughnessFactor,.82,grimeMud);`);
+ };
+ material.customProgramCacheKey=()=>`rex-jeep-grime-${key}`;
+}
 export function createJeep(scene){
  const jeep=new T.Group(),body=new T.Group();jeep.add(body);scene.add(jeep);
- const paint=new T.MeshStandardMaterial({color:0xc7b88e,metalness:.23,roughness:.58});
+ const paint=new T.MeshPhysicalMaterial({color:0xc2b388,metalness:.12,roughness:.52,clearcoat:.35,clearcoatRoughness:.4});
  const edge=new T.MeshStandardMaterial({color:0x788070,metalness:.65,roughness:.4});
  const black=new T.MeshStandardMaterial({color:0x161b19,metalness:.2,roughness:.62});
  const rubber=new T.MeshStandardMaterial({color:0x191b18,roughness:.97});
@@ -40,6 +68,7 @@ export function createJeep(scene){
  const wheels=[];
  function wheel(parent,x,y,z,spare=false){const group=new T.Group();group.position.set(x,y,z);if(spare)group.rotation.y=Math.PI/2;parent.add(group);cyl(group,rubber,.43,.43,.32,[0,0,0],[0,0,Math.PI/2],32);cyl(group,accent,.27,.27,.335,[0,0,0],[0,0,Math.PI/2],24);cyl(group,black,.12,.12,.36,[0,0,0],[0,0,Math.PI/2]);for(let i=0;i<30;i++){const a=i/30*Math.PI*2;for(const r of [-1,1])box(group,rubber,[.16,.065,.12],[r*.085,Math.sin(a)*.43,Math.cos(a)*.43],[a,0,r*.13]);}for(let i=0;i<8;i++){const a=i*Math.PI/4;for(const side of [-1,1])cyl(group,black,.042,.042,.006,[side*.17,Math.sin(a)*.205,Math.cos(a)*.205],[0,0,Math.PI/2],10);}for(let i=0;i<5;i++){const a=i*6.28/5;cyl(group,edge,.028,.028,.35,[0,Math.sin(a)*.15,Math.cos(a)*.15],[0,0,Math.PI/2],6);}mergeStatic(group);return group;}
  for(const x of [-1,1])for(const z of [-1.16,1.16])wheels.push(wheel(jeep,x,.49,z));wheel(body,0,1.17,1.98,true);
+ grime(paint,{mud:1,dust:1,key:'paint'});grime(accent,{mud:1,dust:.8,key:'accent'});grime(black,{mud:.9,dust:.9,key:'black'});grime(rubber,{mud:.7,dust:1.3,key:'rubber'});grime(edge,{mud:.8,dust:.8,key:'edge'});
  const mats={paint,accent,edge,black,rubber,steel,fabric,glass};addParkLivery(body,mats);
  const driver=createParkDriver(body,mats);
  const character=createPlayerCharacter(body),gunner=character.root;
@@ -55,7 +84,8 @@ export function createJeep(scene){
  return{root:jeep,body,muzzle,gun,yaw,gunner,character,driver,flash,weapon,pose,shoot:weapon.shoot,reset,update(dt,time,speed,aim,third,state){
   rearCrossbar.visible=third;
   pose(time,speed,state);
-  for(const w of wheels)w.rotation.x+=speed*dt/.43;
+  // The Jeep drives toward -Z; the contact patch must travel with the road (+Z).
+  for(const w of wheels)w.rotation.x-=speed*dt/.43;
   gunner.visible=third;driver.update(dt,time,speed,third);character.pose(time,speed,yaw.rotation.y,state);weapon.update(dt,time,speed,aim,third,state);if(third)character.fitArms(weapon.armRig);
  }};
 }

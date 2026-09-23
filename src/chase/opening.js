@@ -24,7 +24,7 @@ export function createOpeningScenery(scene,dustMap,{offsetZ=0,anchorAt=null}={})
  }
  const shards=new T.InstancedMesh(new T.PlaneGeometry(.19,.37),leaf,64);shards.frustumCulled=false;root.add(shards);
  const chips=new T.InstancedMesh(new T.CylinderGeometry(.018,.035,.33,5),bark,18);chips.frustumCulled=false;root.add(chips);
- const puffs=Array.from({length:8},()=>{const s=new T.Sprite(new T.SpriteMaterial({map:dustMap,color:0xb49a6b,transparent:true,opacity:0,depthWrite:false}));root.add(s);return s;});
+ const puffs=Array.from({length:8},()=>{const s=new T.Sprite(new T.SpriteMaterial({map:dustMap,color:0x6f614a,transparent:true,opacity:0,depthWrite:false}));root.add(s);return s;});
  const obj=new T.Object3D();let drift=0;
  function reset(){root.visible=false;drift=0;trees.forEach(t=>t.rotation.set(0,0,0));}
  function update(dt,t,speed,active){

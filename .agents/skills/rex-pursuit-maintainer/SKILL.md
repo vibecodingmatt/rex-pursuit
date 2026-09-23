@@ -17,7 +17,12 @@ Read its `AGENTS.md` and `docs/HANDOFF.md`, then inspect current source and Git 
 
 | Task | Main files relative to the checkout |
 | --- | --- |
-| Game entry, camera, frame clock, pause, event/audio cues | `index.html`, `src/chase.js`, `src/chase.css` |
+| Game entry, camera, frame clock, pause, event/audio cues | `index.html`, `src/chase.js`, `src/chase.css`, `src/chase-premium.css` |
+| HDR post pipeline, quality tiers, dynamic resolution | `src/chase/post.js`, `graphics.js`, quality wiring in `src/chase.js` |
+| Sky, environment light, fog, canopy dapple/shafts | `src/chase/atmosphere.js` |
+| Rainforest plants, wind shader, ground | `src/chase/foliage.js`, `environment.js` |
+| Hide finish, mouth interior, teeth, cornea | `src/chase/rex-skin.js` (composed via `damage.js`) |
+| Combat/creature particles, flock | `src/chase/effects.js`, `birds.js` |
 | Rules, pressure, damage totals, objectives, deadline | `src/chase/combat.js`, `src/chase/targets.js` |
 | Rig orchestration and layered poses | `src/chase/creature.js` |
 | Walking/running, plants, swing arcs, IK | `src/chase/locomotion.js` |
