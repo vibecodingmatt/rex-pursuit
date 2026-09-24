@@ -60,8 +60,11 @@ function skyMaterial({forest=false}={}){
    float cloud=0.;
    if(h>0.&&night>0.){
     // Stars: one candidate per cell of a direction lattice, twinkling slowly.
-    vec3 sp=d*260.;vec3 cell=floor(sp);float sh=fract(sin(dot(cell,vec3(127.1,311.7,74.7)))*43758.5453);
-    vec3 off=fract(sin(cell*vec3(12.9898,78.233,37.719)+sh*9.)*43758.5453)-.5;
+    // Sin-free hashes: sin() of large arguments loses precision on mobile GPUs
+    // and draws straight lines across the sky.
+    vec3 sp=d*260.;vec3 cell=floor(sp);
+    vec3 q=fract(cell*vec3(.1031,.1030,.0973));q+=dot(q,q.yxz+33.33);float sh=fract((q.x+q.y)*q.z);
+    vec3 off=fract((q.xxy+q.yxx)*q.zyx)-.5;
     float sd=length(fract(sp)-.5-off*.6),star=smoothstep(.16,0.,sd)*step(.955,sh)*(sh-.955)*22.;
     star*=.65+.35*sin(time*(1.3+sh*3.)+sh*80.);
     sky+=vec3(.85,.9,1.)*star*smoothstep(.04,.35,h)*night*(1.-storm);
