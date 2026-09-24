@@ -10,6 +10,8 @@ const fs=require('node:fs');
   page.on('console',m=>{if(m.type()==='error')errors.push(m.text());});
   await page.goto(process.env.TEST_URL||'http://127.0.0.1:5188/');
   await page.waitForFunction(()=>window.rexChase?.rex,{timeout:120000});
+  // Footfall dust is the dry-ground path; the storm replaces it with splashes.
+  await page.evaluate(()=>rexChase.setConditions?.('clear',true));
   await page.locator('#start').click();await page.waitForFunction(()=>rexChase.mode==='playing');
   const report=await page.evaluate(()=>{
    rexChase.freeze=true;const {rex,effects}=rexChase;

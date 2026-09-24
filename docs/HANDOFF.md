@@ -2,6 +2,15 @@
 
 Checkpoint: 2026-09-23. The foot articulation below was published at the user's request after the full release gate. It follows the visual overhaul (HDR pipeline, rebuilt rainforest, hide/mouth finish, effects, quality tiers and front-end polish), published earlier the same day after its release gate (test:logic, npm test, build, test:release, test:pages) passed. That in turn follows `540d171` (varied branch hazards and stomach plunge reveal).
 
+## Storm refinements (2026-09-24, local only, not pushed)
+
+The user asked for three things. **Storm is now the only condition offered**: the Conditions picker is hidden, the game starts in Storm, and Clear remains in code, reachable through `rexChase.setConditions('clear', true)`; `verify-motion.cjs` uses it to keep checking dry footfall dust. **Wet footfalls splash instead of raising dust**, and **lens drops splat and fade** instead of sitting still.
+
+- `src/chase/mud.js`: each wet footfall throws about 110 ballistic droplet streaks (water, broken sheets and mud clods, launched with the ground's velocity). It also raises a crown: an instanced open cylinder that flares, tears into tapering fingers and collapses in 0.5 s. The crown is what reads from the gunner's seat; the individual droplets are sub-pixel at 15 m. Body slams and the defeat skid call `effects.splash` for bigger bursts.
+- Mud prints: a three-toed track (SDF with broad toes and heel pad) on an instanced lit decal. Walls get a heightfield normal from the SDF, and the rim is squeezed up. Water pools glossy in the deepest part and a ring spreads for the first 0.9 s. Prints ride the road, fade out from 60–85 m, mirror for the left foot ('L'), and appear only on the flat road/verge (|x| < 14). Stride direction comes from the previous print.
+- Dust and grit scale with dryness (`1 - WET`), so Clear is unchanged.
+- Lens (`post.js`): each cell hosts a stream of impacts. Each lands at a fresh spot with fine spatter, then shrinks and fades over several seconds; about 16% are heavy beads that run down the glass.
+
 ## Storm conditions (2026-09-24, local only, not pushed)
 
 Drop 1 of [the upgrade roadmap](ROADMAP.md). Menu and Pause have a **Conditions: Clear | Storm** picker stored in `localStorage` (`rex-pursuit-conditions`). Clear must stay visually and behaviourally identical; gameplay rules do not change in the storm.

@@ -113,16 +113,24 @@ export function createPost(renderer){
   uniform sampler2D tScene,tBloom,tVol;uniform vec2 texel,resolution;
   uniform float bloomStrength,volStrength,exposure,time,vignette,grain,aberration,sharpen,contrast,saturation,lift,lensRain,lensTime;uniform vec3 shadowTint,highlightTint,flash;
   ${HASH}
-  // Raindrops on an exterior camera's lens: sparse beads that swell, slide down
-  // with a slight wander and clear. Each refracts (inverts) the view behind it.
+  // Raindrops striking an exterior camera's lens. Each cell hosts a stream of
+  // impacts: a drop splats at a fresh spot with a ring of fine spatter, then
+  // thins and evaporates while later drops land elsewhere; a few heavy beads run
+  // down the glass. Each bead refracts (inverts) the view behind it.
   vec3 lensDrops(vec2 uv,float t){
-   vec2 id=floor(uv),f=fract(uv)-.5;float h=hash12(id*1.37+3.1);
-   if(h>.42)return vec3(0.);
-   float life=fract(t*(.035+.06*h)+h*7.),slide=smoothstep(.35,1.,life);
-   vec2 c=vec2((hash12(id+.7)-.5)*.6+sin(life*9.+h*20.)*.03*slide,.3-slide*.75);
-   vec2 d=f-c;d.y*=1.+.7*slide;float r=.1+.09*hash12(id+5.3);
-   float m=smoothstep(r,r*.72,length(d))*smoothstep(0.,.08,life)*smoothstep(1.,.86,life);
-   return vec3(d/r,m);
+   vec2 id=floor(uv),f=fract(uv)-.5;
+   float h=hash12(id*1.37+3.1),cyc=t*(.18+.2*h)+h*9.,life=fract(cyc);
+   vec2 k=id+floor(cyc)*vec2(.137,.311);
+   if(hash12(k*1.7+.3)>.55)return vec3(0.);
+   float heavy=step(hash12(k+9.1),.16);
+   vec2 c=(vec2(hash12(k+.7),hash12(k+2.9))-.5)*.45;c.y=mix(c.y,.2-smoothstep(.12,1.,life)*.4,heavy);
+   float r=(.06+.08*hash12(k+5.3))*(1.-.4*life*(1.-heavy))*(1.+.3*heavy);
+   float appear=smoothstep(0.,.025,life),fade=1.-smoothstep(.2,1.,life)*(1.-.35*heavy);
+   vec2 d=f-c;d.y*=1.+heavy*.5*life;
+   float m=smoothstep(r,r*.7,length(d))*appear*fade,spat=0.;
+   for(int i=0;i<5;i++){float fi=float(i);vec2 o=(vec2(hash12(k+fi*3.1),hash12(k+fi*7.7))-.5)*r*3.6;float rr=r*(.14+.16*hash12(k+fi+.5));spat=max(spat,smoothstep(rr,rr*.55,length(d-o)));}
+   spat*=appear*(1.-smoothstep(0.,.3,life))*.7;
+   return m>=spat?vec3(d/r,m):vec3(0.,0.,spat);
   }
   vec3 rrt(vec3 v){vec3 a=v*(v+.0245786)-.000090537,b=v*(.983729*v+.4329510)+.238081;return a/b;}
   vec3 aces(vec3 c){

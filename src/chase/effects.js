@@ -1,4 +1,5 @@
 import * as T from 'three';
+import {WET} from './weather-state.js';
 // Combat and creature effects. Everything is pooled and bounded; road-relative
 // pools advance with the ground so dust and debris are left behind correctly.
 function spriteTexture(draw,size=128){const c=document.createElement('canvas');c.width=c.height=size;draw(c.getContext('2d'),size);const t=new T.CanvasTexture(c);t.colorSpace=T.SRGBColorSpace;return t;}
@@ -71,9 +72,11 @@ export function createEffects(scene,dustMap){
  return{stats,dust,
   setQuality(t){particleScale=t.particles;},
   get flash(){return screenFlash;},
-  footstep(p,speed){stats.footsteps++;const strength=T.MathUtils.clamp(speed/10,.65,1.35);groundDust(p,5,strength);grit(p,strength,8);},
-  bodyImpact(p,strength){stats.bodyImpacts++;groundDust(p,Math.ceil(18*strength),.7+strength*.55,true);grit(p,2*strength,18);},
-  bodySlide(p,strength){groundDust(p,3,.5+strength*.6,true);},
+  // Wet ground does not raise dust: the storm's splash hook takes over (see mud.js).
+  splash:null,
+  footstep(p,speed){stats.footsteps++;const strength=T.MathUtils.clamp(speed/10,.65,1.35),dry=1-WET.value;groundDust(p,Math.round(5*dry),strength);grit(p,strength,8*dry);},
+  bodyImpact(p,strength){stats.bodyImpacts++;const dry=1-WET.value;groundDust(p,Math.ceil(18*strength*dry),.7+strength*.55,true);grit(p,2*strength,18*dry);this.splash?.(p,strength);},
+  bodySlide(p,strength){groundDust(p,Math.round(3*(1-WET.value)),.5+strength*.6,true);this.splash?.(p,strength*.5);},
   reset(){life.fill(0);position.fill(-1000);groundRelative.fill(0);geo.attributes.position.needsUpdate=true;for(const d of dust){d.life=0;d.sprite.visible=false;}for(const pool of [puffs,fire,smoke,mist])for(const p of pool){p.life=0;p.sprite.visible=false;}for(const t of tracers){t.life=0;t.mesh.visible=false;}lightTime=0;burstLight.intensity=0;screenFlash=0;stats.footsteps=stats.bodyImpacts=stats.explosions=stats.breaths=0;},
   trace(a,b){
    const t=tracers[traceId++%tracers.length];t.u.a.value.copy(a);t.u.b.value.copy(b);const bright=roundCount++%3===0;const d=a.distanceTo(b);t.flight=Math.min(.2,Math.max(.07,d/160));t.hold=.05;t.u.gain.value=bright?1:.5;t.age=0;t.life=t.flight+t.hold;t.mesh.visible=true;t.u.head.value=0;t.u.tail.value=0;t.u.seg.value=Math.min(.6,(bright?6:3.5)/Math.max(d,1));t.u.trail.value=1;t.u.slug.value=1;

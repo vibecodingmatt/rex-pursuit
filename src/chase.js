@@ -19,7 +19,8 @@ import {VICTORY,victoryPose} from './chase/victory.js';
 import {createVisitorCenter} from './chase/visitor-center.js';
 import {setupSharing} from './chase/share.js';
 import {createBirds} from './chase/birds.js';
-import {createWeather,storedConditions} from './chase/weather.js';
+import {createWeather} from './chase/weather.js';
+import {createMud} from './chase/mud.js';
 const $=s=>document.querySelector(s),canvas=$('#scene');
 installAtmosphericFog();
 const renderer=new T.WebGLRenderer({canvas,antialias:false,powerPreference:'high-performance'});renderer.shadowMap.enabled=true;renderer.shadowMap.type=T.PCFSoftShadowMap;renderer.toneMapping=T.ACESFilmicToneMapping;renderer.toneMappingExposure=1.13;renderer.info.autoReset=false;
@@ -48,7 +49,7 @@ function tierName(){return quality==='auto'?autoTier:quality;}
 function applyQuality(){
  const t=TIERS[tierName()];renderer.setPixelRatio(Math.min(devicePixelRatio,t.pixelRatio));governor.setRange(t.scale);governor.reset();
  if(sun.shadow.mapSize.x!==t.shadow){sun.shadow.mapSize.set(t.shadow,t.shadow);sun.shadow.map?.dispose();sun.shadow.map=null;}
- post.configure({scale:governor.scale,msaa:t.msaa,bloomLevels:t.bloomLevels,volumetric:t.volumetric});jungle?.setQuality?.(t);effects?.setQuality?.(t);weather?.setQuality(t);
+ post.configure({scale:governor.scale,msaa:t.msaa,bloomLevels:t.bloomLevels,volumetric:t.volumetric});jungle?.setQuality?.(t);effects?.setQuality?.(t);weather?.setQuality(t);mud?.setQuality(t);
  document.body.dataset.quality=tierName();document.body.dataset.post=post.supported?'on':'off';document.querySelectorAll('[data-quality]').forEach(b=>b.setAttribute('aria-pressed',String(b.dataset.quality===quality)));
  const gpu=(detected.gpu.match(/(rtx|gtx|rx|arc|radeon|apple md|adreno|mali|intel|iris|uhd)[^,(]*/i)?.[0]||'').replace(/s+/g,' ').trim().toUpperCase();
  document.querySelectorAll('.quality-readout').forEach(e=>e.textContent=`Rendering ${t.label.toUpperCase()}${quality==='auto'?' (auto)':''}${gpu?' · '+gpu:''} · ${t.volumetric?'volumetric light':'light shafts'} · ${t.msaa}× MSAA`);
@@ -66,12 +67,16 @@ const ambushScenery=createOpeningScenery(scene,jungle.dustMap,{offsetZ:-6,anchor
 ambushScenery.root.scale.x=-1;
 const debris=createDebris(scene,camera,$('#target-layer'));
 const birds=createBirds(scene);
+const mud=createMud(scene);effects.splash=(p,strength)=>mud.burst(p,strength);
 const raycaster=new T.Raycaster(),pointer=new T.Vector2(),aimTarget=new T.Vector3(0,3.7,16);let rex,mode='loading',view='first',firing=false,breathClock=0,stomp=0,stompVel=0,stompOffset=0,time=0,last=performance.now(),shake=0,gunKick=0,hitTime=0,damageFlash=0,endTime=0,frameCount=0,freeze=false;
 const reducedMotion=matchMedia('(prefers-reduced-motion: reduce)').matches;
 weather=createWeather(scene,{renderer,sky,makeEnvironment:createEnvironmentMap,reducedMotion});weather.captureBase({sun,hemi,rim,fill,post});
 weather.onThunder=(delay,near)=>audio.thunder(delay,near);
-function setConditions(kind){weather.set(kind,{instant:mode==='paused'});weather.apply({sun,hemi,rim,fill,post});document.querySelectorAll('[data-conditions]').forEach(b=>b.setAttribute('aria-pressed',String(b.dataset.conditions===weather.kind)));document.body.dataset.conditions=weather.kind;}
-document.querySelectorAll('[data-conditions]').forEach(b=>b.onclick=()=>setConditions(b.dataset.conditions));setConditions(storedConditions());
+function setConditions(kind,instant=mode==='paused'){weather.set(kind,{instant});weather.apply({sun,hemi,rim,fill,post});document.querySelectorAll('[data-conditions]').forEach(b=>b.setAttribute('aria-pressed',String(b.dataset.conditions===weather.kind)));document.body.dataset.conditions=weather.kind;}
+// Storm is the only condition offered for now: the picker stays hidden and Clear
+// remains reachable through rexChase.setConditions (the dry-dust checks use it).
+document.querySelectorAll('[data-conditions]').forEach(b=>b.onclick=()=>setConditions(b.dataset.conditions));setConditions('storm',true);
+document.querySelectorAll('.conditions-picker').forEach(e=>e.hidden=true);
 // ?fps shows frame rate, frame time, tier and render scale for performance checks.
 const fpsMeter=new URLSearchParams(location.search).has('fps')?Object.assign(document.body.appendChild(document.createElement('div')),{id:'fps-meter'}):null;let fpsFrames=0,fpsSince=performance.now();
 if(fpsMeter)fpsMeter.style.cssText='position:fixed;left:8px;top:8px;z-index:9999;padding:3px 7px;font:600 11px/1.3 ui-monospace,monospace;color:#e8f0d8;background:#000a;pointer-events:none;white-space:pre';
@@ -99,7 +104,7 @@ async function start(){
  try{await audio.init();}catch(e){console.warn('Audio initialization failed',e.message);}
  audio.stopCalls();state.reset();
  state.introDuration=Math.max(RULES.intro,RULES.roarAt+(audio.buffers.get(audio.roles.opening)?.duration||3.64)/.95+1.5);
- rex.reset();effects.reset();birds.reset();jeep.reset();jungle.reset();opening.reset();ambushScenery.reset();targets?.reset();debris.reset();swallow.reset();visitorCenter.reset();sharing.reset();
+ rex.reset();effects.reset();mud.reset();birds.reset();jeep.reset();jungle.reset();opening.reset();ambushScenery.reset();targets?.reset();debris.reset();swallow.reset();visitorCenter.reset();sharing.reset();
  jungleRoot.visible=true;rex.actor.visible=true;jungleLighting();canopy.reset();
  $('#arrival-caption').style.opacity=0;
  time=0;endTime=0;shake=0;stomp=stompVel=stompOffset=0;damageFlash=0;firing=false;pointer.set(0,.08);moveReticle();
@@ -211,7 +216,7 @@ function handleEvents(){for(const event of state.drainEvents()){
  }
 }}
 function handleMotionEvents(playing){for(const e of rex.drainMotionEvents()){
- if(e.type==='footstep'){effects.footstep(e.position,e.speed);if(playing&&!(state.result==='lost'&&endTime>DEFEAT.contact)){const concealed=state.phase==='flank'&&state.phaseTime>=AMBUSH.vanish&&state.phaseTime<AMBUSH.returnAt;audio.footstep(.22*Math.min(1,18/state.distance)*(concealed?.13:1));
+ if(e.type==='footstep'){effects.footstep(e.position,e.speed);mud.step(e.position,e.speed,e.side);if(playing&&!(state.result==='lost'&&endTime>DEFEAT.contact)){const concealed=state.phase==='flank'&&state.phaseTime>=AMBUSH.vanish&&state.phaseTime<AMBUSH.returnAt;audio.footstep(.22*Math.min(1,18/state.distance)*(concealed?.13:1));
    // Each footfall carries through the ground: a small jolt that grows as she closes.
    // No stomp while aiming at targets or debris: the framing must hold still.
    const aiming=['warning','challenge'].includes(state.phase)||state.debris?.status==='active';
@@ -307,7 +312,7 @@ function frame(now){
    $('#fatal-blood').style.opacity=pose.blood;$('#fatal-black').style.opacity=pose.black;
   }else if(state.victory){
    const v=state.victory;v.time=endTime;const pose=victoryPose(endTime,state.distance);speed=pose.speed;
-   if(pose.arrival&&!v.arrival){v.arrival=true;baseLights();visitorCenter.root.visible=true;jungleRoot.visible=false;opening.reset();ambushScenery.reset();effects.reset();birds.reset();audio.stopCalls();scene.background.setHex(0xbac8c4);scene.fog.color.setHex(0xbac8c4);scene.fog.density=.004;sun.position.set(-30,50,-35);sun.target.position.set(0,4,-80);Object.assign(sun.shadow.camera,{left:-60,right:60,top:60,bottom:-60,near:.5,far:150});sun.shadow.camera.updateProjectionMatrix();
+   if(pose.arrival&&!v.arrival){v.arrival=true;baseLights();visitorCenter.root.visible=true;jungleRoot.visible=false;opening.reset();ambushScenery.reset();effects.reset();mud.reset();birds.reset();audio.stopCalls();scene.background.setHex(0xbac8c4);scene.fog.color.setHex(0xbac8c4);scene.fog.density=.004;sun.position.set(-30,50,-35);sun.target.position.set(0,4,-80);Object.assign(sun.shadow.camera,{left:-60,right:60,top:60,bottom:-60,near:.5,far:150});sun.shadow.camera.updateProjectionMatrix();
     // Open sky over the Visitor Center: no canopy, a brighter dome and softer rim.
     canopy.enabled=false;sky.palette(scene.fog.color,0x8fb8d8);sky.uniforms.sunDir.value.subVectors(sun.position,sun.target.position).normalize();rim.intensity=.45;hemi.intensity=1.45;weather.captureBase({sun,hemi,rim,fill,post});}
    $('#fatal-black').style.opacity=pose.black;$('#arrival-caption').style.opacity=pose.caption;
@@ -324,7 +329,8 @@ function frame(now){
  jeep.pose(time,speed,state);updateCamera(dt);
  weather.update(dt,speed,camera,{ground:jungleRoot.visible,shelter:state.result==='lost'&&state.defeat&&endTime>DEFEAT.contact-.4?1:0});weather.apply({sun,hemi,rim,fill,post});audio.weather(weather.rainLevel);
  // Lens beads only where there is a real lens: third person, menu and exterior cinematics.
- post.final.lensRain.value=(view==='third'||menu||state.result==='won')&&jungleRoot.visible?weather.value:0;post.final.lensTime.value+=dt;visitorCenter.update(time);birds.update(dt,time,speed);
+ post.final.lensRain.value=(view==='third'||menu||state.result==='won')&&jungleRoot.visible?weather.value:0;post.final.lensTime.value+=dt;
+ mud.update(dt,speed,camera,renderer,jungleRoot.visible);mud.tint(weather.rain.material.uniforms.tint.value);visitorCenter.update(time);birds.update(dt,time,speed);
  if(state.result==='lost'&&state.defeat)swallow.update(state.defeat.time,camera,rex.mouthPosition(),reducedMotion);
  if(rex&&state.result!=='won')rex.gaze.update(dt,view==='third'&&!menu?new T.Vector3(.06,2.4,-.45):camera.position);
  raycaster.setFromCamera(pointer,camera);aimPoint(aimTarget);
@@ -344,4 +350,4 @@ const boot=(stage,fraction)=>{$('#boot-stage').textContent=stage;$('#boot-fill')
 try{rex=await createRex(scene,p=>{const f=p.total?p.loaded/p.total:0;$('#loading-status').textContent=p.total?`Creature ${Math.round(f*100)}%`:'Preparing the creature…';boot('Waking the predator',.12+f*.66);});boot('Compiling light and shadow',.82);targets=createTargets(rex,camera,$('#target-layer'));await renderer.compileAsync(scene,camera);await swallow.prepare();boot('Ready',1);setMode('menu');$('#start').disabled=false;$('#start-label').textContent='START THE CHASE';$('#loading-status').textContent='Headphones recommended · First / third person';}
 catch(e){console.error(e);$('#loading-status').textContent='The creature could not load. Refresh to try again.';$('#start-label').textContent='LOAD FAILED';}
 // Exposed for local visual and interaction verification; no network or remote state.
-window.rexChase={scene,camera,renderer,post,birds,sky,canopy,weather,setConditions,governor,sun,lights:{hemi,rim,fill},jungle,get quality(){return{setting:quality,tier:tierName(),detected:detected.tier,gpu:detected.gpu,scale:governor.scale,frameMs:governor.frameMs};},setQuality,jeep,effects,opening,ambushScenery,debris,swallow,visitorCenter,get targets(){return targets;},get rex(){return rex;},state,audio,start,setView,shoot,grenade,get mode(){return mode;},get view(){return view;},get frames(){return frameCount;},set freeze(v){freeze=v;},get freeze(){return freeze;},aimAt(world){pointer.copy(world.clone().project(camera));moveReticle();},snapshot(){return{mode,view,health:state.health,jeep:state.jeep,phase:state.phase,ammo:state.ammo,wounds:rex?.damage.count,damageStage:rex?.damage.stage,persistentImpacts:rex?.damage.totalImpacts,headshots:state.headshots,drawCalls:renderer.info.render.calls,triangles:renderer.info.render.triangles,audioClips:audio.buffers.size,remaining:state.remaining,objectives:state.objectivesCleared,debrisCleared:state.debrisCleared,debrisMissed:state.debrisMissed};}};
+window.rexChase={scene,camera,renderer,post,birds,sky,canopy,weather,setConditions,mud,governor,sun,lights:{hemi,rim,fill},jungle,get quality(){return{setting:quality,tier:tierName(),detected:detected.tier,gpu:detected.gpu,scale:governor.scale,frameMs:governor.frameMs};},setQuality,jeep,effects,opening,ambushScenery,debris,swallow,visitorCenter,get targets(){return targets;},get rex(){return rex;},state,audio,start,setView,shoot,grenade,get mode(){return mode;},get view(){return view;},get frames(){return frameCount;},set freeze(v){freeze=v;},get freeze(){return freeze;},aimAt(world){pointer.copy(world.clone().project(camera));moveReticle();},snapshot(){return{mode,view,health:state.health,jeep:state.jeep,phase:state.phase,ammo:state.ammo,wounds:rex?.damage.count,damageStage:rex?.damage.stage,persistentImpacts:rex?.damage.totalImpacts,headshots:state.headshots,drawCalls:renderer.info.render.calls,triangles:renderer.info.render.triangles,audioClips:audio.buffers.size,remaining:state.remaining,objectives:state.objectivesCleared,debrisCleared:state.debrisCleared,debrisMissed:state.debrisMissed};}};
