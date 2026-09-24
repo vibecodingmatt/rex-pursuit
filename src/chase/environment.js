@@ -88,7 +88,8 @@ function groundMaterial(kit){
   .replace('#include <roughnessmap_fragment>',`#include <roughnessmap_fragment>
    roughnessFactor=mix(.94,.86,mRoad);roughnessFactor=mix(roughnessFactor,.6,mRut*.8);roughnessFactor=mix(roughnessFactor,.96,mForest);
    roughnessFactor=mix(roughnessFactor,.72,mPuddle);
-   roughnessFactor=mix(roughnessFactor,mix(mix(.46,.56,mVerge),.66,mForest),uWet);roughnessFactor=mix(roughnessFactor,.07,mPuddle*uWet);`)
+   // Wet litter on the verge and forest floor stays mostly matte; only the track and its puddles mirror the sky.
+   roughnessFactor=mix(roughnessFactor,mix(mix(.46,.74,mVerge),.82,mForest),uWet);roughnessFactor=mix(roughnessFactor,.07,mPuddle*uWet);`)
   .replace('#include <normal_fragment_maps>',`
    {
     vec3 dn=texture2D(normalMap,vNormalMapUv).xyz*2.-1.,ln=texture2D(tLitterNormal,vNormalMapUv*.5).xyz*2.-1.;
@@ -99,7 +100,7 @@ function groundMaterial(kit){
     normal=normalize(tbn*mapN);
    }`);
  };
- m.customProgramCacheKey=()=> 'rex-jungle-ground-v3';return m;
+ m.customProgramCacheKey=()=> 'rex-jungle-ground-v4';return m;
 }
 
 export function createJungle(root,{canopy}={}){

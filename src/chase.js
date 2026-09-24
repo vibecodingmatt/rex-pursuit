@@ -53,7 +53,7 @@ function tierName(){return quality==='auto'?autoTier:quality;}
 function applyQuality(){
  const t=TIERS[tierName()];renderer.setPixelRatio(Math.min(devicePixelRatio,t.pixelRatio));governor.setRange(t.scale);governor.reset();
  if(sun.shadow.mapSize.x!==t.shadow){sun.shadow.mapSize.set(t.shadow,t.shadow);sun.shadow.map?.dispose();sun.shadow.map=null;}
- post.configure({scale:governor.scale,msaa:t.msaa,bloomLevels:t.bloomLevels,volumetric:t.volumetric,ao:t.ao});jungle?.setQuality?.(t);critters?.setQuality(t);insects?.setQuality(t);effects?.setQuality?.(t);weather?.setQuality(t);night?.setQuality(t);mud?.setQuality(t);
+ post.configure({scale:governor.scale,msaa:t.msaa,bloomLevels:t.bloomLevels,volumetric:t.volumetric,ao:t.ao});jungle?.setQuality?.(t);critters?.setQuality(t);insects?.setQuality(t);brachio?.setQuality(t);effects?.setQuality?.(t);weather?.setQuality(t);night?.setQuality(t);mud?.setQuality(t);
  document.body.dataset.quality=tierName();document.body.dataset.post=post.supported?'on':'off';document.querySelectorAll('[data-quality]').forEach(b=>b.setAttribute('aria-pressed',String(b.dataset.quality===quality)));
  const gpu=(detected.gpu.match(/(rtx|gtx|rx|arc|radeon|apple md|adreno|mali|intel|iris|uhd)[^,(]*/i)?.[0]||'').replace(/s+/g,' ').trim().toUpperCase();
  document.querySelectorAll('.quality-readout').forEach(e=>e.textContent=`Rendering ${t.label.toUpperCase()}${quality==='auto'?' (auto)':''}${gpu?' · '+gpu:''} · ${t.volumetric?'volumetric light':'light shafts'} · ${t.msaa}× MSAA`);
@@ -80,9 +80,8 @@ night=createNight(scene,{jeep,weather,renderer});
 // Living jungle: compies and lizards that flee the chase, insects, a passing brachiosaur.
 const critters=createCritters(scene,{jungle}),insects=createInsects(scene,{night}),brachio=createBrachio(scene,{jungle});critters.onScatter=p=>audio.chirp(p);brachio.onCall=p=>audio.brachio(p);
 function setConditions(kind,instant=mode==='paused'){weather.set(kind,{instant});weather.apply({sun,hemi,rim,fill,post});night.update(0,{camera,rex,ground:jungleRoot.visible});document.querySelectorAll('[data-conditions]').forEach(b=>b.setAttribute('aria-pressed',String(b.dataset.conditions===weather.kind)));document.body.dataset.conditions=weather.kind;updateLightButton();}
-// The picker offers Storm (the default), Night and Night + Storm. Clear stays
-// reachable through rexChase.setConditions (the dry-dust checks use it).
-const OFFERED=['storm','night','night-storm'];
+// The picker offers Day, Storm (the default for a first visit), Night and Night + Storm.
+const OFFERED=['clear','storm','night','night-storm'];
 document.querySelectorAll('[data-conditions]').forEach(b=>b.onclick=()=>setConditions(b.dataset.conditions));
 function toggleFlashlight(){if(!night.active)return;night.toggleFlashlight();updateLightButton();}
 function updateLightButton(){const b=$('#touch-light');if(!b)return;b.setAttribute('aria-pressed',String(night.flashlightOn));b.querySelector('small').textContent=night.flashlightOn?'ON':'OFF';}

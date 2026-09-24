@@ -4,7 +4,7 @@ import {mergeGeometries,mergeVertices} from 'three/addons/utils/BufferGeometryUt
 // wind/translucency shader. Everything is deterministic from its seed, built
 // once at load, and instanced by the scenery.
 
-import {WET,WIND_GUST} from './weather-state.js';
+import {WET,WIND_GUST,NIGHT} from './weather-state.js';
 import {AO_MASK} from './post.js';
 export const WIND={value:0};
 // Share of each chunk's grass capacity the quality tier draws, 0..1.
@@ -102,7 +102,7 @@ export function dustTexture(){
 export function plant(material,{sway=.2,flutter=0,height=10,translucency=0,moss=0,volume=false,key}){
  const grass=key==='grass';
  material.onBeforeCompile=s=>{
-  s.uniforms.uWindTime=WIND;s.uniforms.uWet=WET;s.uniforms.uWindGust=WIND_GUST;s.uniforms.uAoMask=AO_MASK;s.uniforms.uGrassDensity=GRASS_DENSITY;
+  s.uniforms.uWindTime=WIND;s.uniforms.uWet=WET;s.uniforms.uNight=NIGHT;s.uniforms.uWindGust=WIND_GUST;s.uniforms.uAoMask=AO_MASK;s.uniforms.uGrassDensity=GRASS_DENSITY;
   s.vertexShader=s.vertexShader.replace('#include <common>',`#include <common>\nuniform float uWindTime,uWindGust,uGrassDensity;varying vec3 vPlantWorld;varying vec3 vPlantUp;varying float vFade;${grass?'attribute float tuftRank;':''}`)
    .replace('#include <begin_vertex>',`#include <begin_vertex>
     {
@@ -135,7 +135,7 @@ export function plant(material,{sway=.2,flutter=0,height=10,translucency=0,moss=
     // Everything within reach of either switch sinks fully into the fog first; a
     // screen-door dither here would sit permanently on the far verge.
     vFade=smoothstep(-82.,-62.,vPlantWorld.z)*(1.-smoothstep(112.,136.,vPlantWorld.z));`);
-  s.fragmentShader=s.fragmentShader.replace('#include <common>','#include <common>\nuniform float uWet,uAoMask;varying vec3 vPlantWorld;varying vec3 vPlantUp;varying float vFade;')
+  s.fragmentShader=s.fragmentShader.replace('#include <common>','#include <common>\nuniform float uWet,uAoMask,uNight;varying vec3 vPlantWorld;varying vec3 vPlantUp;varying float vFade;')
    .replace('#include <roughnessmap_fragment>',`#include <roughnessmap_fragment>\nroughnessFactor*=1.-uWet*${translucency?'.15':'.45'};`)
    .replace('#include <color_fragment>',`#include <color_fragment>
     diffuseColor.rgb*=1.-uWet*${translucency?'.12':'.32'};
@@ -158,19 +158,30 @@ export function plant(material,{sway=.2,flutter=0,height=10,translucency=0,moss=
      if(nv<.2)normal=normalize(normal+toEye*(.2-nv));
     }`:''}`)
    .replace('#include <lights_fragment_end>',`#include <lights_fragment_end>
-    ${translucency?'reflectedLight.directSpecular*=.45;reflectedLight.indirectSpecular*=mix(.35,.42,uWet);':''}
+    ${translucency?`
+    // Leaves lying flat on the ground (fallen fronds, torn limbs) are seen edge-on,
+    // where the leaf finish mirrors the bright sky and reads as snow. Litter is dull
+    // and lets no light through.
+    float litter=(1.-smoothstep(.12,.4,vPlantWorld.y))*smoothstep(.55,.85,abs(normalize(cross(dFdx(vPlantWorld),dFdy(vPlantWorld))).y));
+    reflectedLight.directSpecular*=.45*(1.-.85*litter);reflectedLight.indirectSpecular*=mix(.35,.42,uWet)*(1.-.85*litter);
+    // The rim light (the moon, at night) has no shadow map, so it lit every leaf in
+    // the forest alike, even under the canopy, and turned the foliage a flat frost.
+    // Leaves keep a quarter of it at night: dark masses with moonlit edges.
+    #if NUM_DIR_LIGHTS>1
+     reflectedLight.directDiffuse=max(vec3(0.),reflectedLight.directDiffuse-directionalLights[1].color*max(dot(normal,directionalLights[1].direction),0.)*BRDF_Lambert(diffuseColor.rgb)*.75*uNight);
+    #endif`:''}
     ${translucency?`#if NUM_DIR_LIGHTS>0
     {
      vec3 L=directionalLights[0].direction;vec3 toFrag=normalize(-vViewPosition);
      float through=pow(max(dot(toFrag,L),0.),3.)*.9+max(-dot(normal,L),0.)*.35;
-     reflectedLight.directDiffuse+=directionalLights[0].color*diffuseColor.rgb*vec3(.9,1.05,.42)*through*${translucency.toFixed(2)};
+     reflectedLight.directDiffuse+=directionalLights[0].color*diffuseColor.rgb*vec3(.9,1.05,.42)*through*${translucency.toFixed(2)}*(1.-litter);
     }
     #endif`:''}`)
    .replace('#include <fog_fragment>','#include <fog_fragment>\n#ifdef USE_FOG\ngl_FragColor.rgb=mix(fogTint,gl_FragColor.rgb,vFade);\n#endif')
    // Leaves and grass tag themselves in the occlusion mask (see post.js).
    .replace('#include <dithering_fragment>',`#include <dithering_fragment>\n${translucency?'gl_FragColor.a=mix(gl_FragColor.a,.3,uAoMask);':''}`);
  };
- material.customProgramCacheKey=()=>`rex-plant-${key}-v3`;
+ material.customProgramCacheKey=()=>`rex-plant-${key}-v4`;
  return material;
 }
 
@@ -344,7 +355,8 @@ export function createFoliageKit(branchMap){
  // A leafy limb torn from the canopy: the wood plus a flattened spray of leaf cards.
  function tornLimb(seed){
   const r=seeded(seed),wood=snappedBranch(seed+1,1.3+r()*.6),leaves=[];
-  for(let i=0;i<3;i++)leaves.push(cardCluster(r,{count:10,radius:.45,size:.5,center:[(r()-.5)*.5,.12,.7+i*.35],lift:.5,flat:.25}));
+  // Squashed flat: the spray lies on the ground rather than standing like a bush.
+  for(let i=0;i<3;i++)leaves.push(cardCluster(r,{count:10,radius:.45,size:.42,center:[(r()-.5)*.5,.05,.7+i*.35],lift:.5,flat:.12}).scale(1,.45,1));
   return{wood,leaves:mergeGeometries(leaves)};
  }
  // A dead frond lying on the ground: flat, curling a little at the tip.

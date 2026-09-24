@@ -8,7 +8,8 @@ import {WET,RAIN,RAIN_TIME,WIND_GUST,NIGHT as DARK} from './weather-state.js';
 
 const KEY='rex-pursuit-conditions';
 export const CONDITIONS=['clear','storm','night','night-storm'];
-export function storedConditions(){try{const v=localStorage.getItem(KEY);return CONDITIONS.includes(v)?v:'clear';}catch{return 'clear';}}
+// A first visit opens in the storm.
+export function storedConditions(){try{const v=localStorage.getItem(KEY);return CONDITIONS.includes(v)?v:'storm';}catch{return 'storm';}}
 export function storeConditions(v){try{localStorage.setItem(KEY,v);}catch{}}
 
 const STORM={fog:new T.Color(0x4e5851),zenith:new T.Color(0x3a444c),hemiSky:new T.Color(0x9fb0b8),hemiGround:new T.Color(0x2a2620),sun:new T.Color(0xc9d2dc),density:1.5,sun_:.06,hemi:1.95,rim:.55,fill:1.2,env:1.25,exposure:1.2,saturation:.84,contrast:.27,vol:.12,bloom:.1};

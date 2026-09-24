@@ -109,9 +109,20 @@ Named runtime clips live in `public/audio/catalog.json` and `public/audio/clip-N
 - **Visibility is the design constraint.** At 10 m/s a small creature is on screen for about a second. In first person the gun hides the track directly behind the Jeep, and verge grass and ferns hide anything beyond about |x| = 5. The first version had packs "in frame" by projection that were never actually visible. The fix is behaviour, not size: a pack flushed by the Jeep stops in the near verge (`wary`), and her approach flushes it again, when about half panic back across the open track in front of her. `art/review/drop6/natural2.cjs` samples unseeded pursuit and keeps only frames with a compy on the open track, clear of the gun.
 - Dark olive creatures vanish on the dark wet storm road. The compies' tan-olive back reads against it, and they silhouette against the puddle glare.
 - The brachiosaur only reads side-on at the forest edge (|x| 11–14), neck arched over the road corridor. Deeper in the forest the trunks hide her; face-on she reads as a grey pillar.
+- **The brachiosaur is a baked model, not primitives.** The first version, built from capsules, looked like a child's toy (user, 2026-09-24). `scripts/build-brachio.mjs` (`npm run art:brachio`, about 20 s) sculpts her from about 60 smoothly blended ellipsoids and round cones as a signed distance field. It meshes the field with marching cubes (7 cm, 130k triangles; 12 cm, 44k for Low), projects vertices onto the true surface and bakes per-vertex AO, crease cavity, region and spine coordinate. Edit anatomy there, not in `brachio.js`. Features smaller than the mesh resolution (eyes, nostrils) are painted analytically in the shader from centres in the file header. A per-vertex region label, interpolated, draws them as jagged triangle blocks.
+- Judge the sculpt in `art/review/drop6/brachio-viewer.html` (studio light, served by the dev server) with `brachio-studio.cjs`. The jungle's shade and haze hide shape problems.
+- **Idle motion must be tiny.** Chained joint rotations add up: about 7 degrees per neck joint gave a 26-degree, 3.5 m head swing, and a phase-lagged tail made a travelling wave. The user called it jelly. Keep the neck drift to about 5 degrees in total, the tail stiff (under 5 degrees, little phase lag) and the head's own nods small and slow.
 - Insects follow `RAIN` and `NIGHT`: rain grounds butterflies and most dragonflies, and moths come out at night and steer for the flashlight beam. Storm, the default, shows few insects by design.
 - For captures, spawn after `freeze` and step the systems by hand (`critters.update(.025,{speed:0})`). Otherwise the road carries them out of frame before the screenshot.
 - Gait and wing shaders take a phase wrapped to 0..1 on the CPU (`aPose.x`, `aFly.x`), never a clock (see below).
+
+## Foliage that reads as snow
+
+The user reports it as "snowy plants". Three separate causes turned up (2026-09-24), each confirmed with frozen, identical views on the old and new builds (`art/review/drop6/snow-ab.cjs`, with a second checkout served on another port):
+
+- **Leaves lying flat on the ground** (fallen fronds, torn limbs) are seen edge-on, where the leaf finish mirrors the sky. `plant()` detects low, horizontal leaf surfaces and drops their specular and backlight.
+- **The storm's wet verge** mirrored the bright sky and the cool rim light as a silver sheet around the grass. The wet verge and forest floor stay rougher (.74 and .82); only the track keeps its puddle shine.
+- **Night foliage turned pale blue frost.** Switching each light off in turn showed that only the rim light (the moon, at night) does it. It has no shadow map, so it lit every leaf in the forest alike. Leaves keep a quarter of it at night; the Rex keeps her moonlit rim.
 
 ## Mobile GPU precision (shader inputs must stay small)
 

@@ -30,6 +30,7 @@
                     "test:defeat": "node scripts/test-defeat.mjs && node scripts/verify-defeat-gait.cjs && node scripts/verify-defeat.cjs",
                     "test:vision": "node scripts/test-defeat.mjs && node scripts/verify-defeat-vision.cjs",
                     "test:victory": "node scripts/test-victory.mjs && node scripts/verify-victory.cjs",
+                    "art:brachio": "node scripts/build-brachio.mjs",
                     "test:balance":  "node scripts/simulate-pressure.mjs",
                     "audio:split":  "node scripts/split-audio.cjs",
                     "art:export":  "node scripts/export-model.cjs"
