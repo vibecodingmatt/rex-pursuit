@@ -132,7 +132,7 @@ function shoot(){
  const hit=getHit(),threat=debris.hit(raycaster.ray,hit?.distance),target=threat?-1:targets?.hit(raycaster.ray,state)??-1,origin=jeep.muzzle.getWorldPosition(new T.Vector3());
  const end=threat?threat.point:hit?hit.point:target>=0?targets.targets[target].world:aimPoint(new T.Vector3());
  effects.trace(origin,end);jeep.shoot();audio.gun();gunKick=.035;
- {const dist=end.distanceTo(origin);if(threat)audio.hit('wood',dist);else if(hit||target>=0)audio.hit('flesh',dist);else if(end.y<.05)audio.hit('dirt',dist);}
+ {const dist=end.distanceTo(origin);if(threat)audio.hit('wood',dist,end);else if(hit||target>=0)audio.hit('flesh',dist,end);else if(end.y<.05)audio.hit('dirt',dist,end);}
  if(threat)debrisHit(threat);else if(hit)weaponHit(hit,false);else if(target>=0){state.hit(false);effects.burst(end,true);}
  else if(end.y<.05)effects.burst(end,false);
  targetHit(target);return !!threat||!!hit||target>=0;
@@ -217,7 +217,7 @@ function handleEvents(){for(const event of state.drainEvents()){
  }
 }}
 function handleMotionEvents(playing){for(const e of rex.drainMotionEvents()){
- if(e.type==='footstep'){effects.footstep(e.position,e.speed);mud.step(e.position,e.speed,e.side);if(playing&&!(state.result==='lost'&&endTime>DEFEAT.contact)){const concealed=state.phase==='flank'&&state.phaseTime>=AMBUSH.vanish&&state.phaseTime<AMBUSH.returnAt;audio.footstep(.22*Math.min(1,18/state.distance)*(concealed?.13:1));
+ if(e.type==='footstep'){effects.footstep(e.position,e.speed);mud.step(e.position,e.speed,e.side);if(playing&&!(state.result==='lost'&&endTime>DEFEAT.contact)){const concealed=state.phase==='flank'&&state.phaseTime>=AMBUSH.vanish&&state.phaseTime<AMBUSH.returnAt;audio.footstep(.22*Math.min(1,18/state.distance)*(concealed?.13:1),e.position);
    // Each footfall carries through the ground: a small jolt that grows as she closes.
    // No stomp while aiming at targets or debris: the framing must hold still.
    const aiming=['warning','challenge'].includes(state.phase)||state.debris?.status==='active';
@@ -327,7 +327,7 @@ function frame(now){
  if(rex){const actorState=menu?{phase:'pursuit',phaseTime:0,distance:20,result:null}:state;rex.update(dt,actorState,time,speed,vocal);if(state.victory?.arrival)rex.actor.visible=false;handleMotionEvents(playing);
   // Humid-air breath and saliva stream from the jaws while she roars.
   const roaring=rex.vocal?.roar||0;breathClock-=dt;if(roaring>.3&&rex.actor.visible&&breathClock<=0&&!swallow.coversFrame){breathClock=.13;const m=rex.mouthPosition(),dir=m.center.clone().sub(rex.headPosition()).setY(0).normalize();dir.y=-.12;effects.breath(m.center,dir.normalize(),Math.min(1,roaring*1.2));}}
- jeep.pose(time,speed,state);updateCamera(dt);
+ jeep.pose(time,speed,state);updateCamera(dt);camera.updateMatrixWorld();audio.listen(camera,rex?.actor.visible?rex.headPosition():null);
  weather.update(dt,speed,camera,{ground:jungleRoot.visible,shelter:state.result==='lost'&&state.defeat&&endTime>DEFEAT.contact-.4?1:0});weather.apply({sun,hemi,rim,fill,post});audio.weather(weather.rainLevel);
  // Lens beads only where there is a real lens: third person, menu and exterior cinematics.
  post.final.lensRain.value=(view==='third'||menu||state.result==='won')&&jungleRoot.visible?weather.value:0;post.final.lensTime.value+=dt;

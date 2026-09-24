@@ -15,6 +15,24 @@ function onsets(b){
  for(let k=4;k<env.length;k++){const base=(env[k-4]+env[k-3]+env[k-2])/3,t=k*w/sr;if(env[k]>peak*.3&&env[k]>base*2.2&&t-last>.065){out.push(Math.max(0,t-.006));last=t;}}
  return out;
 }
+// A generated impulse response for the rainforest (a room model, not a synthesized sound):
+// sparse early reflections off trunks, smeared slaps back from the treeline, then a dense
+// tail whose highs the foliage soaks up first. Independent noise per ear keeps it wide.
+function forestImpulse(c,seconds=2.4){
+ const sr=c.sampleRate,n=Math.floor(seconds*sr),b=c.createBuffer(2,n,sr);
+ for(let ch=0;ch<2;ch++){const d=b.getChannelData(ch);let lp=0;
+  for(let i=0;i<n;i++){const t=i/sr,a=Math.exp(-2*Math.PI*(380+8200*Math.exp(-t*2.6))/sr);lp+=(1-a)*((Math.random()*2-1)-lp);d[i]=lp*Math.exp(-t*3.1)*Math.min(1,Math.max(0,(t-.014)/.06))*1.6;}
+  for(let k=0;k<16;k++){const t=.006+Math.random()**1.4*.11;d[Math.floor(t*sr)]+=(Math.random()<.5?-1:1)*.55*Math.exp(-t*12);}
+  for(const [t0,amp]of [[.17+ch*.012,.3],[.34-ch*.018,.17],[.52,.08]])for(let k=0;k<36;k++){const t=t0+Math.random()*.03;d[Math.floor(t*sr)]+=(Math.random()<.5?-1:1)*amp*.35;}
+ }
+ return b;
+}
+/** Air and leaves take the top end off distant sources. */
+const muffle=d=>Math.min(20000,24000*Math.pow(6/Math.max(6,d),1.15));
+function place(node,at,t,smooth=0){
+ if(node.positionX){for(const [param,v]of [[node.positionX,at.x],[node.positionY,at.y],[node.positionZ,at.z]])smooth?param.setTargetAtTime(v,t,smooth):param.setValueAtTime(v,t);}
+ else node.setPosition(at.x,at.y,at.z);
+}
 export class ChaseAudio {
  constructor(){this.context=null;this.muted=false;this.buffers=new Map();this.envelopes=new Map();this.ready=false;this.active=[];this.roles={...DEFAULT_ROLES};this.voice=null;this.jaw=0;this.labels={};this.ambientWait=12;this.ambientIndex=0;this.stepIndex=0;this.lastPain=-10;this.sfxData=Promise.all(SFX.map(n=>fetch(`./audio/sfx/${n}.mp3`).then(r=>r.ok?r.arrayBuffer():null).catch(()=>null)));}
  async readRoles(){
@@ -27,10 +45,16 @@ export class ChaseAudio {
   await Promise.all(ids.filter(n=>!this.buffers.has(n)).map(async n=>{try{const r=await fetch(`./audio/clip-${String(n).padStart(2,'0')}.wav`);if(!r.ok)throw Error(r.status);const buffer=await this.context.decodeAudioData(await r.arrayBuffer());this.buffers.set(n,buffer);this.envelopes.set(n,clipEnvelope(buffer));}catch(e){console.warn('Audio clip unavailable',n,e.message);}}));
  }
  async init(){
-  await this.readRoles();if(this.context){await this.loadClips();await this.context.resume();return;}
+  await this.readRoles();if(this.context){this.reverbReturn.gain.cancelScheduledValues(0);this.reverbReturn.gain.value=1;await this.loadClips();await this.context.resume();return;}
   const c=this.context=new (window.AudioContext||window.webkitAudioContext)();this.master=c.createGain();this.master.gain.value=this.muted?0:.75;const compressor=c.createDynamicsCompressor();compressor.threshold.value=-18;compressor.ratio.value=5;this.master.connect(compressor);compressor.connect(c.destination);
   // Everything except the Rex runs through the world bus, which ducks under her calls.
   this.world=c.createGain();this.world.connect(this.master);
+  // Forest reverb: one-shots send to it by their own amount; the loops stay dry.
+  this.reverb=c.createConvolver();this.reverb.buffer=forestImpulse(c);this.reverbReturn=c.createGain();this.reverb.connect(this.reverbReturn);this.reverbReturn.connect(this.master);
+  // Her voice is placed in 3D at her head (HRTF), muffled and a little quieter with distance.
+  // The reverb send is taken before the distance loss, so far calls sound further away.
+  this.ear={x:0,y:1.6,z:0};this.rexVoice=c.createGain();this.rexTone=c.createBiquadFilter();this.rexTone.type='lowpass';this.rexTone.frequency.value=20000;this.rexPanner=this.panner(null,{rolloff:.35,ref:14});
+  this.rexVoice.connect(this.rexTone);this.rexTone.connect(this.rexPanner);this.rexPanner.connect(this.master);this.rexSend=c.createGain();this.rexSend.gain.value=.28;this.rexVoice.connect(this.rexSend);this.rexSend.connect(this.reverb);
   const noise=c.createBuffer(1,c.sampleRate*2,c.sampleRate),data=noise.getChannelData(0);let last=0;for(let i=0;i<data.length;i++){last=(last+Math.random()*.04-.02)*.97;data[i]=last;}this.noise=noise;
   // Gain stages for the recorded beds; loadSfx() attaches the loops.
   this.engineGain=c.createGain();this.engineGain.gain.value=0;this.engineGain.connect(this.world);this.windGain=c.createGain();this.windGain.gain.value=0;this.windGain.connect(this.world);this.ambienceGain=c.createGain();this.ambienceGain.gain.value=0;this.ambienceGain.connect(this.world);
@@ -38,11 +62,24 @@ export class ChaseAudio {
  }
  play(n,volume=.8,rate=1,options={}){
   if(!this.context||!this.buffers.has(n))return null;
-  const c=this.context,source=c.createBufferSource(),gain=c.createGain(),pan=c.createStereoPanner();source.buffer=this.buffers.get(n);source.playbackRate.value=rate;gain.gain.value=volume;pan.pan.value=options.pan||0;source.connect(gain);gain.connect(pan);pan.connect(this.master);
-  const vocal=options.vocal??(/^TRex/i.test(this.labels[n]||'')?'growl':null);
+  const c=this.context,source=c.createBufferSource(),gain=c.createGain();source.buffer=this.buffers.get(n);source.playbackRate.value=rate;gain.gain.value=volume;source.connect(gain);
+  const vocal=options.vocal??(/^TRex/i.test(this.labels[n]||'')?'growl':null);let pan=null,tone=null,wet=null;
+  if(vocal)gain.connect(this.rexVoice);
+  else if(options.at){tone=c.createBiquadFilter();tone.type='lowpass';tone.frequency.value=muffle(this.distance(options.at));pan=this.panner(options.at);gain.connect(tone);tone.connect(pan);pan.connect(this.master);if(options.wet){wet=c.createGain();wet.gain.value=options.wet;gain.connect(wet);wet.connect(this.reverb);}}
+  else{pan=c.createStereoPanner();pan.pan.value=options.pan||0;gain.connect(pan);pan.connect(this.master);}
   if(vocal){this.stopVoice();this.voice={source,gain,id:n,kind:vocal,start:c.currentTime,rate,envelope:this.envelopes.get(n),duration:source.buffer.duration/rate};}
   source.start();this.active.push(source);
-  source.onended=()=>{this.active=this.active.filter(x=>x!==source);if(this.voice?.source===source)this.voice=null;source.disconnect();gain.disconnect();pan.disconnect();};return source;
+  source.onended=()=>{this.active=this.active.filter(x=>x!==source);if(this.voice?.source===source)this.voice=null;source.disconnect();gain.disconnect();pan?.disconnect();tone?.disconnect();wet?.disconnect();};return source;
+ }
+ panner(at,{rolloff=0,ref=10}={}){const p=this.context.createPanner();p.panningModel='HRTF';p.distanceModel='inverse';p.refDistance=ref;p.rolloffFactor=rolloff;if(at)place(p,at,this.context.currentTime);return p;}
+ distance(at){return Math.hypot(at.x-this.ear.x,at.y-this.ear.y,at.z-this.ear.z);}
+ /** The listener rides the camera; her voice follows her head. */
+ listen(camera,head){
+  if(!this.context)return;const l=this.context.listener,t=this.context.currentTime,e=camera.matrixWorld.elements;
+  this.ear={x:e[12],y:e[13],z:e[14]};const f=[-e[8],-e[9],-e[10]],u=[e[4],e[5],e[6]];
+  if(l.positionX){place(l,this.ear,t,.02);[l.forwardX,l.forwardY,l.forwardZ,l.upX,l.upY,l.upZ].forEach((param,i)=>param.setTargetAtTime(i<3?f[i]:u[i-3],t,.02));}
+  else{l.setPosition(this.ear.x,this.ear.y,this.ear.z);l.setOrientation(...f,...u);}
+  if(head){place(this.rexPanner,head,t,.03);this.rexTone.frequency.setTargetAtTime(muffle(this.distance(head)),t,.08);}
  }
  // Storm: recorded rain bed and thunder, loaded the first time the storm is heard.
  async loadStorm(){
@@ -66,7 +103,8 @@ export class ChaseAudio {
   const buffer=near>.72?this.storm.near:this.storm.far;if(!buffer)return;
   const c=this.context,s=c.createBufferSource(),f=c.createBiquadFilter(),g=c.createGain();
   s.buffer=buffer;s.playbackRate.value=.92+Math.random()*.14;f.type='lowpass';f.frequency.value=700+near*near*9000;g.gain.value=.25+near*.55;
-  s.connect(f);f.connect(g);g.connect(this.world);s.start(c.currentTime+Math.min(delay,6));s.onended=()=>{s.disconnect();f.disconnect();g.disconnect();};
+  const w=c.createGain();w.gain.value=.3;
+  s.connect(f);f.connect(g);g.connect(this.world);g.connect(w);w.connect(this.reverb);s.start(c.currentTime+Math.min(delay,6));s.onended=()=>{s.disconnect();f.disconnect();g.disconnect();w.disconnect();};
  }
  async loadSfx(){
   if(this.sfxLoading||!this.context)return this.sfxLoading;
@@ -82,32 +120,33 @@ export class ChaseAudio {
    return s;
   })();
  }
- /** One-shot of a recording (by name or buffer) with delay, rate, low-pass, region and pan. */
- sample(name,{volume=1,rate=1,delay=0,lowpass=0,offset=0,duration,pan=0,fade=.03}={}){
+ /** One-shot of a recording (by name or buffer) with delay, rate, low-pass, region, and either
+  *  a stereo pan or a world position (`at`, HRTF and distance muffling); `wet` feeds the reverb. */
+ sample(name,{volume=1,rate=1,delay=0,lowpass=0,offset=0,duration,pan=0,fade=.03,at=null,wet=0}={}){
   const b=typeof name==='string'?this.sfx?.[name]:name;if(!this.context||!b)return null;
-  const c=this.context,t=c.currentTime+delay,s=c.createBufferSource(),g=c.createGain(),p=c.createStereoPanner();let f=null,head=s;
-  s.buffer=b;s.playbackRate.value=rate;p.pan.value=pan;
+  const c=this.context,t=c.currentTime+delay,s=c.createBufferSource(),g=c.createGain(),p=at?this.panner(at):c.createStereoPanner();let f=null,w=null,head=s;
+  s.buffer=b;s.playbackRate.value=rate;if(!at)p.pan.value=pan;else lowpass=Math.min(lowpass||20000,muffle(this.distance(at)));
   if(lowpass){f=c.createBiquadFilter();f.type='lowpass';f.frequency.value=lowpass;s.connect(f);head=f;}
-  head.connect(g);g.connect(p);p.connect(this.world||this.master);
+  head.connect(g);g.connect(p);p.connect(this.world||this.master);if(wet){w=c.createGain();w.gain.value=wet;g.connect(w);w.connect(this.reverb);}
   const len=Math.max(.01,duration??(b.duration-offset));g.gain.setValueAtTime(volume,t);
   if(duration!==undefined){g.gain.setValueAtTime(volume,t+Math.max(0,len/rate-fade));g.gain.linearRampToValueAtTime(0,t+len/rate);}
-  s.start(t,offset,len);s.onended=()=>{s.disconnect();f?.disconnect();g.disconnect();p.disconnect();};return s;
+  s.start(t,offset,len);s.onended=()=>{s.disconnect();f?.disconnect();w?.disconnect();g.disconnect();p.disconnect();};return s;
  }
  /** Bullet strikes, heard after the sound travels back from the impact. */
- hit(kind,distance=10){
+ hit(kind,distance=10,at=null){
   if(!this.context)return;const now=this.context.currentTime;if(now-(this.lastHit||0)<.05)return;this.lastHit=now;
   const delay=Math.min(.2,distance/343),far=Math.max(.35,1-distance/60);
-  if(kind==='flesh')this.sample('impact-flesh',{volume:.55*far,rate:.9+Math.random()*.2,delay});
-  else if(kind==='wood')this.sample('branch-snap',{volume:.35*far,rate:1.35+Math.random()*.2,delay,duration:.25,fade:.08});
-  else this.sample('impact-dirt',{volume:.3*far,rate:.9+Math.random()*.2,delay,duration:Math.random()<.35?undefined:.35,fade:.1});
+  if(kind==='flesh')this.sample('impact-flesh',{volume:.55*far,rate:.9+Math.random()*.2,delay,at,wet:.18});
+  else if(kind==='wood')this.sample('branch-snap',{volume:.35*far,rate:1.35+Math.random()*.2,delay,duration:.25,fade:.08,at,wet:.25});
+  else this.sample('impact-dirt',{volume:.3*far,rate:.9+Math.random()*.2,delay,duration:Math.random()<.35?undefined:.35,fade:.1,at,wet:.15});
  }
- birds(){this.sample('birds-takeoff',{volume:.5,rate:.95+Math.random()*.1,pan:(Math.random()-.5)*.8});}
+ birds(){this.sample('birds-takeoff',{volume:.5,rate:.95+Math.random()*.1,pan:(Math.random()-.5)*.8,wet:.2});}
  stopVoice(){if(this.voice){try{this.voice.source.stop();}catch{}}this.voice=null;}
  roar(opening=false){return this.play(opening?this.roles.opening:this.roles.charge,opening?1.35:1.12,opening?.95:1.03,{vocal:'roar'});}
  growl(){if(this.voice)return;this.play(this.roles.growl,.72,.96,{vocal:'growl'});}
  bite(){this.play(18,1,1,{vocal:'bite'});}
  pain(force=false){if(!this.context)return;if(!force&&(this.voice||this.context.currentTime-this.lastPain<3.5))return;this.lastPain=this.context.currentTime;this.play(this.roles.pain,.92,.96,{vocal:'pain'});}
- footstep(weight=.3){this.play([3,4,5,6][this.stepIndex++%4],.17+weight*.42,.91+weight*.14,{vocal:false,pan:this.stepIndex%2?.12:-.12});this.groundImpact(weight*.6);}
+ footstep(weight=.3,at=null){this.play([3,4,5,6][this.stepIndex++%4],.17+weight*.42,.91+weight*.14,at?{vocal:false,at,wet:.22}:{vocal:false,pan:this.stepIndex%2?.12:-.12});this.groundImpact(weight*.6,at);}
  vocalPose(dt){
   let energy=0,kind=null,id=null,elapsed=0;const v=this.voice;
   if(v&&this.context){elapsed=(this.context.currentTime-v.start)*v.rate;kind=v.kind;id=v.id;const a=v.envelope.values,k=elapsed*v.envelope.hz,index=Math.floor(k);if(index>=0&&index<a.length)energy=a[index]+((a[index+1]??0)-a[index])*(k-index);}
@@ -118,17 +157,17 @@ export class ChaseAudio {
  gun(){
   if(!this.context)return;if(!this.shots?.length){this.loadSfx();return;}
   let k;do k=Math.floor(Math.random()*this.shots.length);while(this.shots.length>1&&k===this.lastShot);this.lastShot=k;const shot=this.shots[k];
-  this.sample(shot.buffer,{volume:.95,rate:.97+Math.random()*.06,offset:shot.at,duration:shot.dur+.03});
+  this.sample(shot.buffer,{volume:.95,rate:.97+Math.random()*.06,offset:shot.at,duration:shot.dur+.03,wet:.42});
   // The recording's own decay rings out only after the last round of a burst.
   try{this.gunTail?.stop();}catch{}
-  const b=this.sfx['gun-burst'];if(b&&this.gunTailAt!==undefined){const at=Math.min(b.duration-.2,this.gunTailAt+.1);this.gunTail=this.sample(b,{volume:.8,delay:.12,offset:at,duration:Math.min(1.3,b.duration-at),fade:.5});}
+  const b=this.sfx['gun-burst'];if(b&&this.gunTailAt!==undefined){const at=Math.min(b.duration-.2,this.gunTailAt+.1);this.gunTail=this.sample(b,{volume:.8,delay:.12,offset:at,duration:Math.min(1.3,b.duration-at),fade:.5,wet:.3});}
  }
  impact(explosive=false){
-  if(!this.context)return;if(explosive){this.sample('explosion',{volume:1});return;}
+  if(!this.context)return;if(explosive){this.sample('explosion',{volume:1,wet:.45});return;}
   // Heavy body contact: the blast recording, slowed and muffled into a crunch.
-  this.sample('explosion',{volume:.75,rate:.72,lowpass:650,duration:.9,fade:.35});
+  this.sample('explosion',{volume:.75,rate:.72,lowpass:650,duration:.9,fade:.35,wet:.2});
  }
- groundImpact(weight=.3){if(!this.context)return;this.sample('explosion',{volume:.35+weight*.9,rate:.5,lowpass:160,duration:.3+weight*.45,fade:.2});}
+ groundImpact(weight=.3,at=null){if(!this.context)return;this.sample('explosion',{volume:.35+weight*.9,rate:.5,lowpass:160,duration:.3+weight*.45,fade:.2,at});}
  cue(success=false){if(!this.context)return;const c=this.context,t=c.currentTime;for(let i=0;i<(success?3:1);i++){const o=c.createOscillator(),g=c.createGain();o.type='sine';o.frequency.value=success?[440,554,660][i]:520;g.gain.setValueAtTime(.075,t+i*.055);g.gain.exponentialRampToValueAtTime(.001,t+i*.055+.10);o.connect(g);g.connect(this.master);o.start(t+i*.055);o.stop(t+i*.055+.11);o.onended=()=>{o.disconnect();g.disconnect();};}}
  reload(){if(!this.context)return;this.sample('reload',{volume:.8});}
  vehicleCrash(){
@@ -136,8 +175,8 @@ export class ChaseAudio {
   this.sample('branch-snap',{volume:.8,rate:.6,lowpass:2400});this.sample('explosion',{volume:.6,rate:.9,lowpass:1400,duration:1.6,fade:.8});
  }
  swallow(duration=2.55){
-  if(!this.context)return;const c=this.context,t=c.currentTime;
-  // Low, enclosed movement takes over as the jaws shut out the jungle.
+  if(!this.context)return;const c=this.context,t=c.currentTime;this.reverbReturn.gain.setTargetAtTime(0,t,.12);
+  // Low, enclosed movement takes over as the jaws shut out the jungle (and its reverb).
   const s=c.createBufferSource(),f=c.createBiquadFilter(),g=c.createGain();s.buffer=this.noise;s.loop=true;
   f.type='lowpass';f.frequency.setValueAtTime(540,t);f.frequency.exponentialRampToValueAtTime(70,t+duration-.15);f.Q.value=1.1;
   g.gain.setValueAtTime(.001,t);g.gain.linearRampToValueAtTime(1.05,t+.18);g.gain.exponentialRampToValueAtTime(.001,t+duration-.05);
@@ -170,10 +209,10 @@ export class ChaseAudio {
   // full roar pulls it down ~10 dB with a fast attack and a slower swell back.
   const v=this.voice,duck=v?1-Math.min(.7,this.jaw*(v.kind==='roar'?1.15:.9)):1;if(this.world)this.world.gain.setTargetAtTime(duck,t,duck<this.world.gain.value?.05:.4);
   this.engineGain.gain.setTargetAtTime(playing?.1+speed*.014:0,t,.2);this.windGain.gain.setTargetAtTime(playing?Math.min(.3,speed*.03):0,t,.2);this.engine?.playbackRate.setTargetAtTime(.82+speed*.028,t,.25);this.ambienceGain.gain.setTargetAtTime(playing?.3:0,t,.4);
-  if(playing&&allowAmbience){this.ambientWait-=dt;if(this.ambientWait<=0&&!this.voice){const calls=[11,30,12,31,14],n=calls[this.ambientIndex++%calls.length];this.play(n,n>=30?.10:.08,.94,{vocal:false,pan:this.ambientIndex%2?-.72:.68});this.ambientWait=12+(this.ambientIndex%3)*4;}}
+  if(playing&&allowAmbience){this.ambientWait-=dt;if(this.ambientWait<=0&&!this.voice){const calls=[11,30,12,31,14],n=calls[this.ambientIndex++%calls.length];const side=this.ambientIndex%2?-1:1,e=this.ear;this.play(n,n>=30?.10:.08,.94,{vocal:false,at:{x:e.x+side*45,y:e.y+6,z:e.z+(Math.random()-.3)*50},wet:.35});this.ambientWait=12+(this.ambientIndex%3)*4;}}
  }
  debrisWarning(){if(!this.context)return;const c=this.context,t=c.currentTime;for(let i=0;i<2;i++){const o=c.createOscillator(),g=c.createGain();o.type='triangle';o.frequency.setValueAtTime(720-i*160,t+i*.14);g.gain.setValueAtTime(.065,t+i*.14);g.gain.exponentialRampToValueAtTime(.001,t+i*.14+.10);o.connect(g);g.connect(this.master);o.start(t+i*.14);o.stop(t+i*.14+.11);o.onended=()=>{o.disconnect();g.disconnect();};}}
- woodBreak(weight=1){if(!this.context)return;this.sample('branch-snap',{volume:weight*.95,rate:.85+Math.random()*.1});this.groundImpact(weight*.32);}
+ woodBreak(weight=1){if(!this.context)return;this.sample('branch-snap',{volume:weight*.95,rate:.85+Math.random()*.1,wet:.3});this.groundImpact(weight*.32);}
  mute(){this.muted=!this.muted;if(this.master)this.master.gain.value=this.muted?0:.75;return this.muted;}
  async pause(value){if(!this.context)return;if(value)await this.context.suspend();else await this.context.resume();}
  stopCalls(){for(const s of this.active){try{s.stop();}catch{}}this.active=[];this.voice=null;this.jaw=0;this.ambientWait=12;this.ambientIndex=0;}
