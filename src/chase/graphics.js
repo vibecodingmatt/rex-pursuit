@@ -4,10 +4,10 @@
 // thinned at runtime through instance counts rather than being rebuilt.
 const KEY='rex-pursuit-quality';
 export const TIERS={
- low:{label:'Low',pixelRatio:1.25,scale:[.62,.86],msaa:2,bloomLevels:4,volumetric:null,shadow:1024,grass:.34,flora:.62,particles:.5,beams:true,detail:false},
- medium:{label:'Medium',pixelRatio:1.5,scale:[.7,1],msaa:4,bloomLevels:5,volumetric:{steps:10,resolution:.25},shadow:2048,grass:.62,flora:.82,particles:.75,beams:false,detail:true},
- high:{label:'High',pixelRatio:1.75,scale:[.78,1],msaa:4,bloomLevels:6,volumetric:{steps:18,resolution:.5},shadow:2048,grass:1,flora:1,particles:1,beams:false,detail:true},
- ultra:{label:'Ultra',pixelRatio:2.25,scale:[.85,1],msaa:4,bloomLevels:6,volumetric:{steps:28,resolution:.5},shadow:4096,grass:1.35,flora:1,particles:1,beams:false,detail:true}
+ low:{label:'Low',pixelRatio:1.25,scale:[.62,.86],msaa:2,bloomLevels:4,volumetric:null,shadow:1024,grass:.34,flora:.62,particles:.5,beams:true,detail:false,motionBlur:0},
+ medium:{label:'Medium',pixelRatio:1.5,scale:[.7,1],msaa:4,bloomLevels:5,volumetric:{steps:10,resolution:.25},shadow:2048,grass:.62,flora:.82,particles:.75,beams:false,detail:true,motionBlur:1},
+ high:{label:'High',pixelRatio:1.75,scale:[.78,1],msaa:4,bloomLevels:6,volumetric:{steps:18,resolution:.5},shadow:2048,grass:1,flora:1,particles:1,beams:false,detail:true,motionBlur:1},
+ ultra:{label:'Ultra',pixelRatio:2.25,scale:[.85,1],msaa:4,bloomLevels:6,volumetric:{steps:28,resolution:.5},shadow:4096,grass:1.35,flora:1,particles:1,beams:false,detail:true,motionBlur:1}
 };
 export const ORDER=['low','medium','high','ultra'];
 

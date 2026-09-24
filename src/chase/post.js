@@ -24,10 +24,13 @@ export function createPost(renderer){
  const hdr={type:T.HalfFloatType,format:T.RGBAFormat,depthBuffer:false,stencilBuffer:false,minFilter:T.LinearFilter,magFilter:T.LinearFilter,generateMipmaps:false};
  const depthTexture=new T.DepthTexture(1,1,T.FloatType);
  const sceneTarget=new T.WebGLRenderTarget(1,1,{...hdr,depthBuffer:true,depthTexture,samples:4});
- const volTarget=new T.WebGLRenderTarget(1,1,hdr),volBlur=new T.WebGLRenderTarget(1,1,hdr);
+ const volTarget=new T.WebGLRenderTarget(1,1,hdr),volBlur=new T.WebGLRenderTarget(1,1,hdr),smokeTarget=new T.WebGLRenderTarget(1,1,hdr);
+ // With WEBGL_multisampled_render_to_texture the depth texture is the live attachment,
+ // so only read it for soft particles when three resolves MSAA by blit.
+ const depthReadable=()=>sceneTarget.samples>0&&!renderer.extensions.has('WEBGL_multisampled_render_to_texture');
  let mips=[];
  const size=new T.Vector2(),drawing=new T.Vector2();
- const settings={scale:1,msaa:4,bloomLevels:6,volumetric:{steps:18,resolution:.5},grain:.035};
+ const settings={scale:1,msaa:4,bloomLevels:6,volumetric:{steps:18,resolution:.5},grain:.035,motionBlur:1,smokeResolution:.5};
 
  // ---- Ray-marched sun scattering through the canopy -----------------------
  const volUniforms={
@@ -107,10 +110,11 @@ export function createPost(renderer){
   tScene:{value:null},tBloom:{value:null},tVol:{value:null},texel:{value:new T.Vector2()},resolution:{value:new T.Vector2()},
   bloomStrength:{value:.07},volStrength:{value:1},exposure:{value:1.14},time:{value:0},vignette:{value:.36},grain:{value:.035},aberration:{value:.0016},sharpen:{value:0},
   contrast:{value:.2},saturation:{value:1.1},shadowTint:{value:new T.Color(.92,1.01,1.04)},highlightTint:{value:new T.Color(1.05,1.0,.9)},lift:{value:.005},
-  flash:{value:new T.Color(0,0,0)},lensRain:{value:0},lensTime:{value:0}
+  flash:{value:new T.Color(0,0,0)},lensRain:{value:0},lensTime:{value:0},
+  tSmoke:{value:null},tDepth:{value:depthTexture},projInv:{value:new T.Matrix4()},camWorld:{value:new T.Matrix4()},prevViewProj:{value:new T.Matrix4()},motion:{value:0}
  };
  const final=pass(`varying vec2 vUv;
-  uniform sampler2D tScene,tBloom,tVol;uniform vec2 texel,resolution;
+  uniform sampler2D tScene,tBloom,tVol,tSmoke,tDepth;uniform vec2 texel,resolution;uniform mat4 projInv,camWorld,prevViewProj;uniform float motion;
   uniform float bloomStrength,volStrength,exposure,time,vignette,grain,aberration,sharpen,contrast,saturation,lift,lensRain,lensTime;uniform vec3 shadowTint,highlightTint,flash;
   ${HASH}
   // Raindrops striking an exterior camera's lens. Each cell hosts a stream of
@@ -163,11 +167,28 @@ export function createPost(renderer){
     suv-=(d1.xy*d1.z+d2.xy*d2.z*.7)/a*.022*lensRain;bead=max(d1.z,d2.z*.7)*lensRain;lensRim=max(d1.w,d2.w*.7)*lensRain;
     lensGlint=max(smoothstep(.3,.05,length(d1.xy-vec2(-.38,.44)))*d1.z,smoothstep(.3,.05,length(d2.xy-vec2(-.38,.44)))*d2.z*.7)*lensRain;
    }
-   vec3 color=vec3(texture2D(tScene,suv-off).r,texture2D(tScene,suv).g,texture2D(tScene,suv+off).b);
+   // Camera motion blur: each pixel's world point from depth, reprojected with last
+   // frame's camera, gives its screen velocity; average the frame along it. Pixels
+   // near the lens (the gun, the gunner's arms) move with the camera and stay sharp.
+   vec2 vel=vec2(0.);
+   if(motion>0.){
+    vec4 v=projInv*vec4(vUv*2.-1.,texture2D(tDepth,vUv).x*2.-1.,1.);v/=v.w;
+    vec4 prev=prevViewProj*(camWorld*vec4(v.xyz,1.));vel=(vUv-(prev.xy/prev.w*.5+.5))*motion*smoothstep(1.4,3.5,length(v.xyz));
+    float l=length(vel);if(l>.035)vel*=.035/l;
+   }
+   vec3 color;
+   vec2 px=vel*resolution;
+   if(dot(px,px)>1.){
+    float j=ign(gl_FragCoord.xy+fract(time*7.)*vec2(41.,17.));color=vec3(0.);
+    for(int i=0;i<8;i++)color+=texture2D(tScene,suv+vel*((float(i)+j)/8.-.5)).rgb;
+    color*=.125;
+   }else color=vec3(texture2D(tScene,suv-off).r,texture2D(tScene,suv).g,texture2D(tScene,suv+off).b);
    if(sharpen>0.){
     vec3 n=texture2D(tScene,vUv+vec2(texel.x,0.)).rgb+texture2D(tScene,vUv-vec2(texel.x,0.)).rgb+texture2D(tScene,vUv+vec2(0.,texel.y)).rgb+texture2D(tScene,vUv-vec2(0.,texel.y)).rgb;
     color=max(color+(color*4.-n)*sharpen*.25,vec3(0.));
    }
+   // Soft smoke (premultiplied, half resolution) sits over the scene and under bloom.
+   vec4 smk=texture2D(tSmoke,suv);color=color*(1.-smk.a)+smk.rgb;
    color+=texture2D(tBloom,suv).rgb*bloomStrength*(1.+bead*.8)+texture2D(tVol,vUv).rgb*volStrength+flash;
    // Water beads darken toward their rims (internal reflection) and catch a small glint.
    color=color*(1.-.35*lensRim)+vec3(.9,.95,1.)*lensGlint*.18;
@@ -196,6 +217,7 @@ export function createPost(renderer){
   const w=Math.max(2,Math.round(drawing.x*settings.scale)),h=Math.max(2,Math.round(drawing.y*settings.scale));
   if(size.x===w&&size.y===h&&mips.length===settings.bloomLevels)return;
   size.set(w,h);sceneTarget.setSize(w,h);
+  smokeTarget.setSize(Math.max(1,Math.round(w*settings.smokeResolution)),Math.max(1,Math.round(h*settings.smokeResolution)));
   const vr=settings.volumetric?.resolution||.25;volTarget.setSize(Math.max(1,Math.round(w*vr)),Math.max(1,Math.round(h*vr)));volBlur.setSize(volTarget.width,volTarget.height);
   makeMips();
  }
@@ -206,15 +228,22 @@ export function createPost(renderer){
   size.set(0,0);resize();
  }
  const black=new T.DataTexture(new Uint8Array([0,0,0,255]),1,1);black.needsUpdate=true;
- let frame=0;
+ const clear=new T.DataTexture(new Uint8Array([0,0,0,0]),1,1);clear.needsUpdate=true;
+ let frame=0,lastTime=-1;const viewProj=new T.Matrix4(),lastEye=new T.Vector3(),eye=new T.Vector3(),lastLook=new T.Vector3(),look=new T.Vector3(),clearColor=new T.Color();
  function draw(mesh,target){renderer.setRenderTarget(target);renderer.render(mesh,camera);}
  return{
   get supported(){return supported;},settings,final:finalUniforms,volume:volUniforms,sceneTarget,
   configure,resize,
-  render(scene,cam,{time=0,sun=null,canopy=null}={}){
+  render(scene,cam,{time=0,sun=null,canopy=null,overlay=null}={}){
    resize();frame++;
    const oldTarget=renderer.getRenderTarget(),oldAutoClear=renderer.autoClear;renderer.autoClear=true;
    renderer.setRenderTarget(sceneTarget);renderer.render(scene,cam);
+   // Soft particles into their own buffer, reading the depth just resolved.
+   let smokeTexture=clear;
+   if(overlay){
+    const alpha=renderer.getClearAlpha();renderer.getClearColor(clearColor);renderer.setRenderTarget(smokeTarget);renderer.setClearColor(0,0);renderer.clear(true,false,false);
+    renderer.autoClear=false;overlay(renderer,cam,depthReadable()?depthTexture:null,smokeTarget.width,smokeTarget.height);renderer.autoClear=true;renderer.setClearColor(clearColor,alpha);smokeTexture=smokeTarget.texture;
+   }
    // Scattering
    let volTexture=black;
    if(settings.volumetric&&sun&&canopy){
@@ -232,10 +261,18 @@ export function createPost(renderer){
    renderer.autoClear=false;
    for(let i=mips.length-1;i>0;i--){upUniforms.tInput.value=mips[i].texture;upUniforms.texel.value.set(1/mips[i].width,1/mips[i].height);draw(up,mips[i-1]);}
    renderer.autoClear=true;
-   const f=finalUniforms;f.tScene.value=sceneTarget.texture;f.tBloom.value=mips[0]?.texture||black;f.tVol.value=volTexture;f.texel.value.set(1/size.x,1/size.y);f.resolution.value.copy(drawing);f.time.value=time;f.sharpen.value=settings.scale<.97?.55*(1-settings.scale)/.4+.12:0;
+   const f=finalUniforms;f.tSmoke.value=smokeTexture;
+   // Shutter of 1/120 s whatever the frame rate; a camera cut (view switch, respawn, a
+   // skipped frame) restarts the history instead of smearing across it.
+   cam.getWorldPosition(eye);cam.getWorldDirection(look);const dt=lastTime<0?0:time-lastTime;
+   const cut=!(dt>0&&dt<.1)||eye.distanceTo(lastEye)>1.5||look.dot(lastLook)<.9;
+   viewProj.multiplyMatrices(cam.projectionMatrix,cam.matrixWorldInverse);if(cut)f.prevViewProj.value.copy(viewProj);
+   f.motion.value=cut||!settings.motionBlur?0:settings.motionBlur*Math.min(1.5,(1/120)/Math.max(dt,1e-3));f.projInv.value.copy(cam.projectionMatrixInverse);f.camWorld.value.copy(cam.matrixWorld);
+   f.tScene.value=sceneTarget.texture;f.tBloom.value=mips[0]?.texture||black;f.tVol.value=volTexture;f.texel.value.set(1/size.x,1/size.y);f.resolution.value.copy(drawing);f.time.value=time;f.sharpen.value=settings.scale<.97?.55*(1-settings.scale)/.4+.12:0;
    draw(final,oldTarget);
+   f.prevViewProj.value.copy(viewProj);lastEye.copy(eye);lastLook.copy(look);lastTime=time;
    renderer.autoClear=oldAutoClear;
   },
-  dispose(){sceneTarget.dispose();volTarget.dispose();volBlur.dispose();mips.forEach(m=>m.dispose());}
+  dispose(){sceneTarget.dispose();smokeTarget.dispose();volTarget.dispose();volBlur.dispose();mips.forEach(m=>m.dispose());}
  };
 }

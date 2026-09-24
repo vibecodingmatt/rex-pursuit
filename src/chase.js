@@ -285,12 +285,14 @@ function updateVision(){
  const filter=radius?`blur(${radius}px)`:'',transform=radius?`scale(${+(1+6*radius/shortEdge).toFixed(5)})`:'';
  if(canvas.style.filter!==filter)canvas.style.filter=filter;
  if(canvas.style.transform!==transform)canvas.style.transform=transform;
+ return amount;
 }
 function renderFrame(now=performance.now()){
- updateVision();renderer.info.reset();sky.update(camera,now/1000);
+ // Camera motion blur by tier, never with reduced motion, and handing over to the defeat blur.
+ const vision=updateVision();post.settings.motionBlur=reducedMotion?0:TIERS[tierName()].motionBlur*Math.max(0,1-vision*4);renderer.info.reset();sky.update(camera,now/1000);
  if(!swallow.coversFrame){
-  if(post.supported)post.render(scene,camera,{time:now/1000,sun,canopy:canopy.caster.visible&&jungleRoot.visible?canopy:null});
-  else renderer.render(scene,camera);
+  if(post.supported)post.render(scene,camera,{time:now/1000,sun,canopy:canopy.caster.visible&&jungleRoot.visible?canopy:null,overlay:effects.soft.render});
+  else{renderer.render(scene,camera);renderer.autoClear=false;effects.soft.render(renderer,camera,null,innerWidth,innerHeight);renderer.autoClear=true;}
  }
  swallow.render();
 }
@@ -328,7 +330,7 @@ function frame(now){
   // Humid-air breath and saliva stream from the jaws while she roars.
   const roaring=rex.vocal?.roar||0;breathClock-=dt;if(roaring>.3&&rex.actor.visible&&breathClock<=0&&!swallow.coversFrame){breathClock=.13;const m=rex.mouthPosition(),dir=m.center.clone().sub(rex.headPosition()).setY(0).normalize();dir.y=-.12;effects.breath(m.center,dir.normalize(),Math.min(1,roaring*1.2));}}
  jeep.pose(time,speed,state);updateCamera(dt);camera.updateMatrixWorld();audio.listen(camera,rex?.actor.visible?rex.headPosition():null);
- weather.update(dt,speed,camera,{ground:jungleRoot.visible,shelter:state.result==='lost'&&state.defeat&&endTime>DEFEAT.contact-.4?1:0});weather.apply({sun,hemi,rim,fill,post});audio.weather(weather.rainLevel);
+ weather.update(dt,speed,camera,{ground:jungleRoot.visible,shelter:state.result==='lost'&&state.defeat&&endTime>DEFEAT.contact-.4?1:0});weather.apply({sun,hemi,rim,fill,post});effects.soft.light(sun,hemi,scene.fog);audio.weather(weather.rainLevel);
  // Lens beads only where there is a real lens: third person, menu and exterior cinematics.
  post.final.lensRain.value=(view==='third'||menu||state.result==='won')&&jungleRoot.visible?weather.value:0;post.final.lensTime.value+=dt;
  mud.update(dt,speed,camera,renderer,jungleRoot.visible);mud.tint(weather.rain.material.uniforms.tint.value);visitorCenter.update(time);birds.update(dt,time,speed);

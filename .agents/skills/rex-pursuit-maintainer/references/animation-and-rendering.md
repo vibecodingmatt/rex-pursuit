@@ -77,6 +77,8 @@ See the dated handoff entry for the full description. Invariants:
 - The canopy shadow caster lives on layer 0 with `colorWrite:false`. three picks shadow casters by the main camera's layers, so moving it to another layer silently removes the dappled light.
 - Keep the 15-27 m understory belt dense and unthinned; `test:treeline` measures concealment through it. Tier thinning only touches shuffled optional planting via draw ranges.
 - Ground noise frequencies must repeat over 28 m (`28*k` whole) or every chunk boundary shows a seam.
+- Never draw a second pass into `sceneTarget` after `renderer.render()`. three resolves MSAA by blit and then invalidates the multisampled colour buffer, so a second pass with `autoClear=false` draws over undefined contents. Soft smoke (`soft-smoke.js`) therefore renders into its own half-res `smokeTarget`, reads the resolved `depthTexture`, and is composited in the final pass. Skip the depth read when `WEBGL_multisampled_render_to_texture` is present: the depth texture is then the live attachment.
+- Camera motion blur lives in the final pass (depth + previous view-projection). It is off on Low and with reduced motion, fades out as `defeatVision()` takes over, excludes pixels within about 3 m of the lens (gun, arms), and restarts its history on camera cuts.
 - `frame()` clamps negative time steps. A negative `dt` makes every damped blend diverge (camera FOV went to about -1e11 on phones).
 
 ## Skin, wounds, tongue, eyes
@@ -95,7 +97,7 @@ Hits map from deformed triangles back to rest space. A persistent 1024px UV atla
 
 The midpoint feint exits and re-enters the left side. Use the continuous `ambushPose()` path and actual vegetation occlusion, including third person; `actor.visible=false` or a teleport is visibly wrong. Keep the verge open and concentrate dense cover farther from the road. Branch projectiles begin at the Rex's contact with a low bough, with a full interception window after breaking.
 
-Named runtime clips live in `public/audio/catalog.json` and `public/audio/clip-NN.wav`. Raw references remain local. Default roles are opening 01, charge 02, growl 09, pain 27; footsteps 03-06 and bite 18. Roars use the decoded 60 Hz amplitude envelope and AudioContext playback clock, including playback rate and pause. Ambient calls never animate the Rex jaw. The opening accommodates the chosen roar duration. Sound-library local storage can override the catalog, so use a fresh browser context when reproducing default audio behavior.
+Named runtime clips live in `public/audio/catalog.json` and `public/audio/clip-NN.wav`. Raw references remain local. Default roles are opening 01, charge 02, growl 09, pain 27; footsteps 03-06 and bite 18. Roars use the decoded 60 Hz amplitude envelope and AudioContext playback clock, including playback rate and pause. Ambient calls never animate the Rex jaw. Rex vocals route through one HRTF panner at her head (`audio.listen()` each frame, listener on the camera); footfalls, bullet hits and distant calls get one-shot panners at their world positions. One-shots feed the generated forest reverb by their own `wet` amount; the loops stay dry, and `swallow()` closes the reverb return. The opening accommodates the chosen roar duration. Sound-library local storage can override the catalog, so use a fresh browser context when reproducing default audio behavior.
 
 ## Mobile and vehicle details
 
