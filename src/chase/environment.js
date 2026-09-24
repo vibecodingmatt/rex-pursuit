@@ -1,6 +1,6 @@
 import * as T from 'three';
 import {mergeGeometries} from 'three/addons/utils/BufferGeometryUtils.js';
-import {createFoliageKit,dustTexture,seeded,WIND} from './foliage.js';
+import {createFoliageKit,dustTexture,seeded,WIND,GRASS_DENSITY} from './foliage.js';
 import {SUN_DIRECTION} from './atmosphere.js';
 import {WET,RAIN,RAIN_TIME,WIND_GUST} from './weather-state.js';
 // Scrolling rainforest road. Twelve 28 m chunks recycle along +Z; six unique
@@ -137,12 +137,14 @@ export function createJungle(root,{canopy}={}){
  }
  const layouts=Array.from({length:UNIQUE},(_,i)=>layout(9001+i*37));
  const tuftGeometry=mergeGeometries([kit.grass[0]]);
+ // Each layout's tufts carry their shuffled rank, so the shader can fade them by the same order the draw count cuts.
+ const tuftGeometries=layouts.map(({tufts})=>{const g=new T.BufferGeometry();g.index=tuftGeometry.index;for(const [k,a]of Object.entries(tuftGeometry.attributes))g.setAttribute(k,a);g.setAttribute('tuftRank',new T.InstancedBufferAttribute(Float32Array.from(tufts,(_,i)=>i/tufts.length),1));return g;});
  const chunks=[];
  for(let k=0;k<COUNT;k++){
   const group=new T.Group(),data=layouts[k%UNIQUE];group.position.z=k*CHUNK+START;root.add(group);
   const floor=new T.Mesh(ground,groundMat);floor.receiveShadow=true;floor.name='Jungle ground';group.add(floor);
   const parts=data.meshes.map(d=>{const mesh=new T.Mesh(d.geometry,d.material);mesh.castShadow=d.material===M.bark||d.material===M.rock;mesh.receiveShadow=true;group.add(mesh);return{mesh,data:d};});
-  const grass=new T.InstancedMesh(tuftGeometry,M.grass,data.tufts.length);data.tufts.forEach((m,i)=>grass.setMatrixAt(i,m));grass.receiveShadow=true;grass.computeBoundingSphere();group.add(grass);
+  const grass=new T.InstancedMesh(tuftGeometries[k%UNIQUE],M.grass,data.tufts.length);data.tufts.forEach((m,i)=>grass.setMatrixAt(i,m));grass.receiveShadow=true;grass.computeBoundingSphere();group.add(grass);
   chunks.push({group,parts,grass});
  }
 
@@ -180,7 +182,7 @@ export function createJungle(root,{canopy}={}){
  function positionChunks(){chunks.forEach((c,k)=>c.group.position.z=k*CHUNK+START);}
  return{
   kit,chunks,motes,dustMap,
-  setQuality(t){grassFactor=t.grass;floraFactor=t.flora;particleFactor=t.particles;shafts.visible=!!t.beams;motes.visible=!t.beams;moteGeo.setDrawRange(0,Math.floor(moteCount*particleFactor));falling.count=Math.floor(fallingCount*particleFactor);thin();},
+  setQuality(t){grassFactor=t.grass;GRASS_DENSITY.value=Math.min(1,t.grass);floraFactor=t.flora;particleFactor=t.particles;shafts.visible=!!t.beams;motes.visible=!t.beams;moteGeo.setDrawRange(0,Math.floor(moteCount*particleFactor));falling.count=Math.floor(fallingCount*particleFactor);thin();},
   reset(){positionChunks();},
   update(dt,speed,time,camera){
    // Storm gusts quicken the sway; in still air the clock tracks game time exactly.
@@ -189,9 +191,10 @@ export function createJungle(root,{canopy}={}){
     c.group.position.z+=speed*dt;if(c.group.position.z>200)c.group.position.z-=COUNT*CHUNK;
     // Beyond ~140 m ahead the fog is opaque; far behind is only seen during the defeat spin.
     c.group.visible=c.group.position.z<150&&c.group.position.z>-96;
-    // Distance thinning: full density near the camera, a sparse carpet far away.
-    const d=Math.abs(c.group.position.z-6),lod=Math.max(.12,1-Math.max(0,d-18)/70);
-    c.grass.count=Math.floor(c.grass.instanceMatrix.count*Math.min(1,grassFactor)*lod);
+    // Distance thinning: full density near the camera, a sparse carpet far away. Draw
+    // enough for the chunk's nearest edge; the shader fades each tuft by its rank.
+    const d=Math.max(0,Math.abs(c.group.position.z-6)-CHUNK/2),lod=Math.max(.12,1-Math.max(0,d-18)/70);
+    c.grass.count=Math.min(c.grass.instanceMatrix.count,Math.ceil(c.grass.instanceMatrix.count*Math.min(1,grassFactor)*lod*1.08));
    }
    moteUniforms.time.value=time;moteUniforms.strength.value=1-WET.value;shaftMat.opacity=.02*(1-WET.value);motes.visible=moteUniforms.strength.value>.01&&!shafts.visible;moteUniforms.scroll.value=(moteUniforms.scroll.value+speed*dt)%54;moteUniforms.pixel.value=Math.min(2,devicePixelRatio);
    if(canopy){moteUniforms.canopyScroll.value=canopy.scroll%canopy.scale;}

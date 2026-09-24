@@ -5,7 +5,10 @@ import {mergeGeometries,mergeVertices} from 'three/addons/utils/BufferGeometryUt
 // once at load, and instanced by the scenery.
 
 import {WET,WIND_GUST} from './weather-state.js';
+import {AO_MASK} from './post.js';
 export const WIND={value:0};
+// Share of each chunk's grass capacity the quality tier draws, 0..1.
+export const GRASS_DENSITY={value:1};
 export function seeded(seed){return()=>{seed=(1664525*seed+1013904223)>>>0;return seed/4294967296;};}
 const canvas=(w,h=w)=>{const c=document.createElement('canvas');c.width=w;c.height=h;return c;};
 function texture(c,{srgb=true,repeat=false,aniso=8}={}){const t=new T.CanvasTexture(c);t.colorSpace=srgb?T.SRGBColorSpace:T.NoColorSpace;if(repeat)t.wrapS=t.wrapT=T.RepeatWrapping;t.anisotropy=aniso;return t;}
@@ -97,9 +100,10 @@ export function dustTexture(){
 // ------------------------------------------------------ shared plant shader --
 /** Compose wind sway, leaf flutter and back-lit translucency onto a standard material. */
 export function plant(material,{sway=.2,flutter=0,height=10,translucency=0,moss=0,volume=false,key}){
+ const grass=key==='grass';
  material.onBeforeCompile=s=>{
-  s.uniforms.uWindTime=WIND;s.uniforms.uWet=WET;s.uniforms.uWindGust=WIND_GUST;
-  s.vertexShader=s.vertexShader.replace('#include <common>','#include <common>\nuniform float uWindTime,uWindGust;varying vec3 vPlantWorld;varying vec3 vPlantUp;')
+  s.uniforms.uWindTime=WIND;s.uniforms.uWet=WET;s.uniforms.uWindGust=WIND_GUST;s.uniforms.uAoMask=AO_MASK;s.uniforms.uGrassDensity=GRASS_DENSITY;
+  s.vertexShader=s.vertexShader.replace('#include <common>',`#include <common>\nuniform float uWindTime,uWindGust,uGrassDensity;varying vec3 vPlantWorld;varying vec3 vPlantUp;varying float vFade;${grass?'attribute float tuftRank;':''}`)
    .replace('#include <begin_vertex>',`#include <begin_vertex>
     {
      // Merged scenery sways by world position; instanced tufts by their root.
@@ -110,6 +114,14 @@ export function plant(material,{sway=.2,flutter=0,height=10,translucency=0,moss=
      float h=clamp(position.y/${height.toFixed(2)},0.,1.6),bend=h*h;
      float phase=uWindTime*.9+anchor.x*.045+anchor.z*.06;
      transformed.xz+=vec2(sin(phase)+.4*sin(phase*2.7+1.3),cos(phase*.7+.4)*.55)*${sway.toFixed(3)}*bend*uWindGust;
+     ${grass?`#ifdef USE_INSTANCING
+     {
+      // Tufts thin with distance from the rig in rank order; each grows from its root
+      // across its own 8% band of the density instead of popping as the draw count changes.
+      float density=max(.12,1.-max(0.,abs(anchor.z-6.)-18.)/70.)*uGrassDensity*1.08;
+      transformed*=clamp((density-tuftRank)/.08,0.,1.);
+     }
+     #endif`:''}
      ${flutter?`transformed+=${flutter.toFixed(3)}*uWindGust*min(h*3.,1.)*vec3(sin(uWindTime*6.3+position.x*3.7+position.z*2.9+anchor.x),sin(uWindTime*5.1+position.z*4.3)*.7,cos(uWindTime*5.7+position.y*3.1+anchor.z));`:''}
     }`)
    .replace('#include <worldpos_vertex>',`#include <worldpos_vertex>
@@ -118,8 +130,12 @@ export function plant(material,{sway=.2,flutter=0,height=10,translucency=0,moss=
      vPlantWorld=(modelMatrix*instanceMatrix*vec4(transformed,1.)).xyz;vPlantUp=normalize(mat3(modelMatrix*instanceMatrix)*vec3(0,1,0));
     #else
      vPlantUp=normalize(mat3(modelMatrix)*vec3(0,1,0));
-    #endif`);
-  s.fragmentShader=s.fragmentShader.replace('#include <common>','#include <common>\nuniform float uWet;varying vec3 vPlantWorld;varying vec3 vPlantUp;')
+    #endif
+    // Scenery chunks (28 m) switch on and off with their centre at -96 m and +150 m.
+    // Everything within reach of either switch sinks fully into the fog first; a
+    // screen-door dither here would sit permanently on the far verge.
+    vFade=smoothstep(-82.,-62.,vPlantWorld.z)*(1.-smoothstep(112.,136.,vPlantWorld.z));`);
+  s.fragmentShader=s.fragmentShader.replace('#include <common>','#include <common>\nuniform float uWet,uAoMask;varying vec3 vPlantWorld;varying vec3 vPlantUp;varying float vFade;')
    .replace('#include <roughnessmap_fragment>',`#include <roughnessmap_fragment>\nroughnessFactor*=1.-uWet*${translucency?'.15':'.45'};`)
    .replace('#include <color_fragment>',`#include <color_fragment>
     diffuseColor.rgb*=1.-uWet*${translucency?'.12':'.32'};
@@ -148,9 +164,12 @@ export function plant(material,{sway=.2,flutter=0,height=10,translucency=0,moss=
      float through=pow(max(dot(toFrag,L),0.),3.)*.9+max(-dot(normal,L),0.)*.35;
      reflectedLight.directDiffuse+=directionalLights[0].color*diffuseColor.rgb*vec3(.9,1.05,.42)*through*${translucency.toFixed(2)};
     }
-    #endif`:''}`);
+    #endif`:''}`)
+   .replace('#include <fog_fragment>','#include <fog_fragment>\n#ifdef USE_FOG\ngl_FragColor.rgb=mix(fogTint,gl_FragColor.rgb,vFade);\n#endif')
+   // Leaves and grass tag themselves in the occlusion mask (see post.js).
+   .replace('#include <dithering_fragment>',`#include <dithering_fragment>\n${translucency?'gl_FragColor.a=mix(gl_FragColor.a,.3,uAoMask);':''}`);
  };
- material.customProgramCacheKey=()=>`rex-plant-${key}-v2`;
+ material.customProgramCacheKey=()=>`rex-plant-${key}-v3`;
  return material;
 }
 

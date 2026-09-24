@@ -16,7 +16,12 @@ function pass(fragmentShader,uniforms,extra={}){
 const HASH=`
  float ign(vec2 p){return fract(52.9829189*fract(dot(p,vec2(.06711056,.00583715))));}
  float hash12(vec2 p){vec3 p3=fract(vec3(p.xyx)*.1031);p3+=dot(p3,p3.yzx+33.33);return fract((p3.x+p3.y)*p3.z);}
+ float bayer2(vec2 a){a=floor(a);return fract(dot(a,vec2(.5,a.y*.75)));}
+ float bayer4(vec2 a){return bayer2(.5*a)*.25+bayer2(a);}
 `;
+/** Scene alpha as an occlusion mask while the frame renders: leaf cards write a low
+ * value so their swaying, alpha-tested edges neither cast nor receive much AO. */
+export const AO_MASK={value:0};
 
 export function createPost(renderer){
  const gl=renderer.getContext();
@@ -30,7 +35,9 @@ export function createPost(renderer){
  const depthReadable=()=>sceneTarget.samples>0&&!renderer.extensions.has('WEBGL_multisampled_render_to_texture');
  let mips=[];
  const size=new T.Vector2(),drawing=new T.Vector2();
- const settings={scale:1,msaa:4,bloomLevels:6,volumetric:{steps:18,resolution:.5},grain:.035,motionBlur:1,smokeResolution:.5};
+ const settings={scale:1,msaa:4,bloomLevels:6,volumetric:{steps:18,resolution:.5},grain:.035,motionBlur:1,smokeResolution:.5,ao:{samples:8,steps:8},aoAmount:1};
+ const halfFloat={type:T.HalfFloatType,format:T.RGBAFormat,depthBuffer:false,stencilBuffer:false,minFilter:T.NearestFilter,magFilter:T.NearestFilter,generateMipmaps:false};
+ const aoPrepTarget=new T.WebGLRenderTarget(1,1,halfFloat),aoTarget=new T.WebGLRenderTarget(1,1,halfFloat),aoBlurTarget=new T.WebGLRenderTarget(1,1,halfFloat);
 
  // ---- Ray-marched sun scattering through the canopy -----------------------
  const volUniforms={
@@ -82,6 +89,74 @@ export function createPost(renderer){
  const blur=pass(`varying vec2 vUv;uniform sampler2D tInput;uniform vec2 texel;
   void main(){vec2 o=texel*1.5;gl_FragColor=vec4((texture2D(tInput,vUv).rgb*2.+texture2D(tInput,vUv+vec2(o.x,o.y)).rgb+texture2D(tInput,vUv+vec2(-o.x,o.y)).rgb+texture2D(tInput,vUv+vec2(o.x,-o.y)).rgb+texture2D(tInput,vUv-o).rgb)/6.,1.);}`,blurUniforms);
 
+ // ---- Grounding: ambient occlusion and sun contact shadows at half resolution --
+ // Linear depth and the leaf mask are gathered once; AO and a short march toward
+ // the sun share them. The noise is a fixed 4x4 Bayer tile that the 4x4 bilateral
+ // blur removes exactly, so nothing changes from frame to frame and nothing shimmers.
+ const aoPrepUniforms={tDepth:{value:depthTexture},tScene:{value:null},near:{value:.1},far:{value:100}};
+ const aoPrep=pass(`varying vec2 vUv;uniform sampler2D tDepth,tScene;uniform float near,far;
+  void main(){float d=texture2D(tDepth,vUv).x;gl_FragColor=vec4(near*far/(far-(far-near)*d),clamp(texture2D(tScene,vUv).a,0.,1.),0.,1.);}`,aoPrepUniforms);
+ const aoUniforms={tPrep:{value:aoPrepTarget.texture},texel:{value:new T.Vector2()},projScale:{value:new T.Vector2(1,1)},far:{value:100},sunView:{value:new T.Vector3(0,1,0)},
+  camWorld:{value:new T.Matrix4()},tShadow:{value:null},shadowMatrix:{value:new T.Matrix4()},hasShadow:{value:0}};
+ const aoPass=pass(`
+  #include <packing>
+  varying vec2 vUv;uniform sampler2D tPrep,tShadow;uniform vec2 texel,projScale;uniform float far,hasShadow;uniform vec3 sunView;uniform mat4 camWorld,shadowMatrix;
+  ${HASH}
+  vec3 viewPos(vec2 uv,float z){return vec3((uv*2.-1.)/projScale*z,-z);}
+  vec2 prep(vec2 uv){return texture2D(tPrep,uv).xy;}
+  void main(){
+   vec2 c=prep(vUv);float z=c.x;
+   if(z>far*.95){gl_FragColor=vec4(1.,1.,z,1.);return;}
+   vec3 p=viewPos(vUv,z);
+   // Normal from the flatter side of each neighbour pair, so silhouettes stay crisp.
+   vec2 ex=vec2(texel.x,0.),ey=vec2(0.,texel.y);
+   float zr=prep(vUv+ex).x,zl=prep(vUv-ex).x,zu=prep(vUv+ey).x,zd=prep(vUv-ey).x;
+   vec3 dx=abs(zr-z)<abs(z-zl)?viewPos(vUv+ex,zr)-p:p-viewPos(vUv-ex,zl);
+   vec3 dy=abs(zu-z)<abs(z-zd)?viewPos(vUv+ey,zu)-p:p-viewPos(vUv-ey,zd);
+   vec3 n=normalize(cross(dx,dy));if(dot(n,p)>0.)n=-n;
+   float noise=bayer4(gl_FragCoord.xy),noise2=bayer4(gl_FragCoord.xy+vec2(2.,1.));
+   // AO: a golden-angle spiral inside a world radius that widens with distance,
+   // so near contact is tight and far trunks and understory pool into shade.
+   float R=mix(.8,2.6,smoothstep(5.,45.,z)),rPx=min(R*projScale.y/z*.5/texel.y,48.),occ=0.;
+   if(rPx>1.){
+    for(int i=0;i<SAMPLES;i++){
+     float t=(float(i)+noise2)/float(SAMPLES),a=float(i)*2.39996+noise*6.2832;
+     vec2 uv=vUv+vec2(cos(a),sin(a))*mix(1.5,rPx,t)*texel;
+     vec2 s=prep(uv);vec3 v=viewPos(uv,s.x)-p;float vv=dot(v,v);
+     occ+=max(0.,dot(v,n)*inversesqrt(vv+1e-4)-.08)*max(0.,1.-vv/(R*R))*s.y;
+    }
+    occ*=3.6/float(SAMPLES);
+   }
+   float ao=1.-clamp(occ,0.,1.)*c.y;
+   // Contact shadow: march a short way toward the sun through the depth buffer.
+   // Only where the sun actually reaches, per the shadow map, so it never doubles up.
+   float contact=1.,facing=dot(n,sunView);
+   if(facing>.03){
+    float len=mix(.28,1.3,smoothstep(3.,32.,z)),hit=0.;vec3 o=p+n*(.01+.003*z);
+    for(int i=0;i<STEPS;i++){
+     float t=(float(i)+noise)/float(STEPS);vec3 q=o+sunView*len*t;
+     vec2 uv=q.xy/(-q.z)*projScale*.5+.5;
+     if(uv.x<0.||uv.y<0.||uv.x>1.||uv.y>1.)break;
+     vec2 s=prep(uv);float dz=-q.z-s.x;
+     if(dz>.012+.0025*s.x&&dz<.3+.03*s.x)hit=max(hit,(1.-t*.65)*s.y);
+    }
+    float lit=1.;
+    if(hit>0.&&hasShadow>.5){
+     vec3 wn=normalize(mat3(camWorld)*n);vec4 sc=shadowMatrix*vec4((camWorld*vec4(p,1.)).xyz+wn*.08,1.);sc.xyz/=sc.w;
+     vec3 e=min(sc.xyz,1.-sc.xyz);if(min(min(e.x,e.y),e.z)>0.)lit=step(sc.z-.002,unpackRGBAToDepth(texture2D(tShadow,sc.xy)));
+    }
+    contact=1.-hit*lit*smoothstep(.03,.25,facing)*c.y;
+   }
+   gl_FragColor=vec4(ao,contact,z,1.);
+  }`,aoUniforms,{defines:{SAMPLES:8,STEPS:8}});
+ const aoBlurUniforms={tInput:{value:aoTarget.texture},texel:{value:new T.Vector2()}};
+ const aoBlur=pass(`varying vec2 vUv;uniform sampler2D tInput;uniform vec2 texel;
+  void main(){
+   vec4 c=texture2D(tInput,vUv);vec2 sum=vec2(0.);float ws=0.,tol=c.z*.04+.03;
+   for(int y=-2;y<2;y++)for(int x=-2;x<2;x++){vec4 s=texture2D(tInput,vUv+vec2(float(x),float(y))*texel);float w=max(0.,1.-abs(s.z-c.z)/tol);sum+=s.xy*w;ws+=w;}
+   gl_FragColor=vec4(sum/max(ws,1e-4),c.z,1.);
+  }`,aoBlurUniforms);
+
  // ---- Bloom: 13-tap downsample with Karis average, 9-tap tent upsample ------
  const downUniforms={tInput:{value:null},texel:{value:new T.Vector2()},prefilter:{value:0},threshold:{value:1.15},knee:{value:.6}};
  const down=pass(`varying vec2 vUv;uniform sampler2D tInput;uniform vec2 texel;uniform float prefilter,threshold,knee;
@@ -111,10 +186,11 @@ export function createPost(renderer){
   bloomStrength:{value:.07},volStrength:{value:1},exposure:{value:1.14},time:{value:0},vignette:{value:.36},grain:{value:.035},aberration:{value:.0016},sharpen:{value:0},
   contrast:{value:.2},saturation:{value:1.1},shadowTint:{value:new T.Color(.92,1.01,1.04)},highlightTint:{value:new T.Color(1.05,1.0,.9)},lift:{value:.005},
   flash:{value:new T.Color(0,0,0)},lensRain:{value:0},lensTime:{value:0},
-  tSmoke:{value:null},tDepth:{value:depthTexture},projInv:{value:new T.Matrix4()},camWorld:{value:new T.Matrix4()},prevViewProj:{value:new T.Matrix4()},motion:{value:0}
+  tSmoke:{value:null},tDepth:{value:depthTexture},projInv:{value:new T.Matrix4()},camWorld:{value:new T.Matrix4()},prevViewProj:{value:new T.Matrix4()},motion:{value:0},
+  tAO:{value:aoBlurTarget.texture},aoTexel:{value:new T.Vector2()},aoStrength:{value:0},contactStrength:{value:0},near:{value:.1},far:{value:100},fogDensity:{value:0}
  };
  const final=pass(`varying vec2 vUv;
-  uniform sampler2D tScene,tBloom,tVol,tSmoke,tDepth;uniform vec2 texel,resolution;uniform mat4 projInv,camWorld,prevViewProj;uniform float motion;
+  uniform sampler2D tScene,tBloom,tVol,tSmoke,tDepth,tAO;uniform vec2 texel,resolution,aoTexel;uniform mat4 projInv,camWorld,prevViewProj;uniform float motion,aoStrength,contactStrength,near,far,fogDensity;
   uniform float bloomStrength,volStrength,exposure,time,vignette,grain,aberration,sharpen,contrast,saturation,lift,lensRain,lensTime;uniform vec3 shadowTint,highlightTint,flash;
   ${HASH}
   // Raindrops striking an exterior camera's lens. Each cell hosts a stream of
@@ -187,6 +263,18 @@ export function createPost(renderer){
     vec3 n=texture2D(tScene,vUv+vec2(texel.x,0.)).rgb+texture2D(tScene,vUv-vec2(texel.x,0.)).rgb+texture2D(tScene,vUv+vec2(0.,texel.y)).rgb+texture2D(tScene,vUv-vec2(0.,texel.y)).rgb;
     color=max(color+(color*4.-n)*sharpen*.25,vec3(0.));
    }
+   // Grounding: depth-aware upsample of the half-resolution AO and contact shadow,
+   // fading with the fog so distant haze is never dirtied.
+   if(aoStrength>0.){
+    float zf=near*far/(far-(far-near)*texture2D(tDepth,suv).x);
+    vec2 g=suv/aoTexel-.5,b=floor(g),f=g-b,acc=vec2(0.);float ws=0.,tol=zf*.05+.03;
+    for(int i=0;i<4;i++){
+     vec2 o=vec2(mod(float(i),2.),floor(float(i)*.5));vec4 s=texture2D(tAO,(b+o+.5)*aoTexel);
+     float w=mix(1.-f.x,f.x,o.x)*mix(1.-f.y,f.y,o.y)*max(1e-3,1.-abs(s.z-zf)/tol);acc+=s.xy*w;ws+=w;
+    }
+    acc/=max(ws,1e-6);float fogT=exp(-fogDensity*fogDensity*zf*zf);
+    color*=mix(1.,acc.x,aoStrength*fogT)*mix(1.,acc.y,contactStrength*fogT);
+   }
    // Soft smoke (premultiplied, half resolution) sits over the scene and under bloom.
    vec4 smk=texture2D(tSmoke,suv);color=color*(1.-smk.a)+smk.rgb;
    color+=texture2D(tBloom,suv).rgb*bloomStrength*(1.+bead*.8)+texture2D(tVol,vUv).rgb*volStrength+flash;
@@ -219,30 +307,42 @@ export function createPost(renderer){
   size.set(w,h);sceneTarget.setSize(w,h);
   smokeTarget.setSize(Math.max(1,Math.round(w*settings.smokeResolution)),Math.max(1,Math.round(h*settings.smokeResolution)));
   const vr=settings.volumetric?.resolution||.25;volTarget.setSize(Math.max(1,Math.round(w*vr)),Math.max(1,Math.round(h*vr)));volBlur.setSize(volTarget.width,volTarget.height);
+  const aw=Math.max(1,Math.round(w/2)),ah=Math.max(1,Math.round(h/2));for(const t of [aoPrepTarget,aoTarget,aoBlurTarget])t.setSize(aw,ah);
   makeMips();
  }
  function configure(next){
   Object.assign(settings,next);
   if(sceneTarget.samples!==settings.msaa){sceneTarget.samples=settings.msaa;sceneTarget.dispose();}
   const steps=settings.volumetric?.steps||0;if(steps&&volumetric.material.defines.STEPS!==steps){volumetric.material.defines.STEPS=steps;volumetric.material.needsUpdate=true;}
+  const ao=settings.ao,d=aoPass.material.defines;if(ao&&(d.SAMPLES!==ao.samples||d.STEPS!==ao.steps)){d.SAMPLES=ao.samples;d.STEPS=ao.steps;aoPass.material.needsUpdate=true;}
   size.set(0,0);resize();
  }
  const black=new T.DataTexture(new Uint8Array([0,0,0,255]),1,1);black.needsUpdate=true;
  const clear=new T.DataTexture(new Uint8Array([0,0,0,0]),1,1);clear.needsUpdate=true;
- let frame=0,lastTime=-1;const viewProj=new T.Matrix4(),lastEye=new T.Vector3(),eye=new T.Vector3(),lastLook=new T.Vector3(),look=new T.Vector3(),clearColor=new T.Color();
+ let frame=0,lastTime=-1;const sunWorld=new T.Vector3(),viewProj=new T.Matrix4(),lastEye=new T.Vector3(),eye=new T.Vector3(),lastLook=new T.Vector3(),look=new T.Vector3(),clearColor=new T.Color();
  function draw(mesh,target){renderer.setRenderTarget(target);renderer.render(mesh,camera);}
  return{
-  get supported(){return supported;},settings,final:finalUniforms,volume:volUniforms,sceneTarget,
+  get supported(){return supported;},settings,final:finalUniforms,volume:volUniforms,sceneTarget,aoTargets:{prep:aoPrepTarget,ao:aoTarget,blur:aoBlurTarget},get depthReadable(){return depthReadable();},
   configure,resize,
   render(scene,cam,{time=0,sun=null,canopy=null,overlay=null}={}){
    resize();frame++;
    const oldTarget=renderer.getRenderTarget(),oldAutoClear=renderer.autoClear;renderer.autoClear=true;
-   renderer.setRenderTarget(sceneTarget);renderer.render(scene,cam);
+   renderer.setRenderTarget(sceneTarget);AO_MASK.value=1;renderer.render(scene,cam);AO_MASK.value=0;
    // Soft particles into their own buffer, reading the depth just resolved.
    let smokeTexture=clear;
    if(overlay){
     const alpha=renderer.getClearAlpha();renderer.getClearColor(clearColor);renderer.setRenderTarget(smokeTarget);renderer.setClearColor(0,0);renderer.clear(true,false,false);
     renderer.autoClear=false;overlay(renderer,cam,depthReadable()?depthTexture:null,smokeTarget.width,smokeTarget.height);renderer.autoClear=true;renderer.setClearColor(clearColor,alpha);smokeTexture=smokeTarget.texture;
+   }
+   // Grounding (needs the resolved depth, so not where MSAA renders straight to texture)
+   const f=finalUniforms,aoOn=!!settings.ao&&settings.aoAmount>0&&depthReadable();f.aoStrength.value=aoOn?settings.aoAmount:0;f.contactStrength.value=aoOn?.6*settings.aoAmount:0;
+   if(aoOn){
+    aoPrepUniforms.tScene.value=sceneTarget.texture;aoPrepUniforms.near.value=f.near.value=cam.near;aoPrepUniforms.far.value=f.far.value=cam.far;draw(aoPrep,aoPrepTarget);
+    const u=aoUniforms,e=cam.projectionMatrix.elements;u.texel.value.set(1/aoTarget.width,1/aoTarget.height);u.projScale.value.set(e[0],e[5]);u.far.value=cam.far;u.camWorld.value.copy(cam.matrixWorld);
+    if(sun)sunWorld.subVectors(sun.position,sun.target.position).normalize();else sunWorld.set(0,1,0);u.sunView.value.copy(sunWorld).transformDirection(cam.matrixWorldInverse);
+    u.hasShadow.value=sun?.castShadow&&sun.shadow.map?1:0;if(u.hasShadow.value){u.tShadow.value=sun.shadow.map.texture;u.shadowMatrix.value.copy(sun.shadow.matrix);}
+    draw(aoPass,aoTarget);aoBlurUniforms.texel.value.copy(u.texel.value);draw(aoBlur,aoBlurTarget);
+    f.aoTexel.value.copy(u.texel.value);f.fogDensity.value=scene.fog?.density||0;
    }
    // Scattering
    let volTexture=black;
@@ -261,7 +361,7 @@ export function createPost(renderer){
    renderer.autoClear=false;
    for(let i=mips.length-1;i>0;i--){upUniforms.tInput.value=mips[i].texture;upUniforms.texel.value.set(1/mips[i].width,1/mips[i].height);draw(up,mips[i-1]);}
    renderer.autoClear=true;
-   const f=finalUniforms;f.tSmoke.value=smokeTexture;
+   f.tSmoke.value=smokeTexture;
    // Shutter of 1/120 s whatever the frame rate; a camera cut (view switch, respawn, a
    // skipped frame) restarts the history instead of smearing across it.
    cam.getWorldPosition(eye);cam.getWorldDirection(look);const dt=lastTime<0?0:time-lastTime;
@@ -273,6 +373,6 @@ export function createPost(renderer){
    f.prevViewProj.value.copy(viewProj);lastEye.copy(eye);lastLook.copy(look);lastTime=time;
    renderer.autoClear=oldAutoClear;
   },
-  dispose(){sceneTarget.dispose();smokeTarget.dispose();volTarget.dispose();volBlur.dispose();mips.forEach(m=>m.dispose());}
+  dispose(){sceneTarget.dispose();aoPrepTarget.dispose();aoTarget.dispose();aoBlurTarget.dispose();smokeTarget.dispose();volTarget.dispose();volBlur.dispose();mips.forEach(m=>m.dispose());}
  };
 }

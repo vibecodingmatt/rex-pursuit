@@ -49,7 +49,7 @@ function tierName(){return quality==='auto'?autoTier:quality;}
 function applyQuality(){
  const t=TIERS[tierName()];renderer.setPixelRatio(Math.min(devicePixelRatio,t.pixelRatio));governor.setRange(t.scale);governor.reset();
  if(sun.shadow.mapSize.x!==t.shadow){sun.shadow.mapSize.set(t.shadow,t.shadow);sun.shadow.map?.dispose();sun.shadow.map=null;}
- post.configure({scale:governor.scale,msaa:t.msaa,bloomLevels:t.bloomLevels,volumetric:t.volumetric});jungle?.setQuality?.(t);effects?.setQuality?.(t);weather?.setQuality(t);mud?.setQuality(t);
+ post.configure({scale:governor.scale,msaa:t.msaa,bloomLevels:t.bloomLevels,volumetric:t.volumetric,ao:t.ao});jungle?.setQuality?.(t);effects?.setQuality?.(t);weather?.setQuality(t);mud?.setQuality(t);
  document.body.dataset.quality=tierName();document.body.dataset.post=post.supported?'on':'off';document.querySelectorAll('[data-quality]').forEach(b=>b.setAttribute('aria-pressed',String(b.dataset.quality===quality)));
  const gpu=(detected.gpu.match(/(rtx|gtx|rx|arc|radeon|apple md|adreno|mali|intel|iris|uhd)[^,(]*/i)?.[0]||'').replace(/s+/g,' ').trim().toUpperCase();
  document.querySelectorAll('.quality-readout').forEach(e=>e.textContent=`Rendering ${t.label.toUpperCase()}${quality==='auto'?' (auto)':''}${gpu?' · '+gpu:''} · ${t.volumetric?'volumetric light':'light shafts'} · ${t.msaa}× MSAA`);
@@ -289,7 +289,7 @@ function updateVision(){
 }
 function renderFrame(now=performance.now()){
  // Camera motion blur by tier, never with reduced motion, and handing over to the defeat blur.
- const vision=updateVision();post.settings.motionBlur=reducedMotion?0:TIERS[tierName()].motionBlur*Math.max(0,1-vision*4);renderer.info.reset();sky.update(camera,now/1000);
+ const vision=updateVision();post.settings.motionBlur=reducedMotion?0:TIERS[tierName()].motionBlur*Math.max(0,1-vision*4);post.settings.aoAmount=swallow.active?0:1;renderer.info.reset();sky.update(camera,now/1000);
  if(!swallow.coversFrame){
   if(post.supported)post.render(scene,camera,{time:now/1000,sun,canopy:canopy.caster.visible&&jungleRoot.visible?canopy:null,overlay:effects.soft.render});
   else{renderer.render(scene,camera);renderer.autoClear=false;effects.soft.render(renderer,camera,null,innerWidth,innerHeight);renderer.autoClear=true;}
