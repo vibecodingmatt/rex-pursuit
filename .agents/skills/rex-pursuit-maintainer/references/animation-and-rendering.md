@@ -17,6 +17,20 @@ Prior defects and their fixes:
 
 `verify-defeat-gait.cjs` tests 30/60/144 Hz with varied entry strides and timeout speeds. The regression window is 3.5-5.5 seconds: toe height < .55 scene units, vertical speed < 3.5 units/s, knee angular speed < 16 rad/s. During the approach, toe/knee separation stays > .65 and reach error < .15. These are useful regression bounds, not a definition of natural motion; inspect the captures too.
 
+A slow-Jeep loss (`verify-defeat-gait` case warm 1 s, speed 1) has a pre-existing kick just before that window. Around 3.3 seconds a right-foot swing target is horizontally out of reach. `lowest` then evaluates `sqrt(max(.05, reach² - horizontal))` as about 0.22, which lifts the target to just below the hip. The fully extended leg holds the claw about 2 m up until 3.41 seconds, then drops in one frame (about 26 rad/s at the knee). The window sees only the tail of that drop. The kick predates the foot articulation and remains unfixed.
+
+### Foot roll and toes
+
+The user found the rigid, flat feet unnatural. `FootMotion` in `foot-motion.js` articulates the metatarsus and toe bones from step-cycle keys. Positions are fractions of stance and swing, with walk and run values. A periodic monotone cubic interpolates them, so held poses stay held and planted toes never dip. In stance, the metatarsus leans back at touchdown and rolls forward over the balls of the toes. The ball then lifts, and the toes peel off from the base outward. In the air the toes curl and gather, then straighten and fan out, arriving flat at touchdown. The dewclaw tucks.
+
+- The middle claw tip (`foot_02_04_*_end`) remains the IK contact. `reach()` gives the ankle-to-claw vector for the current angles, and the ankle target is the contact minus that vector. Planted claws therefore never slide, and the claw-based slip checks still apply.
+- The metatarsus rolls about the line through the balls of the toes, and the toe bones are counter-rotated so planted toes stay flat. Toes spread only in the air; spreading planted toes would skid them.
+- Curled toes raise the ankle for a given claw height, about 0.3 m at the swing peak. With the rigid foot, the reach clamp used to lift the running claw about 0.1 m above its arc, and the ±0.3 alternation checks in `verify-gait` and `verify-chase` relied on that. The rest pose also plants the claws at different heights (right 0.080, left 0.1125), so the right foot's margin is the smallest. The run lift is 0.36 so that the arc alone clears those checks.
+- Recoil steps after the ram blend toward `RECOIL`, which reproduces the old rigid tilt. There the torso faces the Jeep while the body slides sideways or backward. A forward roll carried the ankle away from the hip and popped the claw up at toe-off. Curled toes made the fast catch-up swing exceed 16 rad/s at the knee. Zeroing the articulation instead overextended the leg at toe-off, because the tilt had been buying that leg reach.
+- The toes straighten gradually across the late swing and arrive flat at touchdown. While they are tipped down, the claw remains the lowest point, so they cannot catch the road early.
+
+For foot changes, compare low side and front close-ups that track the ball of the foot through one stride at walk (road 2.2) and run (road 10) speeds. Check the menu and third-person framing too.
+
 Footstep dust and sounds consume footfall events, not a separate sine clock. Keep particle pools bounded and dust moving relative to the road.
 
 ## Two different endings

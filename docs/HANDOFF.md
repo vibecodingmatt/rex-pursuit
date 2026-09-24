@@ -1,6 +1,16 @@
 # Rex: Pursuit handoff
 
-Checkpoint: 2026-09-23. The visual overhaul below (HDR pipeline, rebuilt rainforest, hide/mouth finish, effects, quality tiers and front-end polish) was published at the user's request after the release gate (test:logic, npm test, build, test:release, test:pages) passed. It follows `540d171` (varied branch hazards and stomach plunge reveal).
+Checkpoint: 2026-09-23. The foot articulation below was published at the user's request after the full release gate. It follows the visual overhaul (HDR pipeline, rebuilt rainforest, hide/mouth finish, effects, quality tiers and front-end polish), published earlier the same day after its release gate (test:logic, npm test, build, test:release, test:pages) passed. That in turn follows `540d171` (varied branch hazards and stomach plunge reveal).
+
+## Foot articulation (2026-09-23)
+
+The user said the Rex walked with her feet frozen in a flat pose. They asked for the toes and foot to curl or move realistically from lift-off to touchdown. Previously each foot moved as one rigid block, with a whole-foot tilt of at most about 6 degrees and a 3-degree bend that actually lifted the toes.
+
+- `src/chase/foot-motion.js` now drives the rig's metatarsus, toe and dewclaw bones from step-cycle keys; `locomotion.js` feeds it the phase, duty, walk/run blend and fade. In stance the metatarsus leans back at touchdown and rolls forward over the balls of the toes. The ball of the foot then lifts, and the toes peel off from the base outward, with the claw tip leaving last. In the air the toes curl and draw together, then straighten and fan out to land flat. The dewclaw tucks.
+- The middle claw tip is still the IK contact, so plants stay locked to the road. The ankle target now accounts for the articulated toes. The running lift is 0.36 (was 0.33), because the reach clamp no longer lifts the claw. Post-ram recoil steps blend back to the old rigid tilt. See [Foot roll and toes](../.agents/skills/rex-pursuit-maintainer/references/animation-and-rendering.md#foot-roll-and-toes) for the invariants and the failure modes found while tuning.
+- No asset re-export. The death fall starts from whatever pose the toes hold and relaxes them with the rest of the limbs.
+- Passed `test:gait`, `test:motion`, `test:defeat`, `test:cinematic`, `test:treeline`, `test:smoke`, `npm test`, `test:logic` and `build`. Knee and hip speeds in pursuit, charge and the ambush turn are below the previous gait's at 30/60/144 Hz; at 144 Hz the ambush turn went from knee 14.01 and hip 16.75 to 13.28 and 13.92. Post-spin claw vertical speed and height are lower. The recoil knee peak is 15.08 against the previous 14.85, within the 16 limit. Before/after close-ups (walk and run, side and front) and menu, third-person and phone crops were inspected. The review captures and scripts are ignored under `art/review/feet-*` and `art/review/feetgame-*`.
+- Release gate: every other browser suite, `build`, `test:build`, `test:release` and `test:pages` also passed. `test:pressure` passed in seven of eight views. Its compact-phone view is intermittent on both the previous and the new gait (one failure in three runs each), independent of this change; see the [verification reference](../.agents/skills/rex-pursuit-maintainer/references/verification-and-release.md#focused-checks).
 
 ## Visual overhaul (2026-09-23)
 

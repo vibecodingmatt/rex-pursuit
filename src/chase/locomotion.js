@@ -1,8 +1,8 @@
 import * as T from 'three';
+import {FootMotion} from './foot-motion.js';
 
 const TAU = Math.PI * 2;
 const UP = new T.Vector3(0, 1, 0);
-const LOCAL_RIGHT = new T.Vector3(1, 0, 0);
 const smooth = T.MathUtils.smoothstep;
 const clamp = T.MathUtils.clamp;
 
@@ -35,15 +35,13 @@ export class RunGait {
    const a = ankle.getWorldPosition(new T.Vector3());
    const contact = toe.getWorldPosition(new T.Vector3());
    const ankleQ = ankle.getWorldQuaternion(new T.Quaternion());
-   const footOffset = contact.clone().sub(a).applyQuaternion(ankleQ.clone().invert());
    const ankleLocal = actor.worldToLocal(a.clone());
    const toeLocal = actor.worldToLocal(contact.clone());
    const hipLocal = actor.worldToLocal(h.clone());
-   const curls = [1, 2, 3].flatMap(digit => [2, 3].map(joint => find(`foot_${String(digit).padStart(2, '0')}_${String(joint).padStart(2, '0')}_${side}_`))).filter(Boolean);
    return {
-    side, index, hip, knee, ankle, toe, curls,
+    side, index, hip, knee, ankle, toe, foot: new FootMotion(actor, find, side),
     upperLength: h.distanceTo(k), lowerLength: k.distanceTo(a),
-    restQ: actorQ.clone().invert().multiply(ankleQ), footOffset,
+    restQ: actorQ.clone().invert().multiply(ankleQ),
     contactX: toeLocal.x, groundY: toeLocal.y,
     // Center the hock's travel beneath the hip, not behind the pelvis.
     centerZ: hipLocal.z - .10 + toeLocal.z - ankleLocal.z,
@@ -115,7 +113,6 @@ export class RunGait {
  solve(dt, heading, turningEntry=false, recoil=0) {
   const actor = this.actor;
   const headingQ = new T.Quaternion().setFromAxisAngle(UP, heading);
-  const footAxis = LOCAL_RIGHT.clone().applyQuaternion(headingQ);
   // After the ram the torso still faces the Jeep while the body recoils.
   // Plant toward the actual motion relative to the road during that recovery,
   // instead of reaching forward and lifting a foot to rescue an impossible IK target.
@@ -132,10 +129,9 @@ export class RunGait {
    const baseQ = headingQ.clone().multiply(leg.restQ);
    const front = actor.localToWorld(new T.Vector3(leg.contactX, 0, leg.centerZ)).addScaledVector(travelAxis,this.travel/2);
    front.y = leg.groundY;
-   let pitch, curl = 0,turnBlend=1;
+   let turnBlend=1;
 
    if (stance) {
-    const u = phase / duty;
     if (!leg.initialized || !wasStance) {
      // Account for the partial frame after touchdown, then lock this contact to the road.
      leg.anchor.copy(front).addScaledVector(this.groundVelocity.clone().sub(this.rootVelocity), phase / Math.max(.01,this.frequency));
@@ -145,7 +141,6 @@ export class RunGait {
      leg.anchor.addScaledVector(this.groundVelocity, dt);
     }
     leg.contact.copy(leg.anchor);
-    pitch = -.025 * (1 - smooth(u, 0, .20)) + .11 * smooth(u, .65, 1);
     if (leg.initialized && !wasStance) {
      const position = leg.anchor.clone().add(new T.Vector3(0, 0, -.35).applyQuaternion(headingQ));
      position.y = .035;
@@ -169,12 +164,11 @@ export class RunGait {
     leg.landing.copy(front).addScaledVector(this.rootVelocity, (1 - u) * swingDuration);
     leg.landing.y = leg.groundY;
     swingArc(leg.swingFrom, leg.landing, this.groundVelocity, this.rootVelocity, swingDuration, u, leg.contact);
-    const lift = T.MathUtils.lerp(.17,.33,this.runBlend);
+    // Curled toes raise the ankle for a given claw height, so the running
+    // claw no longer relies on the reach clamp below to clear the road.
+    const lift = T.MathUtils.lerp(.17,.36,this.runBlend);
     leg.contact.y += Math.sin(Math.PI * u) ** 2 * lift * this.strength;
     leg.contact.x += (leg.side === 'L' ? -1 : 1) * Math.sin(Math.PI * u) * .065;
-    // Hock folds on recovery; toes uncurl before the foot reaches the road.
-    pitch = T.MathUtils.lerp(.11, -.025, smooth(u, .12, 1));
-    curl = Math.sin(Math.PI * u) ** 2 * .055;
    }
 
    // Finish the entrance with both feet under the pelvis. Without this low-
@@ -183,13 +177,14 @@ export class RunGait {
    if(settle>0){
     const home=actor.localToWorld(new T.Vector3(leg.contactX,0,leg.centerZ));home.y=leg.groundY;
     leg.contact.lerp(home,settle);leg.anchor.copy(leg.contact);leg.plantedQ.slerp(baseQ,settle);
-    pitch*=1-settle;curl*=1-settle;
    }
    // During the entrance turn, the lifted foot follows the new heading over
    // its recovery arc instead of snapping away from its planted orientation.
    const footQ=stance?leg.plantedQ.clone():turningEntry?leg.plantedQ.clone().slerp(baseQ,turnBlend):baseQ.clone();
-   footQ.premultiply(new T.Quaternion().setFromAxisAngle(footAxis, pitch * this.strength));
-   const offset = leg.footOffset.clone().applyQuaternion(footQ);
+   // The claw tip stays the contact. Rolling the metatarsus and bending the
+   // toes changes where the ankle must be to keep that tip in place.
+   leg.foot.update(phase, duty, this.runBlend, this.strength * (1 - settle), recoil);
+   const offset = leg.foot.reach(new T.Vector3()).applyQuaternion(footQ);
    const target = leg.contact.clone().sub(offset);
    if (!stance) {
     // Keep a little knee flexion on the forward reach. During a fast charge,
@@ -207,9 +202,8 @@ export class RunGait {
      leg.contact.y = lowest + offset.y;
     }
    }
-   this.solveLeg(leg, target, footQ, headingQ);
-   // Curl only in the air; the stance toes remain a fixed support point.
-   for (const bone of leg.curls) bone.quaternion.multiply(new T.Quaternion().setFromAxisAngle(LOCAL_RIGHT, curl));
+   this.solveLeg(leg, target, footQ.multiply(leg.foot.rollQ), headingQ);
+   leg.foot.apply();
    leg.initialized = true;
    leg.stance = stance;
    leg.phase = phase;

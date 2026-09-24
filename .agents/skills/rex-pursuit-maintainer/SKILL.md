@@ -26,6 +26,7 @@ Read its `AGENTS.md` and `docs/HANDOFF.md`, then inspect current source and Git 
 | Rules, pressure, damage totals, objectives, deadline | `src/chase/combat.js`, `src/chase/targets.js` |
 | Rig orchestration and layered poses | `src/chase/creature.js` |
 | Walking/running, plants, swing arcs, IK | `src/chase/locomotion.js` |
+| Foot roll, toe peel, curl and spread | `src/chase/foot-motion.js` (driven by `locomotion.js`) |
 | Rex victory fall and settling | `src/chase/death-motion.js` |
 | Player defeat, Jeep spin, approach, bite/swallow timing | `src/chase/defeat.js`, camera/cues in `src/chase.js`, pose in `creature.js` |
 | Throat geometry, interior camera, composite | `src/chase/swallow.js` |
