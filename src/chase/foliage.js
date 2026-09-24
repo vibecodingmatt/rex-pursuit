@@ -103,17 +103,25 @@ export function plant(material,{sway=.2,flutter=0,height=10,translucency=0,moss=
  const grass=key==='grass';
  material.onBeforeCompile=s=>{
   s.uniforms.uWindTime=WIND;s.uniforms.uWet=WET;s.uniforms.uNight=NIGHT;s.uniforms.uWindGust=WIND_GUST;s.uniforms.uAoMask=AO_MASK;s.uniforms.uGrassDensity=GRASS_DENSITY;
-  s.vertexShader=s.vertexShader.replace('#include <common>',`#include <common>\nuniform float uWindTime,uWindGust,uGrassDensity;varying vec3 vPlantWorld;varying vec3 vPlantUp;varying float vFade;${grass?'attribute float tuftRank;':''}`)
+  s.vertexShader=s.vertexShader.replace('#include <common>',`#include <common>\nuniform float uWindTime,uWindGust,uGrassDensity;varying vec3 vPlantWorld;varying vec3 vPlantUp;varying float vFade;${grass?'attribute float tuftRank;':'attribute vec4 plant;'}`)
    .replace('#include <begin_vertex>',`#include <begin_vertex>
     {
-     // Merged scenery sways by world position; instanced tufts by their root.
-     vec3 anchor=(modelMatrix*vec4(position.x,0.,position.z,1.)).xyz;
+     // Each plant sways as one body. Merged scenery carries its plant's root (x, z,
+     // base y) and height (negative: lying still, like fallen wood and litter), so a
+     // trunk and its crown share one phase and one bend; instanced tufts use their
+     // instance root. Swaying by each vertex's own position (and by different
+     // amounts for trunk and leaves) made crowns stretch and slide like jelly.
+     float H=${height.toFixed(2)},base=0.,amp=${sway.toFixed(3)},still=0.;
      #ifdef USE_INSTANCING
-      anchor=(modelMatrix*instanceMatrix*vec4(0.,0.,0.,1.)).xyz;
+      vec3 anchor=(modelMatrix*instanceMatrix*vec4(0.,0.,0.,1.)).xyz;
+     #else
+      vec3 anchor=(modelMatrix*vec4(plant.x,0.,plant.y,1.)).xyz;base=plant.z;still=step(plant.w,0.);H=max(abs(plant.w),.3);
+      amp=${sway>0?'clamp(H*.012,.015,.3)':'0.'}*(1.-still);
      #endif
-     float h=clamp(position.y/${height.toFixed(2)},0.,1.6),bend=h*h;
-     float phase=uWindTime*.9+anchor.x*.045+anchor.z*.06;
-     transformed.xz+=vec2(sin(phase)+.4*sin(phase*2.7+1.3),cos(phase*.7+.4)*.55)*${sway.toFixed(3)}*bend*uWindGust;
+     float h=clamp((position.y-base)/H,0.,1.2),bend=h*h;
+     // Tall trees sway slowly, small plants quicker; storm gusts strengthen it, within reason.
+     float omega=clamp(2.2*inversesqrt(H*.25),.7,2.6),phase=uWindTime*omega+anchor.x*.045+anchor.z*.06;
+     transformed.xz+=vec2(sin(phase)+.4*sin(phase*2.7+1.3),cos(phase*.7+.4)*.55)*amp*bend*(1.+(uWindGust-1.)*.45);
      ${grass?`#ifdef USE_INSTANCING
      {
       // Tufts thin with distance from the rig in rank order; each grows from its root
@@ -122,7 +130,8 @@ export function plant(material,{sway=.2,flutter=0,height=10,translucency=0,moss=
       transformed*=clamp((density-tuftRank)/.08,0.,1.);
      }
      #endif`:''}
-     ${flutter?`transformed+=${flutter.toFixed(3)}*uWindGust*min(h*3.,1.)*vec3(sin(uWindTime*6.3+position.x*3.7+position.z*2.9+anchor.x),sin(uWindTime*5.1+position.z*4.3)*.7,cos(uWindTime*5.7+position.y*3.1+anchor.z));`:''}
+     // Leaf flutter varies slowly across a plant, so whole leaf cards move rather than warp.
+     ${flutter?`transformed+=${flutter.toFixed(3)}*(1.+(uWindGust-1.)*.3)*(1.-still)*min(h*3.,1.)*vec3(sin(uWindTime*5.+dot(position,vec3(.35,.15,.3))+anchor.x),sin(uWindTime*4.1+dot(position,vec3(.1,.3,.35)))*.6,cos(uWindTime*4.6+dot(position,vec3(.3,.35,.12))+anchor.z));`:''}
     }`)
    .replace('#include <worldpos_vertex>',`#include <worldpos_vertex>
     vPlantWorld=(modelMatrix*vec4(transformed,1.)).xyz;
@@ -181,7 +190,7 @@ export function plant(material,{sway=.2,flutter=0,height=10,translucency=0,moss=
    // Leaves and grass tag themselves in the occlusion mask (see post.js).
    .replace('#include <dithering_fragment>',`#include <dithering_fragment>\n${translucency?'gl_FragColor.a=mix(gl_FragColor.a,.3,uAoMask);':''}`);
  };
- material.customProgramCacheKey=()=>`rex-plant-${key}-v4`;
+ material.customProgramCacheKey=()=>`rex-plant-${key}-v5`;
  return material;
 }
 

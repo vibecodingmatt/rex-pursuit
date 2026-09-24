@@ -107,7 +107,7 @@ function brachioMaterial(uniforms,skin){
     diffuseColor.rgb=col;
    }`)
    .replace('#include <roughnessmap_fragment>',`#include <roughnessmap_fragment>
-    roughnessFactor=mix(mix(.78,.9,skinMud),.4+.25*skinMud,uWet);
+    roughnessFactor=mix(mix(.78,.9,skinMud),.52+.2*skinMud,uWet);
     roughnessFactor=mix(roughnessFactor,.1,skinEye);`)
    .replace('#include <normal_fragment_maps>',`#include <normal_fragment_maps>
     {
@@ -162,12 +162,13 @@ export function createBrachio(scene,{jungle}){
   // degrees. Big joint-by-joint swings read as jelly. Calling, she lifts her head about
   // 20 degrees with the jaw open.
   const drift=Math.sin(t*.13)*.016+Math.sin(t*.29+1)*.006,nod=Math.sin(t*.21+2)*.008;
-  const call=lift>.05?Math.sin(Math.min(1,(1-lift)*2.2)*Math.PI*.5):0;
+  // The call eases in and out; a lift that ended by snapping to zero jerked the neck down in one frame.
+  const u=1-lift,call=lift>0?T.MathUtils.smoothstep(u,0,.22)*(1-T.MathUtils.smoothstep(u,.62,1)):0;
   const R=uniforms.uNeckRot.value;
   R[0].set(nod+call*.04,drift,0);R[1].set(nod*.8+call*.04,drift,0);R[2].set(call*.05,drift*.8,0);R[3].set(call*.06,drift*.8,0);
   R[4].set((Math.sin(t*.37)*.045-.03)*browse+call*.16,Math.sin(t*.23+.4)*.07*browse,0);
   uniforms.uTailRot.value.forEach((r,i)=>r.set(0,Math.sin(t*.27-i*.15)*(.012+i*.006),0));
-  uniforms.uJaw.value=lift>.05?.3*Math.sin(Math.min(1,(1-lift)*3.2)*Math.PI):Math.max(0,Math.sin(t*1.6))*.02*browse;
+  uniforms.uJaw.value=lift>0?.3*Math.sin(Math.min(1,u*2.4)*Math.PI):Math.max(0,Math.sin(t*1.6))*.02*browse;
   uniforms.uBreath.value=Math.sin(t*1.05)*.5;
  }
  // A point on the head, posed on the CPU with the same neck chain as the shader (for her call).
@@ -178,7 +179,9 @@ export function createBrachio(scene,{jungle}){
   return v;
  }
  api={
-  mesh,onCall:null,
+  mesh,onCall:null,uniforms,
+  /** Captures can hold a pose set by hand in uniforms. */
+  hold:false,
   get active(){return on;},get ready(){return !!header;},
   /** Place her by the road (x, z in the Jeep frame), side-on with her head toward the track. */
   show(x=-12,z=20,yaw){const side=Math.sign(x)||1;place(x,z,yaw??-side*Math.PI/2+range(-.35,.35));},
@@ -191,8 +194,9 @@ export function createBrachio(scene,{jungle}){
    if(!on&&!pending){travel+=speed*dt;if(speed>4&&travel>=next){travel=0;next=range(900,1400);const side=rnd()<.5?-1:1;api.show(side*range(11,14),-80);}}
    mesh.visible=on&&visible;if(!on)return;
    mesh.position.z+=speed*dt;mesh.position.y=jungle.groundAt(mesh.position.x,mesh.position.z);
-   if(!called&&mesh.position.z>12&&mesh.position.z<60){called=true;lift=1;api.onCall?.(api.headPosition());}
-   lift=Math.max(0,lift-dt*.3);pose();
+   // She calls as the chase comes level with her; the menu (silent until Start) only shows her browsing.
+   if(!called&&speed>4&&mesh.position.z>12&&mesh.position.z<60){called=true;lift=1;api.onCall?.(api.headPosition());}
+   lift=Math.max(0,lift-dt*.3);if(!api.hold)pose();
    if(mesh.position.z>170)on=false;
   },
   headPosition(){mesh.updateMatrixWorld();return headRest().applyMatrix4(mesh.matrixWorld);}

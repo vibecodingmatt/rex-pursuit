@@ -111,10 +111,21 @@ Named runtime clips live in `public/audio/catalog.json` and `public/audio/clip-N
 - The brachiosaur only reads side-on at the forest edge (|x| 11–14), neck arched over the road corridor. Deeper in the forest the trunks hide her; face-on she reads as a grey pillar.
 - **The brachiosaur is a baked model, not primitives.** The first version, built from capsules, looked like a child's toy (user, 2026-09-24). `scripts/build-brachio.mjs` (`npm run art:brachio`, about 20 s) sculpts her from about 60 smoothly blended ellipsoids and round cones as a signed distance field. It meshes the field with marching cubes (7 cm, 130k triangles; 12 cm, 44k for Low), projects vertices onto the true surface and bakes per-vertex AO, crease cavity, region and spine coordinate. Edit anatomy there, not in `brachio.js`. Features smaller than the mesh resolution (eyes, nostrils) are painted analytically in the shader from centres in the file header. A per-vertex region label, interpolated, draws them as jagged triangle blocks.
 - Judge the sculpt in `art/review/drop6/brachio-viewer.html` (studio light, served by the dev server) with `brachio-studio.cjs`. The jungle's shade and haze hide shape problems.
+- **Calls ease in and out, and only in the chase.** A lift that ended by setting the pose to zero dropped the neck in one frame, and in the menu (silent until Start) she called as soon as it loaded.
 - **Idle motion must be tiny.** Chained joint rotations add up: about 7 degrees per neck joint gave a 26-degree, 3.5 m head swing, and a phase-lagged tail made a travelling wave. The user called it jelly. Keep the neck drift to about 5 degrees in total, the tail stiff (under 5 degrees, little phase lag) and the head's own nods small and slow.
 - Insects follow `RAIN` and `NIGHT`: rain grounds butterflies and most dragonflies, and moths come out at night and steer for the flashlight beam. Storm, the default, shows few insects by design.
 - For captures, spawn after `freeze` and step the systems by hand (`critters.update(.025,{speed:0})`). Otherwise the road carries them out of frame before the screenshot.
 - Gait and wing shaders take a phase wrapped to 0..1 on the CPU (`aPose.x`, `aFly.x`), never a clock (see below).
+
+## Wind: plants must sway as one body
+
+The user saw the plants "wavy like jello" (2026-09-24). The storm-era wind shader had four faults, all present since Drop 1:
+- It took each vertex's sway phase from that vertex's own position, so parts of one tree swung out of step.
+- Trunks (`bark`, sway .12) and crowns (`canopy`, .32) swayed by different amounts, and palm fronds used a different height scale from their trunks. Crowns slid on their trunks.
+- Leaf flutter varied per vertex at a fine spatial frequency, so the corners of 2–4 m leaf cards moved separately and the cards warped.
+- Storm gusts multiplied everything by up to 3.9.
+
+Now `put()` stores each plant's root, base and height on every vertex (a `plant` attribute). A trunk and the crown placed with the same matrix share one height, so the whole plant bends with one phase. Amplitude and frequency scale with height, the gust adds at most 2.3×, and flutter varies slowly across the plant. Fallen wood and litter are marked still (negative height). A frame-difference metric can't tell coherent sway from jelly. Freeze the sim, advance only `WIND` at a fixed camera (`art/review/drop6/wind-steps.cjs`) and look at whether shapes deform.
 
 ## Foliage that reads as snow
 

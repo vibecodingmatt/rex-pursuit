@@ -56,7 +56,7 @@ group(R.torso,.65,[
 // Neck: deep at the base (cervical ribs and throat), funnelling out of the shoulders,
 // still heavy near the head, S-curving forward at the top; heavier throat below.
 group(R.neck,.35,[...NECK.slice(0,-1).map((a,i)=>roundCone(a,NECK[i+1],[1.55,1.22,.98,.8,.64,.54][i],[1.22,.98,.8,.64,.54,.47][i],{squeeze:i<3?.78:.88})),
- ellipsoid([0,6.4,4.3],[.85,1.2,1.5],{pitch:.95}),ellipsoid([0,8.1,5.02],[.64,.9,1.05],{pitch:.9}),ellipsoid([0,9.8,5.6],[.5,.68,.85],{pitch:.85})],.85);
+ ellipsoid([0,6.35,4.25],[.78,1.02,1.5],{pitch:.95}),ellipsoid([0,8.1,5.0],[.56,.74,1.1],{pitch:.9}),ellipsoid([0,9.8,5.58],[.44,.56,.9],{pitch:.85})],.95);
 // Head, built in its own frame: the skull pitches 25 degrees nose-down from the top of
 // the neck. a runs forward along the skull, b up across it; S scales the whole skull.
 const HO=[0,13.5,7.2],HF=[0,-.42,.91],HU=[0,.91,.42],S=1.2,hp=(x,a,b)=>[x*S+HO[0],HO[1]+(HF[1]*a+HU[1]*b)*S,HO[2]+(HF[2]*a+HU[2]*b)*S],hr=r=>r.map(v=>v*S);

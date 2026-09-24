@@ -114,7 +114,14 @@ export function createJungle(root,{canopy}={}){
  // Build six unique layouts. Each entry: {material, required geometries[], optional geometries[]}.
  function layout(seed){
   const rand=seeded(seed),buckets=new Map(),add=(material,geometry,optional=false)=>{if(!buckets.has(material))buckets.set(material,{required:[],optional:[],clutter:[]});buckets.get(material)[optional==='clutter'?'clutter':optional?'optional':'required'].push(geometry);};
-  const put=(material,source,m,optional,tone)=>{const g=source.clone().applyMatrix4(m);if(tone)recolor(g,tone);add(material,g,optional);return g;};
+  // Every piece records its plant's root and height for the wind: consecutive pieces
+  // placed with the same matrix (a trunk, then its crown) share the first one's height,
+  // so they bend together. Still pieces (fallen wood, litter) get a negative height.
+  let lastM=null,lastH=1;
+  const put=(material,source,m,optional,tone,still=optional==='clutter')=>{const g=source.clone().applyMatrix4(m);if(tone)recolor(g,tone);
+   const e=m.elements;if(!lastM||lastM.some((v,i)=>v!==e[i])){if(!source.boundingBox)source.computeBoundingBox();lastH=Math.max(.3,source.boundingBox.max.y*Math.hypot(e[4],e[5],e[6]));lastM=e.slice();}
+   const n=g.attributes.position.count,w=new Float32Array(n*4);for(let i=0;i<n;i++){w[i*4]=e[12];w[i*4+1]=e[14];w[i*4+2]=e[13];w[i*4+3]=still?-lastH:lastH;}g.setAttribute('plant',new T.BufferAttribute(w,4));
+   add(material,g,optional);return g;};
   const side=()=>rand()<.5?-1:1,zz=()=>(rand()-.5)*CHUNK;
   // Rainforest giants: a few frame the verge, most stand back in the haze.
   for(let i=0;i<8;i++){const sd=i%2?1:-1,x=sd*(i<2?12.5+rand()*3:16+Math.pow(rand(),.7)*28),z=zz(),h=17+rand()*15,t=kit.giants[Math.floor(rand()*kit.giants.length)],m=at(x,z,-.3,rand()*TAU,[h*(.85+rand()*.3),h,h*(.85+rand()*.3)]),tone=[.85+rand()*.25,.85+rand()*.2,.8+rand()*.2];put(M.bark,t.wood,m,false,tone);put(M.canopy,t.leaves,m,false,[.8+rand()*.3,.85+rand()*.25,.75+rand()*.25]);}
@@ -133,7 +140,7 @@ export function createJungle(root,{canopy}={}){
   for(let i=0;i<10;i++){const sd=side(),x=sd*(5.2+rand()*10),z=zz(),big=rand()<.2,sc=big?.8+rand()*.8:.16+rand()*.42,m=at(x,z,-sc*.15,rand()*TAU,[sc*(1+rand()*.4),sc,sc*(1+rand()*.4)]);const g=put(M.rock,kit.rocks[Math.floor(rand()*3)],m,!big,[.85+rand()*.2,.85+rand()*.2,.82+rand()*.2]);
    if(sc>.36){const p=g.attributes.position;let top=null;for(let k=0;k<p.count;k++){if(Math.hypot(p.getX(k)-x,p.getZ(k)-z)<sc*.35&&(!top||p.getY(k)>top.y))top={x:p.getX(k),y:p.getY(k),z:p.getZ(k)};}if(top)perches.push({...top,big});}}
   // Mossy fallen log.
-  if(rand()<.7){const x=side()*(9+rand()*8),z=zz(),m=at(x,z,.25,rand()*TAU,[.55,6+rand()*4,.55],[Math.PI/2,0]);put(M.bark,kit.giants[0].wood,m,false,[.8,.85,.75]);}
+  if(rand()<.7){const x=side()*(9+rand()*8),z=zz(),m=at(x,z,.25,rand()*TAU,[.55,6+rand()*4,.55],[Math.PI/2,0]);put(M.bark,kit.giants[0].wood,m,false,[.8,.85,.75],true);}
   // Track clutter, so no stretch of road repeats the last. Wheels throw pebbles onto
   // the crown and shoulders and keep the ruts clear; the storm has dropped snapped
   // branches, torn leafy limbs and dead fronds along the edges. Wood near the ruts
@@ -221,7 +228,7 @@ export function createJungle(root,{canopy}={}){
   reset(){positionChunks();},
   update(dt,speed,time,camera){
    // Storm gusts quicken the sway; in still air the clock tracks game time exactly.
-   windClock+=dt*(1+(WIND_GUST.value-1)*.3);WIND.value=windClock;
+   windClock+=dt*(1+(WIND_GUST.value-1)*.15);WIND.value=windClock;
    for(const c of chunks){
     c.group.position.z+=speed*dt;if(c.group.position.z>200)c.group.position.z-=COUNT*CHUNK;
     // Beyond ~140 m ahead the fog is opaque; far behind is only seen during the defeat spin.
