@@ -107,12 +107,23 @@ export function createPost(renderer){
   tScene:{value:null},tBloom:{value:null},tVol:{value:null},texel:{value:new T.Vector2()},resolution:{value:new T.Vector2()},
   bloomStrength:{value:.07},volStrength:{value:1},exposure:{value:1.14},time:{value:0},vignette:{value:.36},grain:{value:.035},aberration:{value:.0016},sharpen:{value:0},
   contrast:{value:.2},saturation:{value:1.1},shadowTint:{value:new T.Color(.92,1.01,1.04)},highlightTint:{value:new T.Color(1.05,1.0,.9)},lift:{value:.005},
-  flash:{value:new T.Color(0,0,0)}
+  flash:{value:new T.Color(0,0,0)},lensRain:{value:0},lensTime:{value:0}
  };
  const final=pass(`varying vec2 vUv;
   uniform sampler2D tScene,tBloom,tVol;uniform vec2 texel,resolution;
-  uniform float bloomStrength,volStrength,exposure,time,vignette,grain,aberration,sharpen,contrast,saturation,lift;uniform vec3 shadowTint,highlightTint,flash;
+  uniform float bloomStrength,volStrength,exposure,time,vignette,grain,aberration,sharpen,contrast,saturation,lift,lensRain,lensTime;uniform vec3 shadowTint,highlightTint,flash;
   ${HASH}
+  // Raindrops on an exterior camera's lens: sparse beads that swell, slide down
+  // with a slight wander and clear. Each refracts (inverts) the view behind it.
+  vec3 lensDrops(vec2 uv,float t){
+   vec2 id=floor(uv),f=fract(uv)-.5;float h=hash12(id*1.37+3.1);
+   if(h>.42)return vec3(0.);
+   float life=fract(t*(.035+.06*h)+h*7.),slide=smoothstep(.35,1.,life);
+   vec2 c=vec2((hash12(id+.7)-.5)*.6+sin(life*9.+h*20.)*.03*slide,.3-slide*.75);
+   vec2 d=f-c;d.y*=1.+.7*slide;float r=.1+.09*hash12(id+5.3);
+   float m=smoothstep(r,r*.72,length(d))*smoothstep(0.,.08,life)*smoothstep(1.,.86,life);
+   return vec3(d/r,m);
+  }
   vec3 rrt(vec3 v){vec3 a=v*(v+.0245786)-.000090537,b=v*(.983729*v+.4329510)+.238081;return a/b;}
   vec3 aces(vec3 c){
    const mat3 i=mat3(vec3(.59719,.07600,.02840),vec3(.35458,.90834,.13383),vec3(.04823,.01566,.83777));
@@ -122,13 +133,17 @@ export function createPost(renderer){
   vec3 srgb(vec3 c){return mix(c*12.92,1.055*pow(c,vec3(1./2.4))-.055,step(.0031308,c));}
   void main(){
    vec2 cc=vUv-.5;float r2=dot(cc,cc);
-   vec2 off=cc*aberration*(.35+r2*2.);
-   vec3 color=vec3(texture2D(tScene,vUv-off).r,texture2D(tScene,vUv).g,texture2D(tScene,vUv+off).b);
+   vec2 off=cc*aberration*(.35+r2*2.),suv=vUv;float bead=0.;
+   if(lensRain>0.){
+    vec2 a=vec2(resolution.x/resolution.y,1.);vec3 d1=lensDrops(vUv*a*6.,lensTime),d2=lensDrops(vUv*a*11.+vec2(3.1,1.7),lensTime*1.25);
+    suv-=(d1.xy*d1.z+d2.xy*d2.z*.7)/a*.022*lensRain;bead=max(d1.z,d2.z*.7)*lensRain;
+   }
+   vec3 color=vec3(texture2D(tScene,suv-off).r,texture2D(tScene,suv).g,texture2D(tScene,suv+off).b);
    if(sharpen>0.){
     vec3 n=texture2D(tScene,vUv+vec2(texel.x,0.)).rgb+texture2D(tScene,vUv-vec2(texel.x,0.)).rgb+texture2D(tScene,vUv+vec2(0.,texel.y)).rgb+texture2D(tScene,vUv-vec2(0.,texel.y)).rgb;
     color=max(color+(color*4.-n)*sharpen*.25,vec3(0.));
    }
-   color+=texture2D(tBloom,vUv).rgb*bloomStrength+texture2D(tVol,vUv).rgb*volStrength+flash;
+   color+=texture2D(tBloom,suv).rgb*bloomStrength*(1.+bead*.8)+texture2D(tVol,vUv).rgb*volStrength+flash;
    color=aces(color*exposure);
    float luma=dot(color,vec3(.2126,.7152,.0722));
    color=mix(vec3(luma),color,saturation);

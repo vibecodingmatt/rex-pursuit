@@ -19,11 +19,12 @@ import {VICTORY,victoryPose} from './chase/victory.js';
 import {createVisitorCenter} from './chase/visitor-center.js';
 import {setupSharing} from './chase/share.js';
 import {createBirds} from './chase/birds.js';
+import {createWeather,storedConditions} from './chase/weather.js';
 const $=s=>document.querySelector(s),canvas=$('#scene');
 installAtmosphericFog();
 const renderer=new T.WebGLRenderer({canvas,antialias:false,powerPreference:'high-performance'});renderer.shadowMap.enabled=true;renderer.shadowMap.type=T.PCFSoftShadowMap;renderer.toneMapping=T.ACESFilmicToneMapping;renderer.toneMappingExposure=1.13;renderer.info.autoReset=false;
 const post=createPost(renderer),governor=createGovernor(),detected=detectTier(renderer);let quality=storedQuality(),autoTier=detected.tier;
-const JUNGLE={fog:0x74825f,density:.0138,zenith:0x7ea8c6};
+const JUNGLE={fog:0x74825f,density:.0138,zenith:0x7ea8c6};let weather=null;
 const scene=new T.Scene();scene.background=new T.Color(JUNGLE.fog);scene.fog=new T.FogExp2(JUNGLE.fog,JUNGLE.density);
 const camera=new T.PerspectiveCamera(56,innerWidth/innerHeight,.045,240);
 scene.environment=createEnvironmentMap(renderer);scene.environmentIntensity=.38;
@@ -34,17 +35,20 @@ const sun=new T.DirectionalLight(0xffd9a6,4.1);scene.add(sun,sun.target);sun.cas
 const rim=new T.DirectionalLight(0xc4d4e4,.6);rim.position.set(-6,10,34);scene.add(rim);
 const fill=new T.DirectionalLight(0xdce3d4,.62);fill.position.set(7,6,-12);scene.add(fill);
 const sky=createSky(scene),canopy=createCanopy(scene,sun);
+// Location lighting sets every value the storm blends from, then records it.
+function baseLights(){sun.intensity=4.1;sun.color.setHex(0xffd9a6);fill.intensity=.62;scene.environmentIntensity=.38;hemi.color.setHex(0xa9bf9a);hemi.groundColor.setHex(0x463a26);rim.position.set(-6,10,34);}
 function jungleLighting(){
- scene.background.setHex(JUNGLE.fog);scene.fog.color.setHex(JUNGLE.fog);scene.fog.density=JUNGLE.density;
+ baseLights();scene.background.setHex(JUNGLE.fog);scene.fog.color.setHex(JUNGLE.fog);scene.fog.density=JUNGLE.density;
  sun.target.position.set(0,0,13);sun.position.copy(sun.target.position).addScaledVector(SUN_DIRECTION,55);
  Object.assign(sun.shadow.camera,{left:-28,right:28,top:31,bottom:-31,near:4,far:125});sun.shadow.camera.updateProjectionMatrix();
  sky.palette(scene.fog.color,JUNGLE.zenith);sky.uniforms.sunDir.value.copy(SUN_DIRECTION);canopy.enabled=true;rim.intensity=.6;hemi.intensity=.62;
+ weather?.captureBase({sun,hemi,rim,fill,post});
 }
 function tierName(){return quality==='auto'?autoTier:quality;}
 function applyQuality(){
  const t=TIERS[tierName()];renderer.setPixelRatio(Math.min(devicePixelRatio,t.pixelRatio));governor.setRange(t.scale);governor.reset();
  if(sun.shadow.mapSize.x!==t.shadow){sun.shadow.mapSize.set(t.shadow,t.shadow);sun.shadow.map?.dispose();sun.shadow.map=null;}
- post.configure({scale:governor.scale,msaa:t.msaa,bloomLevels:t.bloomLevels,volumetric:t.volumetric});jungle?.setQuality?.(t);effects?.setQuality?.(t);
+ post.configure({scale:governor.scale,msaa:t.msaa,bloomLevels:t.bloomLevels,volumetric:t.volumetric});jungle?.setQuality?.(t);effects?.setQuality?.(t);weather?.setQuality(t);
  document.body.dataset.quality=tierName();document.body.dataset.post=post.supported?'on':'off';document.querySelectorAll('[data-quality]').forEach(b=>b.setAttribute('aria-pressed',String(b.dataset.quality===quality)));
  const gpu=(detected.gpu.match(/(rtx|gtx|rx|arc|radeon|apple md|adreno|mali|intel|iris|uhd)[^,(]*/i)?.[0]||'').replace(/s+/g,' ').trim().toUpperCase();
  document.querySelectorAll('.quality-readout').forEach(e=>e.textContent=`Rendering ${t.label.toUpperCase()}${quality==='auto'?' (auto)':''}${gpu?' · '+gpu:''} · ${t.volumetric?'volumetric light':'light shafts'} · ${t.msaa}× MSAA`);
@@ -64,6 +68,13 @@ const debris=createDebris(scene,camera,$('#target-layer'));
 const birds=createBirds(scene);
 const raycaster=new T.Raycaster(),pointer=new T.Vector2(),aimTarget=new T.Vector3(0,3.7,16);let rex,mode='loading',view='first',firing=false,breathClock=0,stomp=0,stompVel=0,stompOffset=0,time=0,last=performance.now(),shake=0,gunKick=0,hitTime=0,damageFlash=0,endTime=0,frameCount=0,freeze=false;
 const reducedMotion=matchMedia('(prefers-reduced-motion: reduce)').matches;
+weather=createWeather(scene,{renderer,sky,makeEnvironment:createEnvironmentMap,reducedMotion});weather.captureBase({sun,hemi,rim,fill,post});
+weather.onThunder=(delay,near)=>audio.thunder?.(delay,near);
+function setConditions(kind){weather.set(kind,{instant:mode==='paused'});weather.apply({sun,hemi,rim,fill,post});document.querySelectorAll('[data-conditions]').forEach(b=>b.setAttribute('aria-pressed',String(b.dataset.conditions===weather.kind)));document.body.dataset.conditions=weather.kind;}
+document.querySelectorAll('[data-conditions]').forEach(b=>b.onclick=()=>setConditions(b.dataset.conditions));setConditions(storedConditions());
+// ?fps shows frame rate, frame time, tier and render scale for performance checks.
+const fpsMeter=new URLSearchParams(location.search).has('fps')?Object.assign(document.body.appendChild(document.createElement('div')),{id:'fps-meter'}):null;let fpsFrames=0,fpsSince=performance.now();
+if(fpsMeter)fpsMeter.style.cssText='position:fixed;left:8px;top:8px;z-index:9999;padding:3px 7px;font:600 11px/1.3 ui-monospace,monospace;color:#e8f0d8;background:#000a;pointer-events:none;white-space:pre';
 const hud={boss:$('#boss-fill'),trail:$('#boss-trail'),percent:$('#boss-percent'),phase:$('#boss-phase'),jeep:$('#jeep-value'),jeepFill:$('#jeep-fill'),ammo:$('#ammo-value'),heat:$('#heat-fill'),weapon:$('#weapon-state'),distance:$('#distance'),grenade:$('#grenade-state'),warning:$('#warning'),warningTitle:$('#warning-title'),warningTip:$('#warning-tip'),reticle:$('#reticle'),hit:$('#hit-marker'),hitLabel:$('#hit-label'),flash:$('#damage-flash')};
 const arcade={clock:$('#mission-clock'),time:$('#time-left'),pressure:$('#pressure-level'),card:$('#challenge-card'),name:$('#challenge-name'),seconds:$('#challenge-seconds'),instruction:$('#challenge-instruction'),fill:$('#challenge-fill'),progress:$('#challenge-progress')};
 const touchHud={fire:$('#touch-fire'),fireStatus:$('#touch-fire small'),reload:$('#touch-reload'),reloadStatus:$('#touch-reload small'),grenade:$('#touch-grenade'),grenadeStatus:$('#touch-grenade small'),contact:$('#touch-contact')};let controls;
@@ -296,9 +307,9 @@ function frame(now){
    $('#fatal-blood').style.opacity=pose.blood;$('#fatal-black').style.opacity=pose.black;
   }else if(state.victory){
    const v=state.victory;v.time=endTime;const pose=victoryPose(endTime,state.distance);speed=pose.speed;
-   if(pose.arrival&&!v.arrival){v.arrival=true;visitorCenter.root.visible=true;jungleRoot.visible=false;opening.reset();ambushScenery.reset();effects.reset();birds.reset();audio.stopCalls();scene.background.setHex(0xbac8c4);scene.fog.color.setHex(0xbac8c4);scene.fog.density=.004;sun.position.set(-30,50,-35);sun.target.position.set(0,4,-80);Object.assign(sun.shadow.camera,{left:-60,right:60,top:60,bottom:-60,near:.5,far:150});sun.shadow.camera.updateProjectionMatrix();
+   if(pose.arrival&&!v.arrival){v.arrival=true;baseLights();visitorCenter.root.visible=true;jungleRoot.visible=false;opening.reset();ambushScenery.reset();effects.reset();birds.reset();audio.stopCalls();scene.background.setHex(0xbac8c4);scene.fog.color.setHex(0xbac8c4);scene.fog.density=.004;sun.position.set(-30,50,-35);sun.target.position.set(0,4,-80);Object.assign(sun.shadow.camera,{left:-60,right:60,top:60,bottom:-60,near:.5,far:150});sun.shadow.camera.updateProjectionMatrix();
     // Open sky over the Visitor Center: no canopy, a brighter dome and softer rim.
-    canopy.enabled=false;sky.palette(scene.fog.color,0x8fb8d8);sky.uniforms.sunDir.value.subVectors(sun.position,sun.target.position).normalize();rim.intensity=.45;hemi.intensity=1.45;}
+    canopy.enabled=false;sky.palette(scene.fog.color,0x8fb8d8);sky.uniforms.sunDir.value.subVectors(sun.position,sun.target.position).normalize();rim.intensity=.45;hemi.intensity=1.45;weather.captureBase({sun,hemi,rim,fill,post});}
    $('#fatal-black').style.opacity=pose.black;$('#arrival-caption').style.opacity=pose.caption;
   }
   if(state.result==='won'?endTime>=VICTORY.duration&&rex.death.complete:endTime>=DEFEAT.duration)finish();
@@ -310,7 +321,10 @@ function frame(now){
  if(rex){const actorState=menu?{phase:'pursuit',phaseTime:0,distance:20,result:null}:state;rex.update(dt,actorState,time,speed,vocal);if(state.victory?.arrival)rex.actor.visible=false;handleMotionEvents(playing);
   // Humid-air breath and saliva stream from the jaws while she roars.
   const roaring=rex.vocal?.roar||0;breathClock-=dt;if(roaring>.3&&rex.actor.visible&&breathClock<=0&&!swallow.coversFrame){breathClock=.13;const m=rex.mouthPosition(),dir=m.center.clone().sub(rex.headPosition()).setY(0).normalize();dir.y=-.12;effects.breath(m.center,dir.normalize(),Math.min(1,roaring*1.2));}}
- jeep.pose(time,speed,state);updateCamera(dt);visitorCenter.update(time);birds.update(dt,time,speed);
+ jeep.pose(time,speed,state);updateCamera(dt);
+ weather.update(dt,speed,camera,{ground:jungleRoot.visible,shelter:state.result==='lost'&&state.defeat&&endTime>DEFEAT.contact-.4?1:0});weather.apply({sun,hemi,rim,fill,post});audio.weather?.(weather.value);
+ // Lens beads only where there is a real lens: third person, menu and exterior cinematics.
+ post.final.lensRain.value=(view==='third'||menu||state.result==='won')&&jungleRoot.visible?weather.value:0;post.final.lensTime.value+=dt;visitorCenter.update(time);birds.update(dt,time,speed);
  if(state.result==='lost'&&state.defeat)swallow.update(state.defeat.time,camera,rex.mouthPosition(),reducedMotion);
  if(rex&&state.result!=='won')rex.gaze.update(dt,view==='third'&&!menu?new T.Vector3(.06,2.4,-.45):camera.position);
  raycaster.setFromCamera(pointer,camera);aimPoint(aimTarget);
@@ -320,7 +334,9 @@ function frame(now){
  if(playing){if(firing)shoot();handleEvents();updateHud();}audio.update(speed,dt,mode==='playing'&&(!state.result||state.result==='won'&&endTime<VICTORY.fade||(state.result==='lost'&&endTime<DEFEAT.spinEnd)),!state.result&&!['intro','flank'].includes(state.phase));
  shake=Math.max(0,shake-dt*1.8);stompVel+=(stomp*40-stompOffset*260-stompVel*26)*dt;stompOffset=Math.max(0,stompOffset+stompVel*dt);stomp=Math.max(0,stomp-dt*6);gunKick=Math.max(0,gunKick-dt*.4);hitTime=Math.max(0,hitTime-dt);damageFlash=Math.max(0,damageFlash-dt*.65);
  hud.hit.style.opacity=hitTime>0?1:0;hud.hitLabel.style.opacity=hitTime>0?1:0;hud.flash.style.opacity=damageFlash;
- post.final.flash.value.setRGB(1,.78,.5).multiplyScalar(effects.flash*.28);
+ post.final.flash.value.setRGB(1,.78,.5).multiplyScalar(effects.flash*.28);weather.addFlash(post.final.flash.value);
+ if(fpsMeter){fpsFrames++;if(now-fpsSince>500){fpsMeter.textContent=`${Math.round(fpsFrames*1000/(now-fpsSince))} fps · ${governor.frameMs.toFixed(1)} ms
+${tierName()} · scale ${Math.round(governor.scale*100)}% · ${renderer.info.render.calls} calls`;fpsFrames=0;fpsSince=now;}}
  renderFrame(now);
 }
 requestAnimationFrame(frame);
@@ -328,4 +344,4 @@ const boot=(stage,fraction)=>{$('#boot-stage').textContent=stage;$('#boot-fill')
 try{rex=await createRex(scene,p=>{const f=p.total?p.loaded/p.total:0;$('#loading-status').textContent=p.total?`Creature ${Math.round(f*100)}%`:'Preparing the creature…';boot('Waking the predator',.12+f*.66);});boot('Compiling light and shadow',.82);targets=createTargets(rex,camera,$('#target-layer'));await renderer.compileAsync(scene,camera);await swallow.prepare();boot('Ready',1);setMode('menu');$('#start').disabled=false;$('#start-label').textContent='START THE CHASE';$('#loading-status').textContent='Headphones recommended · First / third person';}
 catch(e){console.error(e);$('#loading-status').textContent='The creature could not load. Refresh to try again.';$('#start-label').textContent='LOAD FAILED';}
 // Exposed for local visual and interaction verification; no network or remote state.
-window.rexChase={scene,camera,renderer,post,birds,sky,canopy,governor,sun,lights:{hemi,rim,fill},jungle,get quality(){return{setting:quality,tier:tierName(),detected:detected.tier,gpu:detected.gpu,scale:governor.scale,frameMs:governor.frameMs};},setQuality,jeep,effects,opening,ambushScenery,debris,swallow,visitorCenter,get targets(){return targets;},get rex(){return rex;},state,audio,start,setView,shoot,grenade,get mode(){return mode;},get view(){return view;},get frames(){return frameCount;},set freeze(v){freeze=v;},get freeze(){return freeze;},aimAt(world){pointer.copy(world.clone().project(camera));moveReticle();},snapshot(){return{mode,view,health:state.health,jeep:state.jeep,phase:state.phase,ammo:state.ammo,wounds:rex?.damage.count,damageStage:rex?.damage.stage,persistentImpacts:rex?.damage.totalImpacts,headshots:state.headshots,drawCalls:renderer.info.render.calls,triangles:renderer.info.render.triangles,audioClips:audio.buffers.size,remaining:state.remaining,objectives:state.objectivesCleared,debrisCleared:state.debrisCleared,debrisMissed:state.debrisMissed};}};
+window.rexChase={scene,camera,renderer,post,birds,sky,canopy,weather,setConditions,governor,sun,lights:{hemi,rim,fill},jungle,get quality(){return{setting:quality,tier:tierName(),detected:detected.tier,gpu:detected.gpu,scale:governor.scale,frameMs:governor.frameMs};},setQuality,jeep,effects,opening,ambushScenery,debris,swallow,visitorCenter,get targets(){return targets;},get rex(){return rex;},state,audio,start,setView,shoot,grenade,get mode(){return mode;},get view(){return view;},get frames(){return frameCount;},set freeze(v){freeze=v;},get freeze(){return freeze;},aimAt(world){pointer.copy(world.clone().project(camera));moveReticle();},snapshot(){return{mode,view,health:state.health,jeep:state.jeep,phase:state.phase,ammo:state.ammo,wounds:rex?.damage.count,damageStage:rex?.damage.stage,persistentImpacts:rex?.damage.totalImpacts,headshots:state.headshots,drawCalls:renderer.info.render.calls,triangles:renderer.info.render.triangles,audioClips:audio.buffers.size,remaining:state.remaining,objectives:state.objectivesCleared,debrisCleared:state.debrisCleared,debrisMissed:state.debrisMissed};}};

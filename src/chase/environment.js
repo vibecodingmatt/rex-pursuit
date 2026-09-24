@@ -2,6 +2,7 @@ import * as T from 'three';
 import {mergeGeometries} from 'three/addons/utils/BufferGeometryUtils.js';
 import {createFoliageKit,dustTexture,seeded,WIND} from './foliage.js';
 import {SUN_DIRECTION} from './atmosphere.js';
+import {WET,RAIN,RAIN_TIME,WIND_GUST} from './weather-state.js';
 // Scrolling rainforest road. Twelve 28 m chunks recycle along +Z; six unique
 // layouts are shared by chunk pairs 168 m apart. Every layout is merged per
 // material (a handful of draw calls per chunk) and optional planting is ordered
@@ -27,16 +28,28 @@ function groundGeometry(){
 function groundMaterial(kit){
  const t=kit.textures.ground,m=new T.MeshStandardMaterial({map:t.dirt,normalMap:t.dirtNormal,normalScale:new T.Vector2(1.1,1.1),roughness:.85});
  m.onBeforeCompile=s=>{
-  s.uniforms.tLitter={value:t.litter};s.uniforms.tLitterNormal={value:t.litterNormal};
+  s.uniforms.tLitter={value:t.litter};s.uniforms.tLitterNormal={value:t.litterNormal};s.uniforms.uWet=WET;s.uniforms.uRain=RAIN;s.uniforms.uRainTime=RAIN_TIME;
   s.vertexShader=s.vertexShader.replace('#include <common>','#include <common>\nvarying vec3 vGround;').replace('#include <begin_vertex>','#include <begin_vertex>\nvGround=position;');
   s.fragmentShader=s.fragmentShader.replace('#include <common>',`#include <common>
-   varying vec3 vGround;uniform sampler2D tLitter,tLitterNormal;
+   varying vec3 vGround;uniform sampler2D tLitter,tLitterNormal;uniform float uWet,uRain,uRainTime;
    float gh(vec2 p){p=fract(p*vec2(233.34,851.73));p+=dot(p,p+23.45);return fract(p.x*p.y);}
    // Value noise whose lattice wraps in z; 28*k must be a whole number so
    // every chunk boundary meets its neighbour without a seam.
    float gn(vec2 p,float P){vec2 i=floor(p),f=fract(p);f=f*f*(3.-2.*f);float y0=mod(i.y,P),y1=mod(i.y+1.,P);
     return mix(mix(gh(vec2(i.x,y0)),gh(vec2(i.x+1.,y0)),f.x),mix(gh(vec2(i.x,y1)),gh(vec2(i.x+1.,y1)),f.x),f.y);}
    float gp(vec2 p,float k){return gn(p*k,floor(28.*k+.5));}
+   // Raindrop rings on standing water: one drop per 0.4 m cell on its own clock.
+   // Cells wrap every chunk (70 per 28 m) so neighbouring chunks meet cleanly.
+   vec2 rainRipples(vec2 uv,float t){
+    vec2 g=vec2(0.),cell=floor(uv);
+    for(int j=-1;j<=1;j++)for(int i=-1;i<=1;i++){
+     vec2 c=cell+vec2(i,j),k=vec2(c.x,mod(c.y,70.));
+     float h=gh(k+.37),period=.7+.5*gh(k+5.1),age=fract(t/period+h);
+     vec2 d=uv-(c+.2+.6*vec2(gh(k+2.3),gh(k+8.9)));float r=length(d),x=(r-age*1.1)*9.;
+     g+=d/max(r,1e-3)*cos(x*3.1416)*smoothstep(1.,0.,abs(x))*pow(1.-age,2.)*step(gh(k+11.7),.85);
+    }
+    return g;
+   }
    float mRoad,mRut,mHump,mVerge,mForest,mPuddle,mDetail;`)
   .replace('#include <map_fragment>',`
    {
@@ -48,7 +61,7 @@ function groundMaterial(kit){
     mHump=(1.-smoothstep(.1,.55,ax))*mRoad;
     mVerge=smoothstep(3.9+wob,5.4+wob,ax)*(1.-smoothstep(8.,13.,ax+wob*2.5));
     mForest=smoothstep(8.,13.5,ax+wob*2.5+n3*3.);
-    mPuddle=smoothstep(.72,.8,gp(p+vec2(3.,0.),12./28.)*(.45+mRut*.7)+n2*.08)*mRoad;
+    mPuddle=smoothstep(.72-.08*uWet,.8-.06*uWet,gp(p+vec2(3.,0.),12./28.)*(.45+mRut*.7)+n2*.08)*mRoad;
     mDetail=texture2D(map,vMapUv).r;
     vec3 mud=vec3(.07,.047,.03),dirt=vec3(.19,.135,.087),dry=vec3(.3,.23,.155);
     vec3 road=mix(dirt,dry,smoothstep(.3,.85,n1)*.75)*(.6+.8*mDetail);
@@ -59,20 +72,24 @@ function groundMaterial(kit){
     vec3 forest=mix(litter*.62,moss,smoothstep(.5,.8,n2)*.55)*(.75+.4*n1);
     vec3 col=mix(road,verge,mVerge);col=mix(col,forest,mForest);
     col=mix(col,col*.68,mPuddle);
+    // Rain darkens porous ground; standing water turns muddy brown.
+    col*=1.-uWet*(.42-.12*mForest);col=mix(col,col*vec3(.55,.5,.45),mPuddle*uWet);
     diffuseColor.rgb*=col*1.05;
    }`)
   .replace('#include <roughnessmap_fragment>',`#include <roughnessmap_fragment>
    roughnessFactor=mix(.94,.86,mRoad);roughnessFactor=mix(roughnessFactor,.6,mRut*.8);roughnessFactor=mix(roughnessFactor,.96,mForest);
-   roughnessFactor=mix(roughnessFactor,.72,mPuddle);`)
+   roughnessFactor=mix(roughnessFactor,.72,mPuddle);
+   roughnessFactor=mix(roughnessFactor,mix(mix(.46,.56,mVerge),.66,mForest),uWet);roughnessFactor=mix(roughnessFactor,.07,mPuddle*uWet);`)
   .replace('#include <normal_fragment_maps>',`
    {
     vec3 dn=texture2D(normalMap,vNormalMapUv).xyz*2.-1.,ln=texture2D(tLitterNormal,vNormalMapUv*.5).xyz*2.-1.;
     vec3 mapN=normalize(mix(dn*vec3(1.2,1.2,1.),ln*vec3(1.4,1.4,1.),mForest));
-    mapN.xy*=normalScale*(1.+mRut*.5)*(1.-mPuddle*.3);
+    mapN.xy*=normalScale*(1.+mRut*.5)*(1.-mPuddle*.3)*(1.-mPuddle*uWet*.94);
+    if(uRain>.01&&mPuddle*uWet>.01)mapN.xy+=rainRipples(vGround.xz*2.5,uRainTime)*.55*uRain*mPuddle;
     normal=normalize(tbn*mapN);
    }`);
  };
- m.customProgramCacheKey=()=> 'rex-jungle-ground-v1';return m;
+ m.customProgramCacheKey=()=> 'rex-jungle-ground-v2';return m;
 }
 
 export function createJungle(root,{canopy}={}){
@@ -158,7 +175,7 @@ export function createJungle(root,{canopy}={}){
  const shafts=new T.Group();for(let i=0;i<7;i++){const shaft=new T.Mesh(new T.CylinderGeometry(.25,2,32,12,1,true),shaftMat);shaft.position.set(-4+i*2.5,13,24+i*14);shaft.rotation.z=.55;shaft.rotation.x=-.42;shafts.add(shaft);}shafts.visible=false;root.add(shafts);
 
  const dustMap=dustTexture();
- let grassFactor=1,floraFactor=1,particleFactor=1;
+ let grassFactor=1,floraFactor=1,particleFactor=1,windClock=0;
  function thin(){for(const c of chunks)for(const {mesh,data}of c.parts){const n=Math.floor(data.marks.length*floraFactor);mesh.geometry.setDrawRange(0,n?data.marks[n-1]:data.requiredEnd||0);if(!n&&!data.requiredEnd)mesh.geometry.setDrawRange(0,0);}}
  function positionChunks(){chunks.forEach((c,k)=>c.group.position.z=k*CHUNK+START);}
  return{
@@ -166,7 +183,8 @@ export function createJungle(root,{canopy}={}){
   setQuality(t){grassFactor=t.grass;floraFactor=t.flora;particleFactor=t.particles;shafts.visible=!!t.beams;motes.visible=!t.beams;moteGeo.setDrawRange(0,Math.floor(moteCount*particleFactor));falling.count=Math.floor(fallingCount*particleFactor);thin();},
   reset(){positionChunks();},
   update(dt,speed,time,camera){
-   WIND.value=time;
+   // Storm gusts quicken the sway; in still air the clock tracks game time exactly.
+   windClock+=dt*(1+(WIND_GUST.value-1)*.3);WIND.value=windClock;
    for(const c of chunks){
     c.group.position.z+=speed*dt;if(c.group.position.z>200)c.group.position.z-=COUNT*CHUNK;
     // Beyond ~140 m ahead the fog is opaque; far behind is only seen during the defeat spin.
@@ -175,7 +193,7 @@ export function createJungle(root,{canopy}={}){
     const d=Math.abs(c.group.position.z-6),lod=Math.max(.12,1-Math.max(0,d-18)/70);
     c.grass.count=Math.floor(c.grass.instanceMatrix.count*Math.min(1,grassFactor)*lod);
    }
-   moteUniforms.time.value=time;moteUniforms.scroll.value=(moteUniforms.scroll.value+speed*dt)%54;moteUniforms.pixel.value=Math.min(2,devicePixelRatio);
+   moteUniforms.time.value=time;moteUniforms.strength.value=1-WET.value;shaftMat.opacity=.02*(1-WET.value);motes.visible=moteUniforms.strength.value>.01&&!shafts.visible;moteUniforms.scroll.value=(moteUniforms.scroll.value+speed*dt)%54;moteUniforms.pixel.value=Math.min(2,devicePixelRatio);
    if(canopy){moteUniforms.canopyScroll.value=canopy.scroll%canopy.scale;}
    for(let i=0;i<falling.count;i++){
     const l=leafState[i];l.p.y-=l.fall*dt;l.p.z+=speed*dt*.97;l.p.x+=Math.sin(time*1.3+l.phase)*dt*.6;

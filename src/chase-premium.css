@@ -41,7 +41,7 @@ body[data-state=menu] #start:not(:disabled){animation:pulse-ring 2.8s 2s ease-in
 .quality-options button:hover{color:#f0e4c4}
 .quality-options button[aria-pressed=true]{background:#e8be7524;color:var(--amber);box-shadow:inset 0 -2px 0 var(--amber)}
 .quality-readout{flex-basis:100%;font-size:8px;letter-spacing:.8px;color:#8f9b86}
-.pause-quality{justify-content:center;margin:18px 0 4px}.pause-quality .quality-readout{text-align:center}
+.pause-quality{justify-content:center;margin:18px 0 4px}.quality-picker.conditions-picker{margin-top:10px}.pause-quality.conditions-picker{margin:8px 0 4px}.pause-quality .quality-readout{text-align:center}
 
 /* ---- Glass HUD ------------------------------------------------------------ */
 .boss-hud{padding:10px 14px 9px;background:linear-gradient(180deg,#0b140fb8,#0b140f40);border:1px solid #e8be7514;backdrop-filter:blur(6px)}
@@ -74,7 +74,7 @@ body[data-post=on] .film-grain{display:none}
 body[data-post=on] .vignette{background:radial-gradient(ellipse at 50% 42%,transparent 48%,#050a0766 100%)}
 
 @media(max-width:800px){.quality-picker{margin-top:18px}.quality-options button{min-width:40px;padding:6px 7px}}
-@media(max-height:570px){#start-screen .quality-picker{margin-top:12px}#start-screen .quality-label,#start-screen .quality-readout{display:none}.pause-quality{margin:8px 0 0}}
+@media(max-height:570px){#start-screen .quality-picker{margin-top:12px}#start-screen .quality-picker.conditions-picker{margin-top:6px}#start-screen .quality-label,#start-screen .quality-readout{display:none}.pause-quality{margin:8px 0 0}}
 @media(prefers-reduced-motion:reduce){#boot::before,.boot-mark,.boot-tip,body[data-state=menu] #start-screen *{animation:none!important}}
 
 /* Room for the graphics row: lift the copy block, and drop the controls tip on

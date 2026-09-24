@@ -2,6 +2,17 @@
 
 Checkpoint: 2026-09-23. The foot articulation below was published at the user's request after the full release gate. It follows the visual overhaul (HDR pipeline, rebuilt rainforest, hide/mouth finish, effects, quality tiers and front-end polish), published earlier the same day after its release gate (test:logic, npm test, build, test:release, test:pages) passed. That in turn follows `540d171` (varied branch hazards and stomach plunge reveal).
 
+## Storm conditions (2026-09-24, local only, not pushed)
+
+Drop 1 of [the upgrade roadmap](ROADMAP.md). Menu and Pause have a **Conditions: Clear | Storm** picker stored in `localStorage` (`rex-pursuit-conditions`). Clear must stay visually and behaviourally identical; gameplay rules do not change in the storm.
+
+- `src/chase/weather.js` owns one smoothed storm value. Rain is a single instanced draw of camera-relative streaks. Each streak's length and slant come from the drop's velocity relative to the Jeep (fall + road speed + gusts). It also owns instanced road splash rings, a lightning scheduler (multi-pulse flash, midpoint-displaced bolt placed mostly over the road corridor, sky flash, cool rim-light kick) and the overcast grade. `captureBase()` records each location's lighting (jungle and Visitor Center both call `baseLights()` first), and `apply()` blends the storm over it every frame. The post grade base is recorded once.
+- `weather-state.js` shares `WET`, `RAIN`, `RAIN_TIME` and `WIND_GUST` uniforms with the ground (darkening, roughness, larger puddles, raindrop ripple normals), plants (gusts, darker bark, slightly glossier leaves) and the Rex hide (dorsal soaking, vertical runoff streaks, water in scale cavities; mouth excluded).
+- `post.js` adds lens beads only where there is a real lens: third person, menu and victory exterior. The first-person gunner has no lens. `?fps` shows frame rate, frame time, tier, render scale and draw calls.
+- Audio hooks are called but not implemented yet: `audio.thunder(delaySeconds, nearness)` and `audio.weather(level)` (Drop 2).
+- **Lessons:** (1) screen-space-expanded instanced quads flip winding with the streak direction, so they need `side: DoubleSide` or every drop is culled while still issuing a draw call. (2) On wet surfaces the fake cool **rim light** behind the Rex mirrors straight into the gunner's view as a silver road and white leaves; the storm drops it to 55%. The sun is 6% in the storm, since dappled sun patches read as glare. Leaf specular stays near the approved values; relaxing it brought back the "snow" leaves.
+- Verified: `build`, `test:logic`, `test:smoke`, `test:pressure` (see progress log), and desktop High frame cost unchanged within noise (8.1 ms storm vs 8.3 ms clear, headless RTX 3070). Captures are in ignored `art/review/storm/`, with `capture.cjs` and `quick.cjs` to repeat them.
+
 ## Foot articulation (2026-09-23)
 
 The user said the Rex walked with her feet frozen in a flat pose. They asked for the toes and foot to curl or move realistically from lift-off to touchdown. Previously each foot moved as one rigid block, with a whole-foot tilt of at most about 6 degrees and a 3-degree bend that actually lifted the toes.

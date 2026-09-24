@@ -2,6 +2,8 @@
 
 This checkout is the Rex: Pursuit Three.js browser game. It is separate from Dino Defense, War Survival, and Approach Orlando; their skills and release destinations do not apply.
 
+The current upgrade plan is [docs/ROADMAP.md](docs/ROADMAP.md): one drop per session, committed locally. Do not push until the user says "ship it".
+
 Start with [docs/HANDOFF.md](docs/HANDOFF.md) for the accepted behavior and recent fixes. Use the project skill at [.agents/skills/rex-pursuit-maintainer/SKILL.md](.agents/skills/rex-pursuit-maintainer/SKILL.md) for the code map and task-specific references. [README.md](README.md) describes gameplay, controls, audio, and asset provenance.
 
 ## Working conventions

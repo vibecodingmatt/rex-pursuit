@@ -1,0 +1,204 @@
+# Rex: Pursuit — AAA upgrade roadmap
+
+Started 2026-09-24. The user shared the prompt history behind a viral Three.js ocean scene as inspiration. This roadmap breaks the ideas that transfer to Rex into **drops**. Each drop fits one 5-hour usage window on a $20 plan and leaves something visibly or audibly better that the user can play.
+
+## How to run a drop
+
+- Start a **fresh conversation** in this folder and say: *"Do the next drop in docs/ROADMAP.md."*
+- Read this file, then only the files the drop names. Don't re-survey the codebase or read the handoff end to end.
+- Finish the "Must" items before any "Stretch" items. If the window runs short, cut Stretch and record where work stopped in the progress log.
+- **Do not push.** Pushing `main` deploys the live game. Commit locally on the `aaa-upgrade` branch at the end of each drop; at ship time merge it into `main`. Publish only when the user says "ship it", and run the full release gate from the [verification reference](../.agents/skills/rex-pursuit-maintainer/references/verification-and-release.md) first.
+- Test proportionally. Each drop runs `build`, `test:smoke` and the focused suites it lists. The full browser suite runs only at ship time.
+- Keep screenshots to 3–5 comparable before/after captures, saved in `art/review/<drop>/`. For feel and sound, the user plays and judges; that costs fewer tokens than more captures.
+- Put every new effect in the quality tiers (`src/chase/graphics.js`), turned off or reduced on Low. Measure cost with `art/review/perf-tiers.cjs` (ignored, local). Budget: at most +1.5 ms per drop on High at 1600×900.
+- Gameplay rules, timings and balance (`combat.js`) stay unchanged unless a drop says otherwise.
+
+## What made his scene look AAA (apply to every drop)
+
+1. **Work out the physics before drawing the effect.** Where do particles spawn, how do they move, and what lights them? Most of his corrections were "sprites are blobs" and "that's not how spray forms". Flat billboard puffs are the biggest giveaway that an effect is cheap.
+2. **Break up uniformity.** No visible tiling. Irregular dark patches, streaks and placed clutter (pebbles, logs, debris) make a surface look real.
+3. **The subtle finishing layer.** Haze, light shafts, ambient occlusion, contact shadows, blended shadow cascades, motion blur, bounce light, faint particles in the air, a custom lens flare, dithered fades instead of pop-in, and anti-aliasing. Each is barely noticeable alone; together they make the scene look real.
+4. **World sounds are real recordings.** No synthesized world sounds, sources placed in 3D, subtle footsteps, and audible ambient life.
+5. **The world is alive.** Small creatures react to the player.
+6. **Every light lights the scene**, including one the player controls (his flashlight).
+7. **Performance budget is a feature.** Optimize as you go and tier everything.
+8. **Remove artifacts before adding more.** Check for flicker, jitter, z-fighting, shimmer and visible seams from several camera views.
+
+## Already in Rex (don't rebuild)
+
+- **Rendering:** HDR pipeline with ACES, bloom, grade, grain, chromatic aberration and vignette. Ray-marched sun shafts and dappled canopy light. Height fog with a sun glow. Procedural sky with drifting clouds.
+- **World and effects:** procedural rainforest with wind sway, light-shaft motes and falling leaves, footfall dust, breath mist, birds that flush from the canopy on a roar, and HDR tracers, sparks and explosions.
+- **Engine and sound:** quality tiers with a frame-time governor. Real Rex vocals and footfalls, with jaw motion driven by the audio's amplitude.
+
+**Gaps found 2026-09-24:**
+
+- All world sounds except the Rex are synthesized (`audio.js`): gun, impacts, reload, engine, wind, insects and the branch crack. Panning is stereo only.
+- No ambient occlusion or contact shadows, and a single shadow map.
+- No motion blur, weather, night lighting or lens flare.
+- Particles are billboard puffs.
+- No small ground creatures and no parameter or photo UI.
+
+---
+
+## Drop 1: Storm *(flagship visual)*
+
+**What you'll see:** a **Conditions: Clear | Storm** picker in Menu and Pause, stored like Quality.
+
+- A dark, bruised sky with heavier fog.
+- Slanted rain streaks that respond to Jeep speed, with splash rings on the road.
+- A wet, darker road with puddles reflecting the sky.
+- The Rex's hide darkens and glistens.
+- Stronger wind in the foliage.
+- Lightning that lights up the Rex, plus a visible bolt.
+
+**Must:**
+- New `src/chase/weather.js`:
+  - Rain as one instanced draw in a camera-relative volume, slanted by velocity.
+  - Instanced road splashes.
+  - A lightning scheduler with a flash curve, a bolt billboard and boosts to the sun and hemisphere lights.
+  - Exports `wetness` and `flash`.
+- `atmosphere.js`: storm sky, cloud cover and fog, blended by a 0–1 weather value.
+- Ground shader (`environment.js`): wetness darkens albedo and drops roughness; a puddle mask reuses the existing wet patches.
+- `rex-skin.js`: wetness uniform with darker albedo and lower roughness. Scales stay; the mouth interior and throat are unaffected.
+- Shared plant shader: wind strength follows the weather.
+- `graphics.js`: rain density and splash count per tier.
+- `index.html` and `chase.js`: the Conditions picker.
+- A tiny FPS overlay behind `?fps` for the user's own performance checks.
+
+**Stretch:** raindrops beading and running on the lens in first person (`post.js`), ripple normals in puddles, and rain audio and thunder if those files are already in `audio_reference/drop-audio/` (thunder delayed by lightning distance).
+
+**Checks:** `build`, `test:logic`, `test:smoke`, `test:pressure`. Check performance against the budget. Captures: first person during pursuit, third person, phone portrait, and a lightning frame. Clear must look unchanged.
+
+## Drop 2: Real sound
+
+**Needs:** the shopping list below, downloaded by the user.
+
+**What you'll hear:**
+- Real .50-cal bursts with an echo tail off the jungle, and real impacts on hide and dirt.
+- A real engine that climbs with speed.
+- A living rainforest ambience, branch snaps, and storm rain and thunder.
+- The Rex placed in 3D: on headphones, you hear her swing behind you, muffled with distance.
+
+**Must (`audio.js`):**
+- An HRTF `PannerNode` for Rex vocals, footfalls and pain calls, following her head and feet. The listener follows the camera.
+- Replace the synthesized `gun`, `impact`, `groundImpact`, `reload`, engine, wind, insects and branch-crack sounds with samples. Add variation with round-robin samples and small pitch randomization.
+- The gun uses a burst loop, with a tail on release.
+- A forest-reverb send using a generated impulse response. That's a room model, not a synthesized sound, so it's fine.
+- Ambience ducks under roars. Keep footsteps subtle.
+- Trim and normalize with the existing `audio:split` tooling. Processed clips go in `public/audio/`; raw files stay in the ignored `audio_reference/`.
+- UI cues (target chimes, warnings) stay as designed sounds unless the user says otherwise.
+
+**Checks:** `test:logic`, `test:smoke`, `test:defeat` (swallow cue timing), `test:victory`. Check that the Sound Library page still loads. The user listens and judges.
+
+**Shopping list:** use Pixabay (where the existing Rex pack came from) or Freesound with the CC0 filter. Put the files in `audio_reference/drop-audio/`; file names don't matter.
+
+| # | Search | Want |
+| --- | --- | --- |
+| 1 | "50 cal machine gun" / "heavy machine gun burst" | 2–3 bursts plus a single shot, dry if possible |
+| 2 | "bullet impact flesh" / "bullet hit meat" | 3–4 short hits |
+| 3 | "bullet impact dirt" / "bullet ricochet" | 3–4 |
+| 4 | "machine gun reload" / "ammo belt" / "metal ammo box" | 1–2 |
+| 5 | "old jeep engine" / "truck driving loop" | a steady driving loop |
+| 6 | "tropical rainforest ambience" | a long loop with birds and insects, no music |
+| 7 | "wind through trees" | a loop |
+| 8 | "tree branch snap" / "wood crack" | 2–3 |
+| 9 | "explosion" / "grenade explosion" | 1–2 |
+| 10 | "heavy rain loop" and "rain on metal roof" | one of each |
+| 11 | "thunder close" / "thunder rumble distant" | 2–3 |
+| 12 | "birds flock take off wings" | 1–2 |
+
+## Drop 3: Impact and speed *(effects fidelity)*
+
+**What you'll see:**
+- Rounds hitting the road kick dirt and pebbles out in a ricochet cone.
+- Hits on the Rex throw hide flecks and a brief dark mist.
+- Grenades throw debris chunks under gravity, followed by sunlit rolling smoke.
+- Rex footfalls throw clods and leaves, and splash in puddles during a storm.
+- Camera motion blur on stomps, the defeat spin and fast turns.
+- Smoke fades softly into geometry instead of showing flat sprite edges.
+
+**Must:**
+- `effects.js`:
+  - An instanced physics-debris pool with gravity, bounce, spin and fade.
+  - A soft-particle smoke shader that fades by depth, is lit by the sun direction and uses animated noise instead of a flat texture.
+  - Spawn directions work out the physics first (principle 1).
+- `post.js`: motion blur from camera velocity, using depth and the previous frame's camera matrices. Off on Low and with reduced motion. It must not double up with the defeat blur in `defeatVision()`.
+- The gun already ejects cases and links; improve those only if there's time left.
+
+**Checks:** `build`, `test:smoke`, `test:cinematic`, `test:defeat`, performance. Captures: a road hit, a hide hit, a grenade, and a footfall close-up.
+
+## Drop 4: Grounding *(AO, contact shadows, shadows)*
+
+**What you'll see:**
+- Feet, tyres, rocks and roots sit in the ground.
+- Deep shade under the canopy and in the folds of the jaw and legs.
+- Crisper shadows near the Jeep.
+- Foliage fades in instead of popping.
+
+**Must:**
+- `post.js`: half-resolution GTAO/SAO from resolved depth with an edge-aware upsample, and screen-space contact shadows along `SUN_DIRECTION` in the same pass. It skips the swallow interior.
+- Guard against the flicker he fought on his fishing net: limit AO on alpha-tested leaves and keep it temporally stable.
+- Bayer-dithered fade-in for scenery chunks.
+
+**Stretch:** two shadow cascades (near: Jeep and Rex; far: the road window) with a dithered seam. Check first how three's `CSM` would interact with the custom `onBeforeCompile` materials; if it's messy, tighten the single frustum instead.
+
+**Checks:** `build`, `test:smoke`, `test:pressure`, `test:treeline`, performance. Captures: a foot close-up, the Jeep, and a canopy-shade view.
+
+## Drop 5: Night hunt *(gameplay)*
+
+**What you'll play:** two new conditions: **Night**, and **Night + Storm** (the paddock scene).
+
+- A moonlit sky and fog, and Jeep headlights and taillights that cast real light.
+- A **gun-mounted flashlight** (F key or touch button) that's your main way of seeing her. The beam casts shadows, her eyes shine in it, and muzzle flashes briefly light the jungle.
+- Fireflies.
+- Target rings stay readable; incoming wood shows only in light or flashes.
+
+**Must:**
+- Night sky, moon and stars in `atmosphere.js`.
+- A lighting rig: a flashlight `SpotLight` with shadows that follows the gun aim, a headlight pair, and a muzzle-flash light.
+- Eye shine on the Rex's eye material.
+- An input binding and a touch button that respects the existing thumb-clearance rules.
+
+**Stretch:** a faint volumetric cone for the beam in fog, and a small score bonus for harder conditions if the results screen supports it.
+
+**Checks:** `build`, `test:smoke`, `test:touch` (new button), `test:pressure`, `test:gaze`, performance. Captures: the beam on the Rex, headlights, and phone.
+
+## Drop 6: Living jungle
+
+**What you'll see:**
+- Small compsognathus-like dinosaurs skittering off the road ahead of the Jeep.
+- Lizards bolting from rocks.
+- Dragonflies and butterflies in the light shafts.
+- A distant brachiosaur neck through a canopy gap, with a 3D call.
+- Placed clutter so the road isn't uniform: tyre ruts, broken branches, fallen fronds and pebbles.
+
+**Must:**
+- New `src/chase/critters.js`: one instanced mesh with a vertex-shader gait, and steering that makes them flee the Jeep.
+- Instanced flying insects.
+- Clutter in the environment chunks.
+
+**Checks:** `build`, `test:smoke`, `test:treeline`, `test:cinematic` (the opening must still read well), performance.
+
+## Drop 7: Photo mode *(small; can be added to any drop that finishes early)*
+
+Pause, then Photo:
+
+- A free camera with the HUD hidden.
+- Sliders for sun azimuth and elevation, conditions, exposure and depth-of-field focus.
+- Save a PNG, and share through the existing `share.js`.
+
+This is Rex's version of his parameter UI, and it makes the upgrades shareable.
+
+## Backlog (not scheduled)
+
+- A custom lens flare for the sun in the menu and third person, and an anamorphic muzzle-flash streak.
+- A **river ford** segment where the Jeep and Rex throw spray and leave wet banks. This is the closest match to his water work.
+- Mud and wetness building up on the Rex over the course of the chase.
+- Rain beading on the Jeep bodywork.
+
+## Progress log
+
+| Drop | Status | Date | Notes |
+| --- | --- | --- | --- |
+| Roadmap | done | 2026-09-24 | Inspiration mapped; nothing shipped. |
+| 1 Storm | done (local, not pushed) | 2026-09-24 | `weather.js` + `weather-state.js`; Conditions picker; rain, splashes, puddle ripples, wet ground/foliage/hide, lightning + bolt, storm sky/grade, third-person lens beads, `?fps`. `audio.thunder(delay,near)` and `audio.weather(level)` are called but not yet implemented (Drop 2). Review captures in `art/review/storm/`. Checks: build, test:logic, test:smoke, test:pressure (first run hit the known intermittent compact-phone case; the re-run passed every view), phone portrait and menu captures. |

@@ -4,6 +4,7 @@ import {mergeGeometries,mergeVertices} from 'three/addons/utils/BufferGeometryUt
 // wind/translucency shader. Everything is deterministic from its seed, built
 // once at load, and instanced by the scenery.
 
+import {WET,WIND_GUST} from './weather-state.js';
 export const WIND={value:0};
 export function seeded(seed){return()=>{seed=(1664525*seed+1013904223)>>>0;return seed/4294967296;};}
 const canvas=(w,h=w)=>{const c=document.createElement('canvas');c.width=w;c.height=h;return c;};
@@ -97,8 +98,8 @@ export function dustTexture(){
 /** Compose wind sway, leaf flutter and back-lit translucency onto a standard material. */
 export function plant(material,{sway=.2,flutter=0,height=10,translucency=0,moss=0,volume=false,key}){
  material.onBeforeCompile=s=>{
-  s.uniforms.uWindTime=WIND;
-  s.vertexShader=s.vertexShader.replace('#include <common>','#include <common>\nuniform float uWindTime;varying vec3 vPlantWorld;varying vec3 vPlantUp;')
+  s.uniforms.uWindTime=WIND;s.uniforms.uWet=WET;s.uniforms.uWindGust=WIND_GUST;
+  s.vertexShader=s.vertexShader.replace('#include <common>','#include <common>\nuniform float uWindTime,uWindGust;varying vec3 vPlantWorld;varying vec3 vPlantUp;')
    .replace('#include <begin_vertex>',`#include <begin_vertex>
     {
      // Merged scenery sways by world position; instanced tufts by their root.
@@ -108,8 +109,8 @@ export function plant(material,{sway=.2,flutter=0,height=10,translucency=0,moss=
      #endif
      float h=clamp(position.y/${height.toFixed(2)},0.,1.6),bend=h*h;
      float phase=uWindTime*.9+anchor.x*.045+anchor.z*.06;
-     transformed.xz+=vec2(sin(phase)+.4*sin(phase*2.7+1.3),cos(phase*.7+.4)*.55)*${sway.toFixed(3)}*bend;
-     ${flutter?`transformed+=${flutter.toFixed(3)}*min(h*3.,1.)*vec3(sin(uWindTime*6.3+position.x*3.7+position.z*2.9+anchor.x),sin(uWindTime*5.1+position.z*4.3)*.7,cos(uWindTime*5.7+position.y*3.1+anchor.z));`:''}
+     transformed.xz+=vec2(sin(phase)+.4*sin(phase*2.7+1.3),cos(phase*.7+.4)*.55)*${sway.toFixed(3)}*bend*uWindGust;
+     ${flutter?`transformed+=${flutter.toFixed(3)}*uWindGust*min(h*3.,1.)*vec3(sin(uWindTime*6.3+position.x*3.7+position.z*2.9+anchor.x),sin(uWindTime*5.1+position.z*4.3)*.7,cos(uWindTime*5.7+position.y*3.1+anchor.z));`:''}
     }`)
    .replace('#include <worldpos_vertex>',`#include <worldpos_vertex>
     vPlantWorld=(modelMatrix*vec4(transformed,1.)).xyz;
@@ -118,8 +119,10 @@ export function plant(material,{sway=.2,flutter=0,height=10,translucency=0,moss=
     #else
      vPlantUp=normalize(mat3(modelMatrix)*vec3(0,1,0));
     #endif`);
-  s.fragmentShader=s.fragmentShader.replace('#include <common>','#include <common>\nvarying vec3 vPlantWorld;varying vec3 vPlantUp;')
+  s.fragmentShader=s.fragmentShader.replace('#include <common>','#include <common>\nuniform float uWet;varying vec3 vPlantWorld;varying vec3 vPlantUp;')
+   .replace('#include <roughnessmap_fragment>',`#include <roughnessmap_fragment>\nroughnessFactor*=1.-uWet*${translucency?'.15':'.45'};`)
    .replace('#include <color_fragment>',`#include <color_fragment>
+    diffuseColor.rgb*=1.-uWet*${translucency?'.12':'.32'};
     ${moss?`{
      // Moss collects on up-facing and lower surfaces; lichen speckles above.
      vec3 wn=normalize(cross(dFdx(vPlantWorld),dFdy(vPlantWorld)));
@@ -138,7 +141,7 @@ export function plant(material,{sway=.2,flutter=0,height=10,translucency=0,moss=
      if(nv<.2)normal=normalize(normal+toEye*(.2-nv));
     }`:''}`)
    .replace('#include <lights_fragment_end>',`#include <lights_fragment_end>
-    ${translucency?'reflectedLight.directSpecular*=.45;reflectedLight.indirectSpecular*=.35;':''}
+    ${translucency?'reflectedLight.directSpecular*=.45;reflectedLight.indirectSpecular*=mix(.35,.42,uWet);':''}
     ${translucency?`#if NUM_DIR_LIGHTS>0
     {
      vec3 L=directionalLights[0].direction;vec3 toFrag=normalize(-vViewPosition);
@@ -147,7 +150,7 @@ export function plant(material,{sway=.2,flutter=0,height=10,translucency=0,moss=
     }
     #endif`:''}`);
  };
- material.customProgramCacheKey=()=>`rex-plant-${key}`;
+ material.customProgramCacheKey=()=>`rex-plant-${key}-v2`;
  return material;
 }
 

@@ -44,20 +44,24 @@ const NOISE=`
 `;
 function skyMaterial({forest=false}={}){
  return new T.ShaderMaterial({side:T.BackSide,depthWrite:false,fog:false,toneMapped:false,
-  uniforms:{sunDir:{value:SUN_DIRECTION.clone()},zenith:{value:new T.Color(0x6f9fc4)},horizon:{value:new T.Color(0xc4c9a8)},ground:{value:new T.Color(0x2c3120)},sunColor:{value:new T.Color(1,.86,.62)},time:{value:0},sunDisk:{value:forest?0:26}},
+  uniforms:{sunDir:{value:SUN_DIRECTION.clone()},zenith:{value:new T.Color(0x6f9fc4)},horizon:{value:new T.Color(0xc4c9a8)},ground:{value:new T.Color(0x2c3120)},sunColor:{value:new T.Color(1,.86,.62)},time:{value:0},sunDisk:{value:forest?0:26},storm:{value:0},flash:{value:0},flashDir:{value:new T.Vector3(0,1,0)},drift:{value:0}},
   vertexShader:'varying vec3 vDir;void main(){vec4 w=modelMatrix*vec4(position,1.);vDir=w.xyz-cameraPosition;gl_Position=projectionMatrix*viewMatrix*w;}',
-  fragmentShader:`varying vec3 vDir;uniform vec3 sunDir,zenith,horizon,ground,sunColor;uniform float time,sunDisk;${NOISE}
+  fragmentShader:`varying vec3 vDir;uniform vec3 sunDir,zenith,horizon,ground,sunColor,flashDir;uniform float time,sunDisk,storm,flash,drift;${NOISE}
   void main(){
    vec3 d=normalize(vDir);float h=d.y,mu=dot(d,sunDir);
    vec3 sky=mix(horizon,zenith,pow(smoothstep(-.02,.75,h),.55));
-   sky+=sunColor*(pow(max(mu,0.),6.)*.55+pow(max(mu,0.),48.)*1.6);
+   sky+=sunColor*(pow(max(mu,0.),6.)*.55+pow(max(mu,0.),48.)*1.6)*(1.-storm*.92);
    if(h>0.){
-    vec2 p=d.xz/(h+.09)*1.25+time*vec2(.0035,.0019);
-    float c=smoothstep(.46,.82,fbm(p))*smoothstep(.0,.22,h);
-    vec3 lit=mix(horizon*1.08,vec3(1.35,1.3,1.2),.55)+sunColor*pow(max(mu,0.),5.)*2.2;
-    sky=mix(sky,lit*(.82+.3*fbm(p*2.7)),c*.8);
+    vec2 p=d.xz/(h+.09)*1.25+(time+drift)*vec2(.0035,.0019);
+    // Storm: the deck closes over and its heavy base goes dark and ragged.
+    float cover=mix(.46,.1,storm),c=smoothstep(cover,cover+.36-.12*storm,fbm(p))*smoothstep(.0,.22,h);
+    vec3 lit=mix(horizon*1.08,vec3(1.35,1.3,1.2),.55)+sunColor*pow(max(mu,0.),5.)*2.2*(1.-storm);
+    lit=mix(lit,mix(vec3(.13,.15,.16),vec3(.34,.37,.38),fbm(p*1.6+3.1)),storm);
+    sky=mix(sky,lit*(.82+.3*fbm(p*2.7)),c*mix(.8,.97,storm));
    }
-   sky+=sunColor*sunDisk*smoothstep(.99955,.9998,mu);
+   sky+=sunColor*sunDisk*smoothstep(.99955,.9998,mu)*(1.-storm);
+   // Lightning lights the cloud deck from within, brightest toward the stroke.
+   sky+=vec3(.7,.76,1.)*flash*(.3+2.4*pow(max(dot(d,flashDir),0.),5.))*smoothstep(-.05,.15,h);
    ${forest?`
    // Surrounding trees for image-based lighting: dark, broken, green-brown band.
    float band=smoothstep(.42,.12,h+.07*(vnoise(vec2(atan(d.z,d.x)*9.,0.))-.5));
@@ -73,8 +77,8 @@ export function createSky(scene){
   palette(fog,zenith){material.uniforms.horizon.value.copy(fog);material.uniforms.zenith.value.set(zenith);}};
 }
 /** Natural image-based lighting: sky above, a forest band at the horizon, earth below. */
-export function createEnvironmentMap(renderer){
- const scene=new T.Scene(),material=skyMaterial({forest:true});material.uniforms.horizon.value.set(0xaab394);
+export function createEnvironmentMap(renderer,{storm=0}={}){
+ const scene=new T.Scene(),material=skyMaterial({forest:true});material.uniforms.horizon.value.set(storm?0x5e6860:0xaab394);material.uniforms.storm.value=storm;if(storm)material.uniforms.zenith.value.set(0x46525a);
  scene.add(new T.Mesh(new T.SphereGeometry(50,64,32),material));
  const pmrem=new T.PMREMGenerator(renderer),target=pmrem.fromScene(scene,0,.1,100);
  pmrem.dispose();material.dispose();return target.texture;

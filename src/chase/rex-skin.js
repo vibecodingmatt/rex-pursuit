@@ -1,4 +1,5 @@
 import * as T from 'three';
+import {WET} from './weather-state.js';
 // Hide finish for the hero Rex. Composed into ImpactDamage's onBeforeCompile so
 // wounds, soot and blood still land on top of it. Everything is keyed to the
 // rest-space skin (vImpactRest), so stripes, scales and mud ride the rig.
@@ -40,14 +41,14 @@ export function markGape(mesh){
  g.setAttribute('rexGape',new T.BufferAttribute(out,1));
 }
 export function createRexSkin(){
- const uniforms={tRexScales:{value:scaleTexture()},uRexDetail:{value:1},uRexDebug:{value:0},uRexJaw:{value:0}};
+ const uniforms={tRexScales:{value:scaleTexture()},uRexDetail:{value:1},uRexDebug:{value:0},uRexJaw:{value:0},uRexRain:WET};
  function extend(s){
   Object.assign(s.uniforms,uniforms);
   s.vertexShader=s.vertexShader.replace('#include <common>','#include <common>\nvarying vec3 vRexNormal;attribute float rexGape;varying float vRexGape;')
    .replace('#include <beginnormal_vertex>','#include <beginnormal_vertex>\nvRexNormal=objectNormal;vRexGape=rexGape;');
   s.fragmentShader=s.fragmentShader.replace('#include <common>',`#include <common>
-   varying vec3 vRexNormal;varying float vRexGape;uniform sampler2D tRexScales;uniform float uRexDetail,uRexDebug,uRexJaw;
-   float rexScaleH,rexMud,rexWet,rexMouth,rexCavity;
+   varying vec3 vRexNormal;varying float vRexGape;uniform sampler2D tRexScales;uniform float uRexDetail,uRexDebug,uRexJaw,uRexRain;
+   float rexScaleH,rexMud,rexWet,rexMouth,rexCavity,rexSoak,rexStreak;
    // Oral cavity in rest space: between the jaws around the off-centre midline
    // (x~.17), on surfaces that face into the mouth rather than out of the head.
    float rexMouthMask(vec3 p,vec3 n){
@@ -105,6 +106,11 @@ export function createRexSkin(){
     // Cavity occlusion: the jaws shade the interior, most deeply toward the throat.
     rexCavity=rexMouth*mix(.82,.55,depth);
     c=mix(c,flesh,rexMouth);rexScaleH=mix(rexScaleH,.85,rexMouth);rexMud*=1.-rexMouth;
+    // Rain: the hide soaks darkest along the back where water sheets off, with
+    // runoff rivulets (noise stretched vertically) and water held in the scale cavities.
+    rexStreak=smoothstep(.5,.85,rexNoise(vec3(p.x*6.,p.y*.7,p.z*6.)+vec3(0.,big,0.)));
+    rexSoak=uRexRain*(1.-rexMouth)*mix(.6,1.,dorsal)*(1.-ventral*.35);
+    c*=1.-rexSoak*(.3+.12*rexStreak+.08*(1.-rexScaleH));
     if(uRexDebug>.5)c=mix(vec3(.02),vec3(1.,0.,0.),rexMouth);
     diffuseColor.rgb=c;
    }`)
@@ -114,6 +120,7 @@ export function createRexSkin(){
    roughnessFactor=mix(roughnessFactor,mix(.52,.9,smoothstep(.2,1.4,vImpactRest.y)),rexMud);
    roughnessFactor+=(1.-rexScaleH)*.07;
    roughnessFactor=mix(roughnessFactor,max(roughnessFactor,.62),(1.-rexWet)*(1.-rexMouth));
+   roughnessFactor=mix(roughnessFactor,mix(.36,.2,rexStreak)+(1.-rexScaleH)*.08,rexSoak);
    #include <normal_fragment_begin>
    vec3 rexBaseNormal=normal;`)
   .replace('#include <normal_fragment_maps>',`#include <normal_fragment_maps>
@@ -138,15 +145,15 @@ export function createRexSkin(){
     #endif
     // The cavity is shielded from the sky: occlude its ambient and reflections.
     reflectedLight.directDiffuse*=1.-rexCavity;
-    reflectedLight.indirectDiffuse*=mix(1.,.45,rexMouth);reflectedLight.indirectSpecular*=mix(1.,.25,rexMouth);reflectedLight.directSpecular*=mix(mix(.4,1.,rexWet),.1,rexMouth);
+    reflectedLight.indirectDiffuse*=mix(1.,.45,rexMouth);reflectedLight.indirectSpecular*=mix(1.,.25,rexMouth);reflectedLight.directSpecular*=mix(mix(.4,1.,max(rexWet,rexSoak)),.1,rexMouth);
     float facing=saturate(dot(normal,geometryViewDir)),fres=pow(1.-facing,5.);
     // Sky rim separates the silhouette from the foliage; a soft camera-side
     // fill keeps the face readable when she is backlit by the canopy gaps.
-    reflectedLight.indirectSpecular+=vec3(.2,.24,.23)*fres*saturate(normal.y*.6+.4)*(1.-rexMud*.5)*(1.-rexMouth)*.14;
+    reflectedLight.indirectSpecular+=vec3(.2,.24,.23)*fres*saturate(normal.y*.6+.4)*(1.-rexMud*.5)*(1.-rexMouth)*(.14+.32*rexSoak);
     reflectedLight.indirectDiffuse+=material.diffuseColor*vec3(.58,.62,.55)*facing*.55*(1.-.5*rexMouth);
    }`);
  }
- return{uniforms,extend,key:'rex-hide-v4'};
+ return{uniforms,extend,key:'rex-hide-v5'};
 }
 
 /** Wet, ivory teeth with darker roots; a clear specular cornea. */
