@@ -50,14 +50,23 @@ function groundMaterial(kit){
     }
     return g;
    }
-   float mRoad,mRut,mHump,mVerge,mForest,mPuddle,mDetail;`)
+   float mRoad,mRut,mHump,mVerge,mForest,mPuddle,mDetail,mTread,treadSlope;`)
   .replace('#include <map_fragment>',`
    {
     vec2 p=vGround.xz;float ax=abs(p.x);
     float n1=gp(p,10./28.),n2=gp(p,35./28.),n3=gp(p,2./28.);
     float wob=(gp(vec2(p.x>0.?12.:36.,p.y),.25)-.5)*1.3;
     mRoad=1.-smoothstep(3.8+wob,4.9+wob,ax);
-    mRut=(1.-smoothstep(.1,.38,abs(ax-1.02-wob*.06)))*mRoad;
+    // Ruts sink deep where the ground stayed soft and fade over firm patches; an older,
+    // wandering pair from another vehicle drifts in and out of them.
+    float rutDepth=.45+.55*smoothstep(.2,.65,gp(vec2(p.x>0.?5.:17.,p.y),6./28.)),rutOffset=ax-1.02-wob*.06;
+    mRut=(1.-smoothstep(.1,.38,abs(rutOffset)))*mRoad*rutDepth;
+    float oldRut=ax-1.02-.42*sin(p.y*.224399+(p.x>0.?.9:2.4))-.08*sin(p.y*.897598);
+    mRut=max(mRut,(1.-smoothstep(.05,.2,abs(oldRut)))*mRoad*.55*smoothstep(.35,.6,gp(vec2(p.x>0.?23.:41.,p.y),4./28.)));
+    // Chevron tread lugs pressed into the fresh ruts; 232 per chunk keeps them seamless.
+    float lug=fract(p.y*8.285714+abs(rutOffset)*2.6);
+    mTread=(1.-smoothstep(.08,.17,abs(rutOffset)))*mRoad*rutDepth*smoothstep(.55,.8,rutDepth);treadSlope=sin(lug*6.2832)*mTread;
+    mTread*=smoothstep(.1,.22,lug)*(1.-smoothstep(.42,.55,lug));
     mHump=(1.-smoothstep(.1,.55,ax))*mRoad;
     mVerge=smoothstep(3.9+wob,5.4+wob,ax)*(1.-smoothstep(8.,13.,ax+wob*2.5));
     mForest=smoothstep(8.,13.5,ax+wob*2.5+n3*3.);
@@ -65,7 +74,7 @@ function groundMaterial(kit){
     mDetail=texture2D(map,vMapUv).r;
     vec3 mud=vec3(.07,.047,.03),dirt=vec3(.19,.135,.087),dry=vec3(.3,.23,.155);
     vec3 road=mix(dirt,dry,smoothstep(.3,.85,n1)*.75)*(.6+.8*mDetail);
-    road=mix(road,mud*(.75+.5*mDetail),max(mRut*.9,mHump*.15));
+    road=mix(road,mud*(.75+.5*mDetail),max(mRut*.9,mHump*.15));road*=1.-mTread*.35;
     vec3 litter=texture2D(tLitter,vMapUv*.5).rgb;
     vec3 moss=vec3(.05,.08,.022)*(.7+.6*n2),grassy=vec3(.07,.092,.032)*(.8+.4*mDetail);
     vec3 verge=mix(mix(litter*.55,grassy,.55),moss,.35+.3*n1);
@@ -85,11 +94,12 @@ function groundMaterial(kit){
     vec3 dn=texture2D(normalMap,vNormalMapUv).xyz*2.-1.,ln=texture2D(tLitterNormal,vNormalMapUv*.5).xyz*2.-1.;
     vec3 mapN=normalize(mix(dn*vec3(1.2,1.2,1.),ln*vec3(1.4,1.4,1.),mForest));
     mapN.xy*=normalScale*(1.+mRut*.5)*(1.-mPuddle*.3)*(1.-mPuddle*uWet*.94);
+    mapN.y+=treadSlope*.45*(1.-mPuddle*uWet);
     if(uRain>.01&&mPuddle*uWet>.01)mapN.xy+=rainRipples(vGround.xz*2.5,uRainTime)*.55*uRain*mPuddle;
     normal=normalize(tbn*mapN);
    }`);
  };
- m.customProgramCacheKey=()=> 'rex-jungle-ground-v2';return m;
+ m.customProgramCacheKey=()=> 'rex-jungle-ground-v3';return m;
 }
 
 export function createJungle(root,{canopy}={}){
@@ -102,8 +112,8 @@ export function createJungle(root,{canopy}={}){
 
  // Build six unique layouts. Each entry: {material, required geometries[], optional geometries[]}.
  function layout(seed){
-  const rand=seeded(seed),buckets=new Map(),add=(material,geometry,optional=false)=>{if(!buckets.has(material))buckets.set(material,{required:[],optional:[]});buckets.get(material)[optional?'optional':'required'].push(geometry);};
-  const put=(material,source,m,optional,tone)=>{const g=source.clone().applyMatrix4(m);if(tone)recolor(g,tone);add(material,g,optional);};
+  const rand=seeded(seed),buckets=new Map(),add=(material,geometry,optional=false)=>{if(!buckets.has(material))buckets.set(material,{required:[],optional:[],clutter:[]});buckets.get(material)[optional==='clutter'?'clutter':optional?'optional':'required'].push(geometry);};
+  const put=(material,source,m,optional,tone)=>{const g=source.clone().applyMatrix4(m);if(tone)recolor(g,tone);add(material,g,optional);return g;};
   const side=()=>rand()<.5?-1:1,zz=()=>(rand()-.5)*CHUNK;
   // Rainforest giants: a few frame the verge, most stand back in the haze.
   for(let i=0;i<8;i++){const sd=i%2?1:-1,x=sd*(i<2?12.5+rand()*3:16+Math.pow(rand(),.7)*28),z=zz(),h=17+rand()*15,t=kit.giants[Math.floor(rand()*kit.giants.length)],m=at(x,z,-.3,rand()*TAU,[h*(.85+rand()*.3),h,h*(.85+rand()*.3)]),tone=[.85+rand()*.25,.85+rand()*.2,.8+rand()*.2];put(M.bark,t.wood,m,false,tone);put(M.canopy,t.leaves,m,false,[.8+rand()*.3,.85+rand()*.25,.75+rand()*.25]);}
@@ -117,12 +127,34 @@ export function createJungle(root,{canopy}={}){
   // Verge planting stays low and open: ferns, broad leaves, rocks.
   for(let i=0;i<16;i++){const x=side()*(5.4+Math.pow(rand(),.8)*9),z=zz(),m=at(x,z,0,rand()*TAU,.8+rand()*.9);put(M.fern,kit.ferns[Math.floor(rand()*3)],m,true,[.85+rand()*.3,.9+rand()*.2,.8+rand()*.25]);}
   for(let i=0;i<9;i++){const x=side()*(6.6+rand()*8.5),z=zz(),banana=rand()<.3,m=at(x,z,0,rand()*TAU,banana?1.4+rand()*.8:1+rand()*1.1);put(M.broad,banana?kit.banana[0]:kit.elephant[Math.floor(rand()*2)],m,true,[.9+rand()*.2,.95+rand()*.15,.85+rand()*.2]);}
-  for(let i=0;i<10;i++){const sd=side(),x=sd*(5.2+rand()*10),z=zz(),big=rand()<.2,sc=big?.8+rand()*.8:.16+rand()*.42,m=at(x,z,-sc*.15,rand()*TAU,[sc*(1+rand()*.4),sc,sc*(1+rand()*.4)]);put(M.rock,kit.rocks[Math.floor(rand()*3)],m,!big,[.85+rand()*.2,.85+rand()*.2,.82+rand()*.2]);}
+  // Rocks big enough to bask on become lizard perches (their highest point near the middle).
+  const perches=[];
+  for(let i=0;i<10;i++){const sd=side(),x=sd*(5.2+rand()*10),z=zz(),big=rand()<.2,sc=big?.8+rand()*.8:.16+rand()*.42,m=at(x,z,-sc*.15,rand()*TAU,[sc*(1+rand()*.4),sc,sc*(1+rand()*.4)]);const g=put(M.rock,kit.rocks[Math.floor(rand()*3)],m,!big,[.85+rand()*.2,.85+rand()*.2,.82+rand()*.2]);
+   if(sc>.36){const p=g.attributes.position;let top=null;for(let k=0;k<p.count;k++){if(Math.hypot(p.getX(k)-x,p.getZ(k)-z)<sc*.35&&(!top||p.getY(k)>top.y))top={x:p.getX(k),y:p.getY(k),z:p.getZ(k)};}if(top)perches.push({...top,big});}}
   // Mossy fallen log.
   if(rand()<.7){const x=side()*(9+rand()*8),z=zz(),m=at(x,z,.25,rand()*TAU,[.55,6+rand()*4,.55],[Math.PI/2,0]);put(M.bark,kit.giants[0].wood,m,false,[.8,.85,.75]);}
+  // Track clutter, so no stretch of road repeats the last. Wheels throw pebbles onto
+  // the crown and shoulders and keep the ruts clear; the storm has dropped snapped
+  // branches, torn leafy limbs and dead fronds along the edges. Wood near the ruts
+  // lies along the track, as if pushed aside by the last vehicle through.
+  // Clutter draws from its own random stream, so the planting and grass above keep their layout.
+  const C=kit.clutter,cr=seeded(seed*7+3),cside=()=>cr()<.5?-1:1,czz=()=>(cr()-.5)*CHUNK;
+  for(let d=0;d<7;d++){const r=cr(),cx=r<.25?(cr()-.5)*.6:cside()*(1.5+cr()*3.4),cz=czz(),n=5+Math.floor(cr()*9),spread=.35+cr()*.9;
+   for(let i=0;i<n;i++){const a=cr()*TAU,rr=Math.sqrt(cr())*spread,x=cx+Math.cos(a)*rr,z=Math.max(-13.9,Math.min(13.9,cz+Math.sin(a)*rr*1.6));if(Math.abs(Math.abs(x)-1.02)<.3)continue;
+    const sc=.035+Math.pow(cr(),1.5)*.1*(1-rr/spread*.5),m=at(x,z,-sc*.3,cr()*TAU,[sc*(1+cr()*.6),sc*(.7+cr()*.4),sc*(1+cr()*.6)]),l=.75+cr()*.5;
+    put(M.rock,C.pebbles[Math.floor(cr()*3)],m,'clutter',[l*(1.02+cr()*.1),l,l*(.9+cr()*.1)]);}}
+  for(let i=0;i<7;i++){const x=cside()*(1.6+cr()*4.6),z=czz(),sc=.12+cr()*.14;if(Math.abs(Math.abs(x)-1.02)<.4)continue;const m=at(x,z,-sc*.25,cr()*TAU,[sc*(1+cr()*.5),sc*(.6+cr()*.3),sc*(1+cr()*.5)]),l=.8+cr()*.4;put(M.rock,C.pebbles[Math.floor(cr()*3)],m,'clutter',[l,l,l*.95]);}
+  for(let i=0;i<4;i++){const sd=cside(),x=sd*(2.9+cr()*5.5),z=czz(),near=Math.abs(x)<5,m=at(x,z,0,near?(cr()<.5?0:Math.PI)+(cr()-.5)*.7:cr()*TAU,.8+cr()*.45);put(M.bark,C.branches[Math.floor(cr()*3)],m,'clutter',[.95+cr()*.2,.9+cr()*.15,.85+cr()*.15]);}
+  for(let i=0;i<2;i++){const sd=cside(),x=sd*(3.6+cr()*4),z=czz(),limb=C.limbs[Math.floor(cr()*2)],m=at(x,z,0,Math.abs(x)<5?(cr()<.5?0:Math.PI)+(cr()-.5)*.6:cr()*TAU,.85+cr()*.35);put(M.bark,limb.wood,m,'clutter');put(M.shrub,limb.leaves,m,'clutter',[.9+cr()*.2,.95+cr()*.1,.8+cr()*.2]);}
+  for(let i=0;i<9;i++){const sd=cside(),x=sd*(2.7+Math.pow(cr(),1.3)*5),z=czz(),fern=cr()<.3,m=at(x,z,0,Math.abs(x)<4.8?sd*Math.PI/2+(cr()-.5)*1.4:cr()*TAU,.9+cr()*.45);
+   // Dead fronds brown and bleach from the tip; some are still half green.
+   const dry=cr();put(fern?M.fern:M.palm,fern?C.fernFronds[0]:C.palmFronds[Math.floor(cr()*2)],m,'clutter',[1.15+dry*.5,.8+(1-dry)*.25,.45+(1-dry)*.35]);}
   const meshes=[];
-  for(const [material,{required,optional}]of buckets){
-   for(let i=optional.length-1;i>0;i--){const j=Math.floor(rand()*(i+1));[optional[i],optional[j]]=[optional[j],optional[i]];}
+  for(const [material,{required,optional:planted,clutter}]of buckets){
+   for(let i=planted.length-1;i>0;i--){const j=Math.floor(rand()*(i+1));[planted[i],planted[j]]=[planted[j],planted[i]];}
+   for(let i=clutter.length-1;i>0;i--){const j=Math.floor(cr()*(i+1));[clutter[i],clutter[j]]=[clutter[j],clutter[i]];}
+   // Spread the clutter evenly through the planting order, so thinning drops both alike.
+   const optional=[];for(let i=0,j=0;i<planted.length||j<clutter.length;)optional.push(j>=clutter.length||(i<planted.length&&cr()*(planted.length-i+clutter.length-j)<planted.length-i)?planted[i++]:clutter[j++]);
    const all=[...required,...optional],geometry=mergeGeometries(all);if(!geometry)continue;
    // Index offsets let a draw range drop a fraction of the optional plants.
    let offset=0;const marks=[];for(const g of all){offset+=g.index?g.index.count:g.attributes.position.count;marks.push(offset);}
@@ -133,7 +165,7 @@ export function createJungle(root,{canopy}={}){
   // sparse strip on the crown between the ruts, none in the wheel tracks.
   const tufts=[];for(let c=0;c<110;c++){const crown=rand()<.1,cx=crown?(rand()-.5)*.5:side()*(4.2+Math.pow(rand(),1.35)*9),cz=zz(),n=crown?5:6+Math.floor(rand()*12),spread=crown?.5:.5+rand()*1.3;for(let i=0;i<n;i++){const a=rand()*TAU,d=Math.sqrt(rand())*spread,x=cx+Math.cos(a)*d*(crown?.35:1),z=Math.max(-13.9,Math.min(13.9,cz+Math.sin(a)*d)),sc=(.55+rand()*.75)*(1-d/spread*.35);if(Math.abs(Math.abs(x)-1.02)<.35)continue;tufts.push(at(x,z,0,rand()*TAU,crown?sc*.6:sc).clone());}}
   for(let i=tufts.length-1;i>0;i--){const j=Math.floor(rand()*(i+1));[tufts[i],tufts[j]]=[tufts[j],tufts[i]];}
-  return{meshes,tufts};
+  return{meshes,tufts,perches};
  }
  const layouts=Array.from({length:UNIQUE},(_,i)=>layout(9001+i*37));
  const tuftGeometry=mergeGeometries([kit.grass[0]]);
@@ -145,7 +177,7 @@ export function createJungle(root,{canopy}={}){
   const floor=new T.Mesh(ground,groundMat);floor.receiveShadow=true;floor.name='Jungle ground';group.add(floor);
   const parts=data.meshes.map(d=>{const mesh=new T.Mesh(d.geometry,d.material);mesh.castShadow=d.material===M.bark||d.material===M.rock;mesh.receiveShadow=true;group.add(mesh);return{mesh,data:d};});
   const grass=new T.InstancedMesh(tuftGeometries[k%UNIQUE],M.grass,data.tufts.length);data.tufts.forEach((m,i)=>grass.setMatrixAt(i,m));grass.receiveShadow=true;grass.computeBoundingSphere();group.add(grass);
-  chunks.push({group,parts,grass});
+  chunks.push({group,parts,grass,perches:data.perches});
  }
 
  // ---- Air: sunbeam motes and falling leaves -------------------------------
@@ -182,6 +214,8 @@ export function createJungle(root,{canopy}={}){
  function positionChunks(){chunks.forEach((c,k)=>c.group.position.z=k*CHUNK+START);}
  return{
   kit,chunks,motes,dustMap,
+  /** Ground height under a point in the scene's (Jeep) frame; every chunk shares one phase. */
+  groundAt(x,z){return groundHeight(x,z-chunks[0].group.position.z);},
   setQuality(t){grassFactor=t.grass;GRASS_DENSITY.value=Math.min(1,t.grass);floraFactor=t.flora;particleFactor=t.particles;shafts.visible=!!t.beams;motes.visible=!t.beams;moteGeo.setDrawRange(0,Math.floor(moteCount*particleFactor));falling.count=Math.floor(fallingCount*particleFactor);thin();},
   reset(){positionChunks();},
   update(dt,speed,time,camera){

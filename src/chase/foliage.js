@@ -140,10 +140,11 @@ export function plant(material,{sway=.2,flutter=0,height=10,translucency=0,moss=
    .replace('#include <color_fragment>',`#include <color_fragment>
     diffuseColor.rgb*=1.-uWet*${translucency?'.12':'.32'};
     ${moss?`{
-     // Moss collects on up-facing and lower surfaces; lichen speckles above.
+     // Moss collects on up-facing and lower surfaces; lichen speckles above. Nothing
+     // grows on the track itself: its stones are scrubbed and its fallen wood is fresh.
      vec3 wn=normalize(cross(dFdx(vPlantWorld),dFdy(vPlantWorld)));
      float n=fract(sin(dot(floor(vPlantWorld*6.),vec3(12.9,78.2,37.7)))*43758.5);
-     float m=smoothstep(.25,.85,wn.y*.8+.35-vPlantWorld.y*.035+n*.2)*${moss.toFixed(2)};
+     float m=smoothstep(.25,.85,wn.y*.8+.35-vPlantWorld.y*.035+n*.2)*${moss.toFixed(2)}*smoothstep(3.5,6.,abs(vPlantWorld.x));
      diffuseColor.rgb=mix(diffuseColor.rgb,vec3(.075,.12,.035)*(.8+.4*n),m);
     }`:''}`)
    .replace('#include <normal_fragment_maps>',`#include <normal_fragment_maps>
@@ -304,8 +305,8 @@ export function createFoliageKit(branchMap){
   }
   return mergeGeometries(leaves);
  }
- function rock(seed){
-  const r=seeded(seed);let g=new T.IcosahedronGeometry(1,3);g.deleteAttribute('normal');g.deleteAttribute('uv');g=mergeVertices(g);
+ function rock(seed,detail=3){
+  const r=seeded(seed);let g=new T.IcosahedronGeometry(1,detail);g.deleteAttribute('normal');g.deleteAttribute('uv');g=mergeVertices(g);
   const p=g.attributes.position,v=new T.Vector3(),uv=[];
   const lumps=[...Array(7)].map(()=>[new T.Vector3(r()-.5,r()-.5,r()-.5).normalize(),r()*.35,1.5+r()*3]);
   for(let i=0;i<p.count;i++){v.fromBufferAttribute(p,i);let s=1;for(const [d,a,k]of lumps)s+=a*Math.pow(Math.max(0,v.dot(d)),k);s+=(Math.sin(v.x*17.1+v.y*9.3)*Math.sin(v.z*13.7-v.y*5.1))*.035;v.multiplyScalar(s);v.y=v.y>0?v.y*.62:v.y*.3;p.setXYZ(i,v.x,v.y,v.z);uv.push(v.x*.9+v.z*.45,v.y*.9+v.z*.45);}
@@ -330,8 +331,31 @@ export function createFoliageKit(branchMap){
   skirt=cardCluster(r,{count:12,radius:size*.5,size:size*.34,center:[0,size*.1,0],lift:.2,flat:.3});
   const parts=[skirt,low];if(size>=4)parts.push(cardCluster(r,{count:14,radius:size*.32,size:size*.44,center:[0,size*.78,0],lift:.3,flat:.6}));return mergeGeometries(parts);}
 
+ // ---- Ground clutter (real metres, lying on the ground at y=0) ----
+ // A limb the storm snapped off: crooked, resting on its own radius, with a pale
+ // splintered break at the base and a few side twigs, some propped up off the ground.
+ function snappedBranch(seed,length){
+  const r=seeded(seed),rad=.055+r()*.035,pts=[];for(let i=0;i<=5;i++){const v=i/5;pts.push(new T.Vector3((r()-.5)*.12*v,rad*(1-v*.5)+Math.max(0,Math.sin(v*3.1))*.02,v*length));}
+  const limb=tube(pts,(v,th)=>rad*(1-v*.55)*(v<.05?.75+.45*Math.abs(Math.sin(th*3.5+seed)):1),{radial:7,rings:10,uvScale:[1,2],color:v=>v<.04?[2.1,1.7,1.2]:[1.25,1.15,1]});
+  const parts=[limb];for(let i=0;i<2+Math.floor(r()*3);i++){const v=.25+r()*.65,base=new T.Vector3().lerpVectors(pts[Math.floor(v*5)],pts[Math.min(5,Math.floor(v*5)+1)],v*5%1),a=(r()<.5?-1:1)*(.5+r()*.7),len=.25+r()*.45,up=r()<.2?.15+r()*.25:.03;
+   const tip=base.clone().add(new T.Vector3(Math.sin(a)*len,up*len,Math.cos(a)*len*.6));parts.push(tube([base,base.clone().lerp(tip,.5).add(new T.Vector3(0,.01,0)),tip],v2=>rad*.35*(1-v2*.7),{radial:5,rings:4,uvScale:[1,2],color:()=>[1.2,1.1,.95]}));}
+  return mergeGeometries(parts.map(strip));
+ }
+ // A leafy limb torn from the canopy: the wood plus a flattened spray of leaf cards.
+ function tornLimb(seed){
+  const r=seeded(seed),wood=snappedBranch(seed+1,1.3+r()*.6),leaves=[];
+  for(let i=0;i<3;i++)leaves.push(cardCluster(r,{count:10,radius:.45,size:.5,center:[(r()-.5)*.5,.12,.7+i*.35],lift:.5,flat:.25}));
+  return{wood,leaves:mergeGeometries(leaves)};
+ }
+ // A dead frond lying on the ground: flat, curling a little at the tip.
+ function deadFrond(seed,kind){
+  const r=seeded(seed),g=ribbon(kind==='fern'?{length:1.1+r()*.3,width:.4,arch:.2,droop:-.06,fold:.32,segments:8,twist:(r()-.5)*.8,shade:[.85,1.1]}:{length:1.9+r()*.5,width:.62,arch:.12,droop:-.07,fold:.34,segments:12,twist:(r()-.5)*.7,shade:[.85,1.1]});
+  g.translate(0,.015,0);return g;
+ }
+
  const kit={
   materials:M,textures:{bark,fern,palm,broad,ground},
+  clutter:{pebbles:[21,33,37].map(s=>rock(s,1)),branches:[[61,1.9],[67,2.6],[83,1.5]].map(([s,l])=>snappedBranch(s,l)),limbs:[91,97].map(tornLimb),palmFronds:[101,103].map(s=>deadFrond(s,'palm')),fernFronds:[107].map(s=>deadFrond(s,'fern'))},
   giants:[31,47,63,89].map(giant),leaners:[13,27,58].map(leaner),palms:[5,17,29].map(palmTree),treeFerns:[3,11].map(treeFern),
   ferns:[7,19,23].map(groundFern),elephant:[41,43].map(s=>broadleaf(s,'heart')),banana:[51].map(s=>broadleaf(s,'banana')),
   rocks:[2,9,14].map(rock),grass:[1,2].map(grassTuft),bushes:[[71,3.5],[73,5.2],[79,6.8]].map(([s,z])=>bush(s,z))

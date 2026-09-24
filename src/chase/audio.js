@@ -141,6 +141,10 @@ export class ChaseAudio {
   else this.sample('impact-dirt',{volume:.3*far,rate:.9+Math.random()*.2,delay,duration:Math.random()<.35?undefined:.35,fade:.1,at,wet:.15});
  }
  birds(){this.sample('birds-takeoff',{volume:.5,rate:.95+Math.random()*.1,pan:(Math.random()-.5)*.8,wet:.2});}
+ /** Alarm chirp where a compy pack breaks: a raptor call pitched up to their size. */
+ chirp(at){this.play(Math.random()<.5?14:12,.07,2.1+Math.random()*.35,{vocal:false,at,wet:.12});}
+ /** The passing brachiosaur's trumpet, placed at her head. */
+ brachio(at){this.play(Math.random()<.5?30:31,.32,.92+Math.random()*.08,{vocal:false,at,wet:.45});}
  stopVoice(){if(this.voice){try{this.voice.source.stop();}catch{}}this.voice=null;}
  roar(opening=false){return this.play(opening?this.roles.opening:this.roles.charge,opening?1.35:1.12,opening?.95:1.03,{vocal:'roar'});}
  growl(){if(this.voice)return;this.play(this.roles.growl,.72,.96,{vocal:'growl'});}

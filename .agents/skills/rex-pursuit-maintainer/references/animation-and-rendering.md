@@ -102,6 +102,17 @@ The midpoint feint exits and re-enters the left side. Use the continuous `ambush
 
 Named runtime clips live in `public/audio/catalog.json` and `public/audio/clip-NN.wav`. Raw references remain local. Default roles are opening 01, charge 02, growl 09, pain 27; footsteps 03-06 and bite 18. Roars use the decoded 60 Hz amplitude envelope and AudioContext playback clock, including playback rate and pause. Ambient calls never animate the Rex jaw. Rex vocals route through one HRTF panner at her head (`audio.listen()` each frame, listener on the camera); footfalls, bullet hits and distant calls get one-shot panners at their world positions. One-shots feed the generated forest reverb by their own `wet` amount; the loops stay dry, and `swallow()` closes the reverb return. The opening accommodates the chosen roar duration. Sound-library local storage can override the catalog, so use a fresh browser context when reproducing default audio behavior.
 
+## Living jungle (critters, insects, brachiosaur)
+
+`critters.js` (compies, lizards), `insects.js` (butterflies, dragonflies, moths) and `brachio.js` work in the Jeep frame like the rest of the scene: ground and air slide past at +speed, so anything not running rides the road away.
+
+- **Visibility is the design constraint.** At 10 m/s a small creature is on screen for about a second. In first person the gun hides the track directly behind the Jeep, and verge grass and ferns hide anything beyond about |x| = 5. The first version had packs "in frame" by projection that were never actually visible. The fix is behaviour, not size: a pack flushed by the Jeep stops in the near verge (`wary`), and her approach flushes it again, when about half panic back across the open track in front of her. `art/review/drop6/natural2.cjs` samples unseeded pursuit and keeps only frames with a compy on the open track, clear of the gun.
+- Dark olive creatures vanish on the dark wet storm road. The compies' tan-olive back reads against it, and they silhouette against the puddle glare.
+- The brachiosaur only reads side-on at the forest edge (|x| 11–14), neck arched over the road corridor. Deeper in the forest the trunks hide her; face-on she reads as a grey pillar.
+- Insects follow `RAIN` and `NIGHT`: rain grounds butterflies and most dragonflies, and moths come out at night and steer for the flashlight beam. Storm, the default, shows few insects by design.
+- For captures, spawn after `freeze` and step the systems by hand (`critters.update(.025,{speed:0})`). Otherwise the road carries them out of frame before the screenshot.
+- Gait and wing shaders take a phase wrapped to 0..1 on the CPU (`aPose.x`, `aFly.x`), never a clock (see below).
+
 ## Mobile GPU precision (shader inputs must stay small)
 
 Desktop GPUs compute fragment shaders at full 32-bit precision; many phone GPUs effectively run at reduced precision. Headless Chrome on this machine uses the desktop GPU, so **precision bugs never reproduce in local captures**. Only the user's phone shows them. Ask for a phone screenshot and zoom into it before guessing.
