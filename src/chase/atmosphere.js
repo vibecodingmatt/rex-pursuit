@@ -45,12 +45,17 @@ const NOISE=`
  float h21(vec2 p){p=fract(p*vec2(123.34,456.21));p+=dot(p,p+45.32);return fract(p.x*p.y);}
  float vnoise(vec2 p){vec2 i=floor(p),f=fract(p);f=f*f*(3.-2.*f);return mix(mix(h21(i),h21(i+vec2(1,0)),f.x),mix(h21(i+vec2(0,1)),h21(i+vec2(1,1)),f.x),f.y);}
  float fbm(vec2 p){float v=0.,a=.5;for(int i=0;i<5;i++){v+=a*vnoise(p);p=p*2.03+vec2(17.1,9.3);a*=.5;}return v;}
+ // Periodic fbm: the lattice repeats every per units (doubling per octave), so
+ // the CPU can wrap the cloud scroll and keep coordinates small. Large
+ // coordinates quantize on reduced-precision mobile GPUs into flat blocks.
+ float vnoiseP(vec2 p,float per){vec2 i=floor(p),f=fract(p),a=mod(i,per),b=mod(i+1.,per);f=f*f*(3.-2.*f);return mix(mix(h21(a),h21(vec2(b.x,a.y)),f.x),mix(h21(vec2(a.x,b.y)),h21(b),f.x),f.y);}
+ float fbmP(vec2 p,float per){float v=0.,a=.5;for(int i=0;i<5;i++){v+=a*vnoiseP(p,per);p=p*2.+vec2(17.1,9.3);per*=2.;a*=.5;}return v;}
 `;
 function skyMaterial({forest=false}={}){
  return new T.ShaderMaterial({side:T.BackSide,depthWrite:false,fog:false,toneMapped:false,
-  uniforms:{sunDir:{value:SUN_DIRECTION.clone()},zenith:{value:new T.Color(0x6f9fc4)},horizon:{value:new T.Color(0xc4c9a8)},ground:{value:new T.Color(0x2c3120)},sunColor:{value:new T.Color(1,.86,.62)},time:{value:0},sunDisk:{value:forest?0:26},storm:{value:0},flash:{value:0},flashDir:{value:new T.Vector3(0,1,0)},drift:{value:0},night:{value:0},moonDir:{value:MOON_DIRECTION.clone()},moonColor:{value:new T.Color(.78,.86,1)}},
+  uniforms:{sunDir:{value:SUN_DIRECTION.clone()},zenith:{value:new T.Color(0x6f9fc4)},horizon:{value:new T.Color(0xc4c9a8)},ground:{value:new T.Color(0x2c3120)},sunColor:{value:new T.Color(1,.86,.62)},time:{value:0},sunDisk:{value:forest?0:26},storm:{value:0},flash:{value:0},flashDir:{value:new T.Vector3(0,1,0)},drift:{value:0},cloudOffset:{value:new T.Vector2()},night:{value:0},moonDir:{value:MOON_DIRECTION.clone()},moonColor:{value:new T.Color(.78,.86,1)}},
   vertexShader:'varying vec3 vDir;void main(){vec4 w=modelMatrix*vec4(position,1.);vDir=w.xyz-cameraPosition;gl_Position=projectionMatrix*viewMatrix*w;}',
-  fragmentShader:`varying vec3 vDir;uniform vec3 sunDir,zenith,horizon,ground,sunColor,flashDir,moonDir,moonColor;uniform float time,sunDisk,storm,flash,drift,night;${NOISE}
+  fragmentShader:`varying vec3 vDir;uniform vec3 sunDir,zenith,horizon,ground,sunColor,flashDir,moonDir,moonColor;uniform vec2 cloudOffset;uniform float time,sunDisk,storm,flash,drift,night;${NOISE}
   void main(){
    vec3 d=normalize(vDir);float h=d.y,mu=dot(d,sunDir),mm=dot(d,moonDir),day=1.-night;
    vec3 sky=mix(horizon,zenith,pow(smoothstep(-.02,.75,h),.55));
@@ -70,16 +75,16 @@ function skyMaterial({forest=false}={}){
     sky+=vec3(.85,.9,1.)*star*smoothstep(.04,.35,h)*night*(1.-storm);
    }
    if(h>0.){
-    vec2 p=d.xz/(h+.09)*1.25+(time+drift)*vec2(.0035,.0019);
+    vec2 p=d.xz/(h+.09)*1.25+cloudOffset;
     // Storm: the deck closes over and its heavy base goes dark and ragged.
-    float cover=mix(.46,.1,storm)+.1*night*(1.-storm),c=smoothstep(cover,cover+.36-.12*storm,fbm(p))*smoothstep(.0,.22,h);
+    float cover=mix(.46,.1,storm)+.1*night*(1.-storm),c=smoothstep(cover,cover+.36-.12*storm,fbmP(p,32.))*smoothstep(.0,.22,h);
     vec3 lit=mix(horizon*1.08,vec3(1.35,1.3,1.2),.55)+sunColor*pow(max(mu,0.),5.)*2.2*(1.-storm);
-    lit=mix(lit,mix(vec3(.13,.15,.16),vec3(.34,.37,.38),fbm(p*1.6+3.1)),storm);
+    lit=mix(lit,mix(vec3(.13,.15,.16),vec3(.34,.37,.38),fbmP(p*2.+3.1,64.)),storm);
     // Night clouds are dark wool with a silver edge toward the moon.
     vec3 nightLit=mix(horizon*1.1,zenith*1.6,.5)+moonColor*(.025+.2*pow(max(mm,0.),6.))*(1.-storm*.85);
-    lit=mix(lit,nightLit*mix(1.,.55,fbm(p*1.6+3.1)*storm),night);
+    lit=mix(lit,nightLit*mix(1.,.55,fbmP(p*2.+3.1,64.)*storm),night);
     cloud=c*mix(.8,.97,storm);
-    sky=mix(sky,lit*(.82+.3*fbm(p*2.7)),cloud);
+    sky=mix(sky,lit*(.82+.3*fbmP(p*3.,96.)),cloud);
    }
    sky+=sunColor*sunDisk*smoothstep(.99955,.9998,mu)*(1.-storm)*day;
    // Moon: a lit disk with darker maria, dimmed wherever the deck crosses it.
@@ -101,7 +106,9 @@ function skyMaterial({forest=false}={}){
 export function createSky(scene){
  const material=skyMaterial(),mesh=new T.Mesh(new T.SphereGeometry(190,48,24),material);
  mesh.name='Procedural sky';mesh.renderOrder=-10;mesh.frustumCulled=false;scene.add(mesh);
- return{mesh,uniforms:material.uniforms,update(camera,time){mesh.position.copy(camera.position);material.uniforms.time.value=time;},
+ return{mesh,uniforms:material.uniforms,update(camera,time){mesh.position.copy(camera.position);const u=material.uniforms,t=time+u.drift.value;
+  // Wrapped on the CPU (the cloud noise repeats every 32 units) so shader inputs stay small.
+  u.cloudOffset.value.set((t*.0035)%32,(t*.0019)%32);u.time.value=time%600;},
   palette(fog,zenith){material.uniforms.horizon.value.copy(fog);material.uniforms.zenith.value.set(zenith);}};
 }
 /** Natural image-based lighting: sky above, a forest band at the horizon, earth below. */
