@@ -114,23 +114,39 @@ export function createPost(renderer){
   uniform float bloomStrength,volStrength,exposure,time,vignette,grain,aberration,sharpen,contrast,saturation,lift,lensRain,lensTime;uniform vec3 shadowTint,highlightTint,flash;
   ${HASH}
   // Raindrops striking an exterior camera's lens. Each cell hosts a stream of
-  // impacts: a drop splats at a fresh spot with a ring of fine spatter, then
-  // thins and evaporates while later drops land elsewhere; a few heavy beads run
-  // down the glass. Each bead refracts (inverts) the view behind it.
-  vec3 lensDrops(vec2 uv,float t){
+  // impacts: a drop splats at a fresh spot with fine spatter, then thins and
+  // evaporates while later drops land elsewhere; a few heavy beads run down the
+  // glass, tapering above and leaving a wet trail. Outlines are lobed, stretched
+  // and tilted at random, sometimes two beads fused, and heavier at the bottom as
+  // water sits on vertical glass. Returns refraction offset, coverage and rim.
+  vec4 lensDrops(vec2 uv,float t){
    vec2 id=floor(uv),f=fract(uv)-.5;
    float h=hash12(id*1.37+3.1),cyc=t*(.18+.2*h)+h*9.,life=fract(cyc);
    vec2 k=id+floor(cyc)*vec2(.137,.311);
-   if(hash12(k*1.7+.3)>.55)return vec3(0.);
-   float heavy=step(hash12(k+9.1),.16);
-   vec2 c=(vec2(hash12(k+.7),hash12(k+2.9))-.5)*.45;c.y=mix(c.y,.2-smoothstep(.12,1.,life)*.4,heavy);
+   if(hash12(k*1.7+.3)>.55)return vec4(0.);
+   float heavy=step(hash12(k+9.1),.16),slide=heavy*smoothstep(.12,1.,life);
+   vec2 c=(vec2(hash12(k+.7),hash12(k+2.9))-.5)*.45;c.y=mix(c.y,.2-slide*.4,heavy);
    float r=(.06+.08*hash12(k+5.3))*(1.-.4*life*(1.-heavy))*(1.+.3*heavy);
    float appear=smoothstep(0.,.025,life),fade=1.-smoothstep(.2,1.,life)*(1.-.35*heavy);
-   vec2 d=f-c;d.y*=1.+heavy*.5*life;
-   float m=smoothstep(r,r*.7,length(d))*appear*fade,spat=0.;
-   for(int i=0;i<5;i++){float fi=float(i);vec2 o=(vec2(hash12(k+fi*3.1),hash12(k+fi*7.7))-.5)*r*3.6;float rr=r*(.14+.16*hash12(k+fi+.5));spat=max(spat,smoothstep(rr,rr*.55,length(d-o)));}
+   vec2 d=f-c;
+   float ang=hash12(k+4.4)*6.2832,ca=cos(ang),sa=sin(ang);
+   vec2 e=vec2(ca*d.x+sa*d.y,-sa*d.x+ca*d.y)*vec2(1.+.35*hash12(k+6.6),1.-.2*hash12(k+7.2));
+   d=vec2(ca*e.x-sa*e.y,sa*e.x+ca*e.y);
+   d.y*=d.y>0.?1.18+.6*slide:.84;
+   d.x*=1.+heavy*max(0.,d.y/r)*.9;
+   float th=atan(d.y,d.x),lobe=1.+.13*sin(th*2.+h*6.3)+.08*sin(th*3.+hash12(k+1.9)*6.3)+.05*sin(th*5.+h*11.);
+   float dist=length(d)/(r*lobe);
+   vec2 o=(vec2(hash12(k+8.1),hash12(k+3.3))-.5)*r*1.7;
+   float dist2=step(hash12(k+2.2),.3)>.5?length(f-c-o)/(r*.6):9.;
+   float dm=-log(exp(-7.*dist)+exp(-7.*dist2))/7.;
+   float m=smoothstep(1.,.78,dm)*appear*fade;
+   float trail=heavy*step(c.y,f.y)*step(f.y,.2)*smoothstep(r*.3,r*.05,abs(f.x-c.x-sin(f.y*31.+h*9.)*.012))*.45*appear*(1.-life*.5);
+   float spat=0.;
+   for(int i=0;i<5;i++){float fi=float(i);vec2 so=(vec2(hash12(k+fi*3.1),hash12(k+fi*7.7))-.5)*r*3.6;float rr=r*(.14+.16*hash12(k+fi+.5));spat=max(spat,smoothstep(rr,rr*.55,length(f-c-so)));}
    spat*=appear*(1.-smoothstep(0.,.3,life))*.7;
-   return m>=spat?vec3(d/r,m):vec3(0.,0.,spat);
+   vec2 off=d/(r*lobe);
+   if(m>=max(spat,trail))return vec4(off,m,smoothstep(.5,.95,dm)*m);
+   return spat>trail?vec4(0.,0.,spat,0.):vec4(off*.25,trail,0.);
   }
   vec3 rrt(vec3 v){vec3 a=v*(v+.0245786)-.000090537,b=v*(.983729*v+.4329510)+.238081;return a/b;}
   vec3 aces(vec3 c){
@@ -141,10 +157,11 @@ export function createPost(renderer){
   vec3 srgb(vec3 c){return mix(c*12.92,1.055*pow(c,vec3(1./2.4))-.055,step(.0031308,c));}
   void main(){
    vec2 cc=vUv-.5;float r2=dot(cc,cc);
-   vec2 off=cc*aberration*(.35+r2*2.),suv=vUv;float bead=0.;
+   vec2 off=cc*aberration*(.35+r2*2.),suv=vUv;float bead=0.,lensRim=0.,lensGlint=0.;
    if(lensRain>0.){
-    vec2 a=vec2(resolution.x/resolution.y,1.);vec3 d1=lensDrops(vUv*a*6.,lensTime),d2=lensDrops(vUv*a*11.+vec2(3.1,1.7),lensTime*1.25);
-    suv-=(d1.xy*d1.z+d2.xy*d2.z*.7)/a*.022*lensRain;bead=max(d1.z,d2.z*.7)*lensRain;
+    vec2 a=vec2(resolution.x/resolution.y,1.);vec4 d1=lensDrops(vUv*a*6.,lensTime),d2=lensDrops(vUv*a*11.+vec2(3.1,1.7),lensTime*1.25);
+    suv-=(d1.xy*d1.z+d2.xy*d2.z*.7)/a*.022*lensRain;bead=max(d1.z,d2.z*.7)*lensRain;lensRim=max(d1.w,d2.w*.7)*lensRain;
+    lensGlint=max(smoothstep(.3,.05,length(d1.xy-vec2(-.38,.44)))*d1.z,smoothstep(.3,.05,length(d2.xy-vec2(-.38,.44)))*d2.z*.7)*lensRain;
    }
    vec3 color=vec3(texture2D(tScene,suv-off).r,texture2D(tScene,suv).g,texture2D(tScene,suv+off).b);
    if(sharpen>0.){
@@ -152,6 +169,8 @@ export function createPost(renderer){
     color=max(color+(color*4.-n)*sharpen*.25,vec3(0.));
    }
    color+=texture2D(tBloom,suv).rgb*bloomStrength*(1.+bead*.8)+texture2D(tVol,vUv).rgb*volStrength+flash;
+   // Water beads darken toward their rims (internal reflection) and catch a small glint.
+   color=color*(1.-.35*lensRim)+vec3(.9,.95,1.)*lensGlint*.18;
    color=aces(color*exposure);
    float luma=dot(color,vec3(.2126,.7152,.0722));
    color=mix(vec3(luma),color,saturation);

@@ -19,7 +19,8 @@ function dropletMesh(){
    varying vec2 vUv;varying float vAlpha,vMud;
    vec3 at(float t){return a0.xyz+a1.xyz*t+vec3(0.,-${(GRAVITY/2).toFixed(2)}*t*t,0.);}
    void main(){
-    float t=time-a0.w,size=abs(a1.w),sheet=step(.02,a1.w),life=mix(1.6,.5,sheet);vUv=corner;vMud=step(a1.w,0.);
+    // Sheet fragments pinch off into drops within a quarter second and fall like them.
+    float t=time-a0.w,sheet=step(.02,a1.w),size=abs(a1.w)*mix(1.,.35,sheet*smoothstep(.12,.3,t)),life=1.6;vUv=corner;vMud=step(a1.w,0.);
     vec3 p=at(t),q=at(max(0.,t-.028));
     vec4 h=projectionMatrix*viewMatrix*vec4(p,1.),e=projectionMatrix*viewMatrix*vec4(q,1.);
     if(t<0.||t>life||p.y<-.02||h.w<.3||e.w<.3){gl_Position=vec4(2.,2.,2.,1.);vAlpha=0.;return;}
@@ -28,7 +29,7 @@ function dropletMesh(){
     vec4 c=mix(h,e,corner.y);c.xy+=vec2(-dir.y,dir.x)*corner.x*drawn/viewport*c.w;
     // Stretch a still droplet a little so it never collapses to a dot.
     c.y+=corner.y*(len<drawn?drawn/viewport.y*c.w:0.);
-    gl_Position=c;vAlpha=(1.-smoothstep(life*.55,life,t))*mix(.45,1.,min(1.,px/minPx))*mix(1.,.42,sheet);
+    gl_Position=c;vAlpha=(1.-smoothstep(life*.55,life,t))*mix(.45,1.,min(1.,px/minPx))*mix(1.,mix(.42,.9,smoothstep(.12,.3,t)),sheet);
    }`,
   fragmentShader:`uniform vec3 water,mud;varying vec2 vUv;varying float vAlpha,vMud;
    void main(){float a=(1.-vUv.x*vUv.x)*mix(1.,.45,vUv.y)*vAlpha*mix(.75,.95,vMud);if(a<.01)discard;gl_FragColor=vec4(mix(water,mud,vMud),a);}`});
@@ -37,7 +38,8 @@ function dropletMesh(){
 }
 
 // The crown: a thin wall of muddy water that jumps up around the foot, flares
-// outward, tears into fingers along its rim and collapses within half a second.
+// outward and tears into fingers; at its apex the rim pinches off into drops
+// (rimDrops) that fall back outside it, each landing as a ring on the puddle.
 // It is what makes a heavy splash readable from the gunner's seat.
 const CROWNS=10,CROWN_LIFE=.5;
 function crownMesh(){
@@ -49,7 +51,9 @@ function crownMesh(){
    #include <fog_pars_vertex>
    void main(){
     float a=crown.x,s=crown.y;vAge=a;vY=uv.y;vAng=uv.x;vSeed=s;
-    float grow=1.-pow(1.-min(a*1.7,1.),2.),rise=sin(3.1416*min(a*1.2,1.));
+    // The wall rises to its apex and stays; it does not sink back into the ground.
+    // After the apex its rim is consumed top-down as it pinches off into drops.
+    float grow=1.-pow(1.-min(a*1.7,1.),2.),rise=(1.-pow(1.-min(a*2.2,1.),2.))*(1.-.18*smoothstep(.45,1.,a));
     float ang=uv.x*6.2832,n=.5+.5*sin(ang*7.+s*13.)*sin(ang*3.-s*5.);
     vec3 p=position;float r=(.4+.6*grow*s)*(1.+.45*p.y*grow);
     p.xz*=r;p.y*=(.3+.7*s)*rise*(.7+.6*n)*.72;
@@ -63,15 +67,45 @@ function crownMesh(){
    void main(){
     // Torn rim: the sheet breaks into tapering fingers of varying height, with
     // thinner fluid streaks running up it; the foot of the wall stays sheer.
-    float jag=.4+.6*n1(vAng*44.)*n1(vAng*13.+5.);
+    float jag=.4+.6*n1(vAng*44.)*n1(vAng*13.+5.)-.95*smoothstep(.35,1.,vAge);
     float streak=.45+.55*n1(vAng*120.+vY*6.);
-    float a=smoothstep(jag,jag-.25,vY)*streak*(.25+.75*smoothstep(0.,.18,vY))*(1.-smoothstep(.45,1.,vAge))*smoothstep(0.,.06,vAge)*.5;
+    float a=smoothstep(jag,jag-.25,vY)*streak*(.25+.75*smoothstep(0.,.18,vY))*(1.-smoothstep(.6,1.,vAge))*smoothstep(0.,.06,vAge)*.5;
     if(a<.01)discard;
     gl_FragColor=vec4(mix(mud,water*1.35,smoothstep(.05,.6,vY)),a);
     #include <fog_fragment>
    }`});
  const mesh=new T.InstancedMesh(geometry,material,CROWNS);mesh.frustumCulled=false;mesh.renderOrder=5;mesh.name='Splash crowns';
  return{mesh,data,uniforms};
+}
+
+// Where a falling drop lands: a small ring on the puddle, placed at the drop's
+// analytic landing point and time, riding the road afterwards.
+const RINGS=520,RING_LIFE=.5;
+function ringMesh(){
+ const g=new T.InstancedBufferGeometry();
+ g.setAttribute('corner',new T.Float32BufferAttribute([-1,-1,1,-1,-1,1,1,1],2));g.setIndex([0,2,1,1,2,3]);
+ const a0=new T.InstancedBufferAttribute(new Float32Array(RINGS*4).fill(-1e4),4),a1=new T.InstancedBufferAttribute(new Float32Array(RINGS*2),2);
+ a0.setUsage(T.DynamicDrawUsage);a1.setUsage(T.DynamicDrawUsage);g.setAttribute('a0',a0);g.setAttribute('a1',a1);g.instanceCount=RINGS;
+ const uniforms={...T.UniformsUtils.clone(T.UniformsLib.fog),time:{value:0},water:{value:new T.Color()}};
+ const material=new T.ShaderMaterial({uniforms,transparent:true,depthWrite:false,fog:true,toneMapped:false,side:T.DoubleSide,
+  vertexShader:`attribute vec2 corner;attribute vec4 a0;attribute vec2 a1;uniform float time;varying vec2 vUv;varying float vAge;
+   #include <fog_pars_vertex>
+   void main(){
+    float t=time-a0.w;vAge=t/${RING_LIFE.toFixed(2)};vUv=corner;
+    if(vAge<0.||vAge>1.){gl_Position=vec4(2.,2.,2.,1.);return;}
+    vec3 p=a0.xyz+vec3(corner.x,0.,corner.y)*a1.y+vec3(0.,0.,a1.x*t);
+    vec4 mvPosition=viewMatrix*vec4(p,1.);gl_Position=projectionMatrix*mvPosition;
+    #include <fog_vertex>
+   }`,
+  fragmentShader:`uniform vec3 water;varying vec2 vUv;varying float vAge;
+   #include <fog_pars_fragment>
+   void main(){
+    float r=length(vUv),ring=smoothstep(.14,0.,abs(r-vAge))*pow(1.-vAge,1.5)+smoothstep(.3,0.,r)*smoothstep(.15,0.,vAge);
+    float a=ring*.55;if(a<.01)discard;gl_FragColor=vec4(water,a);
+    #include <fog_fragment>
+   }`});
+ const mesh=new T.Mesh(g,material);mesh.frustumCulled=false;mesh.renderOrder=4;mesh.name='Drop landings';
+ return{mesh,uniforms,a0,a1};
 }
 
 // Signed distance to a three-toed theropod print in a unit frame: +y toward the toes.
@@ -129,7 +163,13 @@ function printMesh(){
 }
 
 export function createMud(scene){
- const drops=dropletMesh(),prints=printMesh(),crowns=crownMesh();scene.add(drops.mesh,prints.mesh,crowns.mesh);
+ const drops=dropletMesh(),prints=printMesh(),crowns=crownMesh(),rings=ringMesh();scene.add(drops.mesh,prints.mesh,crowns.mesh,rings.mesh);let ringId=0;
+ // Register a drop by launch point/velocity/start; schedule its landing ring analytically.
+ function launch(k,x,y,z,vx,vy,vz,t0,size,ring,groundSpeed){
+  drops.a0.setXYZW(k,x,y,z,t0);drops.a1.setXYZW(k,vx,vy,vz,size);
+  if(!ring)return;const tl=(vy+Math.sqrt(vy*vy+2*GRAVITY*Math.max(0,y)))/GRAVITY,j=ringId++%RINGS;
+  rings.a0.setXYZW(j,x+vx*tl,.025,z+vz*tl,t0+tl);rings.a1.setXY(j,groundSpeed,Math.min(.3,.08+Math.abs(size)*9));
+ }
  const crownState=Array.from({length:CROWNS},()=>({age:1,p:new T.Vector3(),yaw:0,strength:1}));let crownId=0;
  function crown(p,strength){const c=crownState[crownId++%CROWNS];c.age=0;c.p.set(p.x,.02,p.z);c.yaw=Math.random()*Math.PI*2;c.strength=strength;}
  let seed=2718;const rnd=()=>{seed=(1664525*seed+1013904223)>>>0;return seed/4294967296;};
@@ -144,10 +184,17 @@ export function createMud(scene){
    // off the foot's edge at low-to-steep angles; mud clods are slower and heavier.
    const elev=isSheet?.95+rnd()*.4:(isMud?.35:.3)+rnd()*(isMud?.5:.85),speed=(isSheet?1.4+rnd()*1.6:isMud?1.4+rnd()*1.8:1.8+rnd()*3.6)*strength;
    const size=isSheet?.024+rnd()*.022:isMud?.012+rnd()*.012:.006+rnd()*.007;
-   drops.a0.setXYZW(k,p.x+Math.cos(a)*r,.04,p.z+Math.sin(a)*r,time+rnd()*(isSheet?.02:.06));
-   drops.a1.setXYZW(k,Math.cos(a)*Math.cos(elev)*speed,Math.sin(elev)*speed,Math.sin(a)*Math.cos(elev)*speed+ground,isMud?-size:size);
+   launch(k,p.x+Math.cos(a)*r,.04,p.z+Math.sin(a)*r,Math.cos(a)*Math.cos(elev)*speed,Math.sin(elev)*speed,Math.sin(a)*Math.cos(elev)*speed+ground,time+rnd()*(isSheet?.02:.06),isMud?-size:size,isMud||rnd()<.45,ground);
   }
-  drops.a0.needsUpdate=drops.a1.needsUpdate=true;
+  drops.a0.needsUpdate=drops.a1.needsUpdate=rings.a0.needsUpdate=rings.a1.needsUpdate=true;
+ }
+ // At the crown's apex its torn rim pinches off into drops that fly outward and fall back to the puddle.
+ function rimDrops(p,strength,ground){
+  const n=Math.floor(30*scale*Math.min(1.5,strength)),grow=.945,rim=(.4+.6*grow*strength)*(1+.45*grow),top=(.3+.7*strength)*.72,delay=CROWN_LIFE*.42;
+  for(let i=0;i<n;i++){
+   const k=cursor++%DROPS,a=rnd()*Math.PI*2,h=top*(.55+rnd()*.5),out=.9+rnd()*1.6;
+   launch(k,p.x+Math.cos(a)*rim,h,p.z+Math.sin(a)*rim,Math.cos(a)*out,-.2+rnd()*.9,Math.sin(a)*out+ground,time+delay+rnd()*.08,.006+rnd()*.008,true,ground);
+  }
  }
  return{
   drops:drops.mesh,prints:prints.mesh,get printCount(){return list.length;},
@@ -156,7 +203,7 @@ export function createMud(scene){
   step(p,speed,side){
    const w=WET.value;if(w<.05)return;
    const strength=T.MathUtils.clamp(speed/10,.65,1.35);
-   spray(p,strength,{count:110*w,mud:.18,ground:speed});crown(p,strength*w);
+   spray(p,strength,{count:110*w,mud:.18,ground:speed});crown(p,strength*w);rimDrops(p,strength*w,speed);drops.a0.needsUpdate=drops.a1.needsUpdate=rings.a0.needsUpdate=rings.a1.needsUpdate=true;
    if(Math.abs(p.x)>14)return;
    // Stride direction: from the previous print (advected with the road) to this one.
    if(last&&time-last.time<1.4){v.set(p.x-last.p.x,0,p.z-last.p.z);if(v.lengthSq()>.25)dir.lerp(v.normalize(),.6).normalize();}else dir.set(0,0,-1);
@@ -165,9 +212,9 @@ export function createMud(scene){
    Object.assign(e,{side,age:0,yaw:Math.atan2(dir.x,dir.z)+(rnd()-.5)*.12,size:1.05+rnd()*.15,fade:w});e.p.set(p.x,.004,p.z);list.push(e);
   },
   /** Body slams and skids in the wet. */
-  burst(p,strength){if(WET.value<.05)return;spray(p,.9+strength*.8,{count:90*strength*WET.value,mud:.4,spread:1.6+strength,ground:0});crown(p,Math.min(1.8,.8+strength)*WET.value);},
+  burst(p,strength){if(WET.value<.05)return;spray(p,.9+strength*.8,{count:90*strength*WET.value,mud:.4,spread:1.6+strength,ground:0});crown(p,Math.min(1.8,.8+strength)*WET.value);rimDrops(p,Math.min(1.8,.8+strength)*WET.value,0);drops.a0.needsUpdate=drops.a1.needsUpdate=rings.a0.needsUpdate=rings.a1.needsUpdate=true;},
   update(dt,speed,camera,renderer,show=true){
-   time+=dt;visible=show;drops.uniforms.time.value=time;
+   time+=dt;visible=show;drops.uniforms.time.value=rings.uniforms.time.value=time;rings.mesh.visible=show;
    renderer.getDrawingBufferSize(drops.uniforms.viewport.value);drops.uniforms.minPx.value=Math.max(1,renderer.getPixelRatio()*.9);
    drops.mesh.visible=show;prints.mesh.visible=show&&list.length>0;
    if(last)last.p.z+=speed*dt;
@@ -184,7 +231,7 @@ export function createMud(scene){
    }
    prints.mesh.count=n;prints.mesh.instanceMatrix.needsUpdate=true;prints.data.needsUpdate=true;
   },
-  tint(color){drops.uniforms.water.value.copy(color);crowns.uniforms.water.value.copy(color);},
-  reset(){list.length=0;last=null;for(const c of crownState)c.age=1;drops.a0.array.fill(-1e4);drops.a0.needsUpdate=true;prints.mesh.count=0;}
+  tint(color){drops.uniforms.water.value.copy(color);crowns.uniforms.water.value.copy(color);rings.uniforms.water.value.copy(color).multiplyScalar(.85);},
+  reset(){list.length=0;last=null;for(const c of crownState)c.age=1;drops.a0.array.fill(-1e4);drops.a0.needsUpdate=true;rings.a0.array.fill(-1e4);rings.a0.needsUpdate=true;prints.mesh.count=0;}
  };
 }

@@ -132,6 +132,7 @@ function shoot(){
  const hit=getHit(),threat=debris.hit(raycaster.ray,hit?.distance),target=threat?-1:targets?.hit(raycaster.ray,state)??-1,origin=jeep.muzzle.getWorldPosition(new T.Vector3());
  const end=threat?threat.point:hit?hit.point:target>=0?targets.targets[target].world:aimPoint(new T.Vector3());
  effects.trace(origin,end);jeep.shoot();audio.gun();gunKick=.035;
+ {const dist=end.distanceTo(origin);if(threat)audio.hit('wood',dist);else if(hit||target>=0)audio.hit('flesh',dist);else if(end.y<.05)audio.hit('dirt',dist);}
  if(threat)debrisHit(threat);else if(hit)weaponHit(hit,false);else if(target>=0){state.hit(false);effects.burst(end,true);}
  else if(end.y<.05)effects.burst(end,false);
  targetHit(target);return !!threat||!!hit||target>=0;
@@ -186,9 +187,9 @@ function handleEvents(){for(const event of state.drainEvents()){
  if(event==='flank')audio.stopCalls();
  if(event==='contact-lost')audio.stopCalls();
  if(event==='ambush-rustle')audio.woodBreak(.35);
- if(event==='ambush-crash'){effects.bodyImpact(new T.Vector3(4,.04,9),1.5);audio.woodBreak();audio.groundImpact(.95);audio.roar();shake=.85;birds.scatter(new T.Vector3(9,13,16),{spread:10,count:14});}
+ if(event==='ambush-crash'){effects.bodyImpact(new T.Vector3(4,.04,9),1.5);audio.woodBreak();audio.groundImpact(.95);audio.roar();shake=.85;audio.birds();birds.scatter(new T.Vector3(9,13,16),{spread:10,count:14});}
  if(event==='jungle-crash'){effects.bodyImpact(new T.Vector3(-5.5,.04,16),1.3);audio.impact();audio.groundImpact(.85);shake=.35;}
- if(event==='opening-roar'){audio.roar(true);birds.scatter(new T.Vector3(-4,15,38),{spread:22});}
+ if(event==='opening-roar'){audio.roar(true);audio.birds();birds.scatter(new T.Vector3(-4,15,38),{spread:22});}
  if(event==='jeep-launch')shake=.12;
  if(event==='warning'&&!audio.voice)audio.roar();
  if(event==='challenge')audio.cue();
