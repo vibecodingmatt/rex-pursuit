@@ -102,6 +102,18 @@ The midpoint feint exits and re-enters the left side. Use the continuous `ambush
 
 Named runtime clips live in `public/audio/catalog.json` and `public/audio/clip-NN.wav`. Raw references remain local. Default roles are opening 01, charge 02, growl 09, pain 27; footsteps 03-06 and bite 18. Roars use the decoded 60 Hz amplitude envelope and AudioContext playback clock, including playback rate and pause. Ambient calls never animate the Rex jaw. Rex vocals route through one HRTF panner at her head (`audio.listen()` each frame, listener on the camera); footfalls, bullet hits and distant calls get one-shot panners at their world positions. One-shots feed the generated forest reverb by their own `wet` amount; the loops stay dry, and `swallow()` closes the reverb return. The opening accommodates the chosen roar duration. Sound-library local storage can override the catalog, so use a fresh browser context when reproducing default audio behavior.
 
+## Mobile GPU precision (shader inputs must stay small)
+
+Desktop GPUs compute fragment shaders at full 32-bit precision; many phone GPUs effectively run at reduced precision. Headless Chrome on this machine uses the desktop GPU, so **precision bugs never reproduce in local captures**. Only the user's phone shows them. Ask for a phone screenshot and zoom into it before guessing.
+
+Three fixed cases (September 2026):
+
+- **Storm clouds broke into flat rectangular blocks** (`8d9fa60`). The cloud scroll was `(time + drift) * speed` fed straight into value noise. `time` is seconds since page load and storm `drift` adds about 5 per second, so after a few minutes in the menu the noise inputs were large enough to quantize. Now `createSky().update` wraps the offset on the CPU (`cloudOffset`, mod 32) and the cloud noise is periodic (`fbmP`: the lattice repeats every `per`, doubling per octave with an exact 2x scale), so the wrap is seamless. Layers sampled at `p*2` and `p*3` use periods 64 and 96. The sky's `time` uniform is also wrapped (mod 600).
+- **Star hashes**: `fract(sin(x)*43758.5)` loses accuracy for large `x` on mobile and draws lines. Use sin-free hashes (the `fract(p*vec3(.1031,.1030,.0973))` family) for anything new.
+- **Rain scratches across the sky on tall phone screens** (`d57d51f`). A drop near the lens projected its world-length streak across much of the screen. The rain vertex shader caps the on-screen streak at 9% of viewport height and fades drops closer than about 1 m. Not a precision bug, but it looked like one.
+
+Rules for new shaders: never feed an ever-growing clock (`performance.now`, accumulated drift or scroll) directly into noise, hashes or texture coordinates. Wrap it on the CPU at a period the pattern repeats, or keep the value bounded. Prefer sin-free hashes. When a phone shows lines, blocks or stair-steps that desktop captures don't, suspect precision first.
+
 ## Mobile and vehicle details
 
 `pointer-controls.js` owns independent aim and fire pointer IDs. Aim appears 96 CSS pixels above the thumb in portrait and 72 in landscape, shifting sideways at the top edge. The displayed reticle, raycast and gun aim use the same offset. Do not apply the offset to desktop mouse input or make fire steal the aim pointer.
