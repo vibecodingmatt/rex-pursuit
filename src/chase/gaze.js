@@ -33,7 +33,7 @@ export function createGaze(mesh,head){
  let blinkAge=1,nextBlink=2.4;const blinkCurve=a=>a<.07?a/.07:a<.1?1:Math.max(0,1-(a-.1)/.11);
  const inverse=new T.Matrix4(),localTarget=new T.Vector3(),desired=new T.Vector3();
  const boneInverse=mesh.skeleton.boneInverses[mesh.skeleton.bones.indexOf(head)];
- return{centers,directions,uniforms,blink(){if(blinkAge>.25)blinkAge=0;},reset(){directions.forEach(d=>d.set(0,0,1));blinkAge=1;nextBlink=2.4;uniforms.blink.value=0;},update(dt,target){
+ return{centers,directions,uniforms,blink(){if(blinkAge>.25&&uniforms.eyeShine.value<.05)blinkAge=0;},reset(){directions.forEach(d=>d.set(0,0,1));blinkAge=1;nextBlink=2.4;uniforms.blink.value=0;},update(dt,target){
   if(dt<=0)return;
   blinkAge+=dt;nextBlink-=dt;if(nextBlink<=0){blinkAge=0;nextBlink=2.2+Math.random()*4.5;}uniforms.blink.value=blinkAge<.21?blinkCurve(blinkAge):0;
   inverse.copy(head.matrixWorld).multiply(boneInverse).multiply(mesh.bindMatrix).invert();
