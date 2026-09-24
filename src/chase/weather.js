@@ -37,13 +37,16 @@ function rainMesh(){
     vUv=corner;
     if(h.w<.3||t.w<.3||fract(seed.w*91.7+seed.x*13.1)>density){gl_Position=vec4(2.,2.,2.,1.);vAlpha=0.;return;}
     vec2 d=(h.xy/h.w-t.xy/t.w)*viewport;float len=length(d);vec2 dir=len>1e-3?d/len:vec2(0.,1.);
+    // Drops right at the lens would smear into long straight scratches across
+    // the sky (worst on tall phone screens): cap the on-screen streak length.
+    float cap=min(1.,viewport.y*.09/max(len,1e-3));t=mix(h,t,cap);
     // World width in pixels, clamped to a visible minimum; thinner drops fade instead.
     float px=width*projectionMatrix[1][1]*viewport.y*.5/h.w,drawn=max(px,minPx);
     vec4 c=mix(h,t,corner.y);
     c.xy+=vec2(-dir.y,dir.x)*corner.x*drawn/viewport*c.w;
     gl_Position=c;
     vec3 q=(p-boxMin)/boxSize;vec3 e=min(q,1.-q);
-    vAlpha=smoothstep(.45,1.6,h.w)*smoothstep(0.,.07,min(min(e.x,e.y),e.z))*mix(.4,1.,min(1.,px/minPx));
+    vAlpha=smoothstep(.9,2.6,h.w)*mix(.35,1.,cap)*smoothstep(0.,.07,min(min(e.x,e.y),e.z))*mix(.4,1.,min(1.,px/minPx));
     // Drops inside the flashlight cone catch the beam, brightest near the lens.
     vec3 bl=p-beamPos;float bd=max(length(bl),.01);
     vBeam=smoothstep(beamCos,mix(beamCos,1.,.45),dot(bl/bd,beamDir))/(1.+bd*bd*.012);
