@@ -81,7 +81,7 @@ export function createJeep(scene){
   jeep.position.set(travel?.jeepX||0,0,travel?.jeepZ||0);jeep.rotation.set(0,travel?.jeepYaw||0,0);
   const bounce=Math.min(1,speed/5);body.position.y=(Math.sin(time*18)*.013+Math.sin(time*29)*.007)*bounce;body.rotation.z=Math.sin(time*7)*.006*bounce+(fatal?.jeepRoll||0);body.rotation.x=Math.sin(time*11)*.004*bounce+(fatal?.jeepPitch||0);jeep.updateMatrixWorld(true);
  }
- return{root:jeep,body,muzzle,gun,yaw,gunner,character,driver,flash,weapon,pose,shoot:weapon.shoot,reset,update(dt,time,speed,aim,third,state){
+ return{root:jeep,body,muzzle,gun,yaw,gunner,character,driver,flash,weapon,lamps:{head:lens,tail:red},pose,shoot:weapon.shoot,reset,update(dt,time,speed,aim,third,state){
   rearCrossbar.visible=third;
   pose(time,speed,state);
   // The Jeep drives toward -Z; the contact patch must travel with the road (+Z).

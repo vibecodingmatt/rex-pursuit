@@ -4,3 +4,4 @@ export const WET={value:0};       // surface soaking, 0 dry .. 1 drenched
 export const RAIN={value:0};      // falling-rain intensity (puddle ripples)
 export const RAIN_TIME={value:0}; // ripple clock, advances only while unpaused
 export const WIND_GUST={value:1}; // foliage sway multiplier
+export const NIGHT={value:0};     // darkness, 0 day .. 1 night (daylight-only effects fade out)

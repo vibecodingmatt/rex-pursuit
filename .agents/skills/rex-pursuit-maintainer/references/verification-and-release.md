@@ -47,7 +47,9 @@ Read `package.json` and the selected script before running it. There is no need 
 | Build-specific settings, paused fall and restart | `npm run test:build` after building |
 | Release assets, metadata and Pages paths | `npm run test:release`, `npm run test:pages` after building |
 
-`test:pressure`'s compact-phone view (320 by 568) is intermittent. It stops at the first failure, so later views do not run; check them with `TEST_VIEWS` (for example `TEST_VIEWS=tablet,landscape,phone-third`). About one run in three fails with `debris covered by #touch-grenade`, on both the previous and the articulated-foot gait (September 2026). The check freezes after a real-time 850 ms wait, so the in-Jeep camera pose, and with it a flying branch's projected path, varies between runs. A failure here alone is not evidence of a regression: rerun that view, and compare against the previous commit if it fails again.
+`test:pressure`'s compact-phone view (320 by 568) is intermittent. It stops at the first failure, so later views do not run; check them with `TEST_VIEWS` (for example `TEST_VIEWS=tablet,landscape,phone-third`). About one run in three fails with `debris covered by #touch-grenade`, on both the previous and the articulated-foot gait (September 2026). The check freezes after a real-time 850 ms wait, so the in-Jeep camera pose, and with it a flying branch's projected path, varies between runs. A failure here alone is not evidence of a regression: rerun that view, and compare against the previous commit if it fails again. On 2026-09-24 (Drop 5) it failed three times in a row, both on `b7963a1` and with the night changes, always because of `#touch-grenade` coverage.
+
+`TEST_CONDITIONS` (`storm`, `night` or `night-storm`) runs `test:pressure` under a chosen condition by seeding the stored picker value. Use `night` whenever touch controls change: at night the LIGHT button sits above FIRE.
 
 `test:defeat` includes the pure timeline, source-only rig check, and complete browser cinematic. For a timing-only change, the browser portion can be aimed at the build separately:
 

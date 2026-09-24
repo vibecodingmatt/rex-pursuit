@@ -133,7 +133,7 @@ export function createMountedGun(body,scene,mats,character){
   beltJiggle*=Math.exp(-dt*12);
   const kick=shotAge<.12?Math.sin(Math.min(1,shotAge/.025)*Math.PI/2)*Math.exp(-Math.max(0,shotAge-.025)*36):0;
   receiver.position.z=-kick*.033;barrel.position.z=-kick*.017;
-  flash.visible=shotAge<.027;light.intensity=flash.visible?11:0;
+  flash.visible=shotAge<.027;light.intensity=flash.visible?11*(light.userData.boost||1):0;
   const local=body.worldToLocal(aim.clone()).sub(yaw.position);
   const reloadCenter=third&&reloading?pulse(p,0,.12,.86,1):0;
   yaw.rotation.y=T.MathUtils.damp(yaw.rotation.y,T.MathUtils.clamp(Math.atan2(local.x,local.z),-.68,.68)*(1-reloadCenter),26,dt);
@@ -154,5 +154,5 @@ export function createMountedGun(body,scene,mats,character){
   updatePool(cases,dt);updatePool(links,dt);
  }
  reset();
- return{gun,yaw,muzzle,flash,hands,armRig,cover,can,barrel,receiver,charging,beltParts,cases,links,stats,flight,get detached(){return detached;},get reloadProgress(){return reloadProgress;},shoot,reset,update};
+ return{gun,yaw,muzzle,flash,light,barrel,hands,armRig,cover,can,barrel,receiver,charging,beltParts,cases,links,stats,flight,get detached(){return detached;},get reloadProgress(){return reloadProgress;},shoot,reset,update};
 }

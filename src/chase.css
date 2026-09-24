@@ -132,3 +132,15 @@ button{touch-action:manipulation}
  .intro-copy{top:20%;max-width:75%}h1{font-size:52px}
  .modal-card{padding:16px 22px}.modal-card h2{font-size:42px;margin:12px 0}.modal-card .primary{margin:14px auto}
 }
+
+/* Night: the flashlight control and hints exist only in the night conditions. */
+.night-only{display:none;font-weight:inherit}
+body[data-conditions^=night] .night-only{display:inline}
+body:not([data-conditions^=night]) #touch-light{display:none!important}
+#touch-light{display:none}
+@media(pointer:coarse){
+ #touch-controls #touch-light{position:absolute;right:8px;bottom:calc(100% + 12px);min-height:52px}
+ #touch-light[aria-pressed=false]{border-color:#adad8b80}#touch-light[aria-pressed=false] small{color:#9ea38f}
+}
+/* Short landscape screens: graphics and conditions share one row above the footer. */
+@media(max-height:470px) and (orientation:landscape){body #start-screen .quality-picker{display:inline-flex;vertical-align:top;margin:6px 10px 0 0}}

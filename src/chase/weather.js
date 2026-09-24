@@ -1,5 +1,5 @@
 import * as T from 'three';
-import {WET,RAIN,RAIN_TIME,WIND_GUST} from './weather-state.js';
+import {WET,RAIN,RAIN_TIME,WIND_GUST,NIGHT as DARK} from './weather-state.js';
 // Tropical storm. Rain is one instanced draw of camera-relative streaks whose
 // length and slant come from each drop's velocity relative to the Jeep (fall
 // plus the road rushing past), so a faster chase leans the rain harder. Road
@@ -7,11 +7,15 @@ import {WET,RAIN,RAIN_TIME,WIND_GUST} from './weather-state.js';
 // all read one smoothed storm value; Clear leaves every base value untouched.
 
 const KEY='rex-pursuit-conditions';
-export const CONDITIONS=['clear','storm'];
+export const CONDITIONS=['clear','storm','night','night-storm'];
 export function storedConditions(){try{const v=localStorage.getItem(KEY);return CONDITIONS.includes(v)?v:'clear';}catch{return 'clear';}}
 export function storeConditions(v){try{localStorage.setItem(KEY,v);}catch{}}
 
 const STORM={fog:new T.Color(0x4e5851),zenith:new T.Color(0x3a444c),hemiSky:new T.Color(0x9fb0b8),hemiGround:new T.Color(0x2a2620),sun:new T.Color(0xc9d2dc),density:1.5,sun_:.06,hemi:1.95,rim:.55,fill:1.2,env:1.25,exposure:1.2,saturation:.84,contrast:.27,vol:.12,bloom:.1};
+// Night is absolute rather than relative: moonlight is a faint cool key along the
+// sun direction plus a moon rim from behind the Rex. Storm clouds dim both.
+const NIGHT={fog:new T.Color(0x0b1317),fogStorm:new T.Color(0x0e1518),zenith:new T.Color(0x060c18),zenithStorm:new T.Color(0x0b1015),hemiSky:new T.Color(0x6a7fa3),hemiGround:new T.Color(0x16140f),moon:new T.Color(0xa7bde3),
+ sun:.17,hemi:.13,rim:1.1,fill:.03,env:.22,density:1.18,exposure:1.3,saturation:.8,contrast:.26,vol:.05,bloom:.2,shadowTint:new T.Color(.7,.9,1.3)};
 const RAIN_BOX=new T.Vector3(26,17,34),RAIN_MAX=14000,SPLASH_MAX=320;
 
 function rainMesh(){
@@ -20,10 +24,11 @@ function rainMesh(){
  const seeds=new Float32Array(RAIN_MAX*4);let s=4242;const r=()=>{s=(1664525*s+1013904223)>>>0;return s/4294967296;};for(let i=0;i<seeds.length;i++)seeds[i]=r();
  g.setAttribute('seed',new T.InstancedBufferAttribute(seeds,4));g.instanceCount=RAIN_MAX;
  const uniforms={boxMin:{value:new T.Vector3()},boxSize:{value:RAIN_BOX.clone()},offset:{value:new T.Vector3()},vel:{value:new T.Vector3(0,9,10)},
-  streak:{value:.034},width:{value:.0075},minPx:{value:1},viewport:{value:new T.Vector2(1,1)},density:{value:0},tint:{value:new T.Color()},opacity:{value:.42}};
+  streak:{value:.034},width:{value:.0075},minPx:{value:1},viewport:{value:new T.Vector2(1,1)},density:{value:0},tint:{value:new T.Color()},opacity:{value:.42},
+  beamPos:{value:new T.Vector3()},beamDir:{value:new T.Vector3(0,0,1)},beamCos:{value:.95},beamTint:{value:new T.Color(0,0,0)}};
  const material=new T.ShaderMaterial({uniforms,transparent:true,depthWrite:false,fog:false,toneMapped:false,side:T.DoubleSide,
-  vertexShader:`attribute vec2 corner;attribute vec4 seed;uniform vec3 boxMin,boxSize,offset,vel;uniform vec2 viewport;uniform float streak,width,minPx,density;
-   varying vec2 vUv;varying float vAlpha;
+  vertexShader:`attribute vec2 corner;attribute vec4 seed;uniform vec3 boxMin,boxSize,offset,vel,beamPos,beamDir;uniform vec2 viewport;uniform float streak,width,minPx,density,beamCos;
+   varying vec2 vUv;varying float vAlpha,vBeam;
    void main(){
     float f=.8+.4*seed.w;
     vec3 p=boxMin+mod(seed.xyz*boxSize+vec3(offset.x,offset.y*f,offset.z)-boxMin,boxSize);
@@ -39,9 +44,12 @@ function rainMesh(){
     gl_Position=c;
     vec3 q=(p-boxMin)/boxSize;vec3 e=min(q,1.-q);
     vAlpha=smoothstep(.45,1.6,h.w)*smoothstep(0.,.07,min(min(e.x,e.y),e.z))*mix(.4,1.,min(1.,px/minPx));
+    // Drops inside the flashlight cone catch the beam, brightest near the lens.
+    vec3 bl=p-beamPos;float bd=max(length(bl),.01);
+    vBeam=smoothstep(beamCos,mix(beamCos,1.,.45),dot(bl/bd,beamDir))/(1.+bd*bd*.012);
    }`,
-  fragmentShader:`uniform vec3 tint;uniform float opacity;varying vec2 vUv;varying float vAlpha;
-   void main(){float a=(1.-vUv.x*vUv.x)*mix(1.,.25,vUv.y)*vAlpha*opacity;if(a<.003)discard;gl_FragColor=vec4(tint,a);}`});
+  fragmentShader:`uniform vec3 tint,beamTint;uniform float opacity;varying vec2 vUv;varying float vAlpha,vBeam;
+   void main(){float a=(1.-vUv.x*vUv.x)*mix(1.,.25,vUv.y)*vAlpha*opacity;if(a<.003)discard;gl_FragColor=vec4(tint+beamTint*vBeam,min(1.,a*(1.+vBeam*length(beamTint))));}`});
  const mesh=new T.Mesh(g,material);mesh.frustumCulled=false;mesh.renderOrder=5;mesh.name='Rain';mesh.visible=false;
  return{mesh,uniforms};
 }
@@ -102,27 +110,30 @@ export function createWeather(scene,{renderer,sky,makeEnvironment,reducedMotion=
  const boltMaterial=new T.MeshBasicMaterial({color:0xffffff,transparent:true,blending:T.AdditiveBlending,depthWrite:false,fog:false,toneMapped:false,side:T.DoubleSide});
  const bolt=new T.Mesh(new T.BufferGeometry(),boltMaterial);bolt.visible=false;bolt.frustumCulled=false;bolt.name='Lightning';scene.add(bolt);
  let seed=31337;const rand=()=>{seed=(1664525*seed+1013904223)>>>0;return seed/4294967296;};
- let target=storedConditions()==='storm'?1:0,value=target,wind=0,gust=0,gustTarget=0,gustTimer=0,flash=0,nextStrike=3.5,strike=null,splashQuality=1;
- let stormEnv=null,clearEnv=scene.environment;
- const offset=new T.Vector3(),forward=new T.Vector3(),flashDir=new T.Vector3(0,1,0),viewport=new T.Vector2(),c=new T.Color();
+ const stored=storedConditions();
+ let target=stored.includes('storm')?1:0,value=target,nightTarget=stored.startsWith('night')?1:0,night=nightTarget,wind=0,gust=0,gustTarget=0,gustTimer=0,flash=0,nextStrike=3.5,strike=null,splashQuality=1;
+ const envs={clear:scene.environment};
+ const offset=new T.Vector3(),forward=new T.Vector3(),flashDir=new T.Vector3(0,1,0),viewport=new T.Vector2(),c=new T.Color(),moonPos=new T.Vector3();
  const base={};
+ const envFor=kind=>envs[kind]||=makeEnvironment(renderer,{storm:kind.includes('storm')?1:0,night:kind.startsWith('night')?1:0});
  const api={
-  bolt,rain:rain.mesh,splashes:splash.mesh,
+  bolt,rain:rain.mesh,splashes:splash.mesh,rainUniforms:rain.uniforms,
   onThunder:null,
-  get kind(){return target>.5?'storm':'clear';},get rainLevel(){return RAIN.value;},get value(){return value;},get flash(){return flash;},get strike(){return strike;},
+  get kind(){return (nightTarget>.5?'night':'')+(nightTarget>.5&&target>.5?'-':'')+(target>.5?'storm':nightTarget>.5?'':'clear');},get rainLevel(){return RAIN.value;},get value(){return value;},get night(){return night;},get flash(){return flash;},get strike(){return strike;},
   /** Record the lighting a location sets, so the storm always blends from it. */
   captureBase({sun,hemi,rim,fill,post}){
-   Object.assign(base,{sun:sun.intensity,sunColor:sun.color.clone(),hemi:hemi.intensity,hemiSky:hemi.color.clone(),hemiGround:hemi.groundColor.clone(),rim:rim.intensity,rimPos:rim.position.clone(),fill:fill.intensity,
+   Object.assign(base,{sun:sun.intensity,sunColor:sun.color.clone(),hemi:hemi.intensity,hemiSky:hemi.color.clone(),hemiGround:hemi.groundColor.clone(),rim:rim.intensity,rimColor:rim.color.clone(),rimPos:rim.position.clone(),fill:fill.intensity,
     fog:scene.fog.color.clone(),density:scene.fog.density,env:scene.environmentIntensity,zenith:sky.uniforms.zenith.value.clone()});
    // The grade is never set by a location, so its base is recorded only once.
-   if(!('exposure' in base))Object.assign(base,{exposure:post.final.exposure.value,saturation:post.final.saturation.value,contrast:post.final.contrast.value,vol:post.final.volStrength.value,bloom:post.final.bloomStrength.value});
+   if(!('exposure' in base))Object.assign(base,{exposure:post.final.exposure.value,saturation:post.final.saturation.value,contrast:post.final.contrast.value,vol:post.final.volStrength.value,bloom:post.final.bloomStrength.value,volColor:post.volume.sunColor.value.clone(),shadowTint:post.final.shadowTint.value.clone()});
   },
-  set(kind,{instant=false}={}){target=kind==='storm'?1:0;storeConditions(api.kind);if(target&&!stormEnv)stormEnv=makeEnvironment(renderer,{storm:1});if(instant)value=target;},
+  set(kind,{instant=false}={}){if(!CONDITIONS.includes(kind))return;target=kind.includes('storm')?1:0;nightTarget=kind.startsWith('night')?1:0;storeConditions(api.kind);envFor(api.kind);if(instant){value=target;night=nightTarget;}},
   setQuality(t){splashQuality=Math.min(1,t.particles);rain.mesh.geometry.instanceCount=Math.floor(RAIN_MAX*Math.min(1,t.particles));splash.mesh.geometry.instanceCount=Math.floor(SPLASH_MAX*Math.min(1,t.particles));},
   reset(){flash=0;strike=null;bolt.visible=false;nextStrike=3.5;},
   /** Advance rain, wind and lightning. `shelter` 0..1 fades rain (inside the jaws). */
   update(dt,speed,camera,{ground=true,shelter=0}={}){
    value+=(target-value)*Math.min(1,dt*1.6);if(Math.abs(target-value)<.002)value=target;
+   night+=(nightTarget-night)*Math.min(1,dt*1.6);if(Math.abs(nightTarget-night)<.002)night=nightTarget;DARK.value=night;
    const w=value,on=w>.001;
    gustTimer-=dt;if(gustTimer<=0){gustTimer=1.5+rand()*4;gustTarget=rand()*rand();}gust+=(gustTarget-gust)*Math.min(1,dt*.8);
    wind=w*(.6+gust*1.2);
@@ -175,15 +186,30 @@ export function createWeather(scene,{renderer,sky,makeEnvironment,reducedMotion=
    rim.intensity=base.rim*(1+(STORM.rim-1)*w)+f*4.2;
    if(strike&&f>.01)rim.position.copy(strike.dir).multiplyScalar(60).setY(70);else rim.position.copy(base.rimPos);
    fill.intensity=base.fill*(1+(STORM.fill-1)*w);
-   scene.environment=w>.5&&stormEnv?stormEnv:clearEnv;scene.environmentIntensity=base.env*(1+(STORM.env-1)*w);
+   scene.environmentIntensity=base.env*(1+(STORM.env-1)*w);
    const u=post.final;u.exposure.value=base.exposure*(1+(STORM.exposure-1)*w);u.saturation.value=base.saturation+(STORM.saturation-base.saturation)*w;
    u.contrast.value=base.contrast+(STORM.contrast-base.contrast)*w;u.volStrength.value=base.vol*(1+(STORM.vol-1)*w);u.bloomStrength.value=base.bloom+(STORM.bloom-base.bloom)*w;
+   post.volume.sunColor.value.copy(base.volColor);rim.color.copy(base.rimColor);u.shadowTint.value.copy(base.shadowTint);
+   // Night blends over the result, so Night + Storm is a moonless, rain-dark deck.
+   const n=night;sky.uniforms.night.value=n;
+   if(n>0){
+    scene.fog.color.lerp(c.copy(NIGHT.fog).lerp(NIGHT.fogStorm,w),n);scene.background.copy(scene.fog.color);scene.fog.density*=1+(NIGHT.density-1)*n;
+    sky.uniforms.horizon.value.copy(scene.fog.color);sky.uniforms.zenith.value.lerp(c.copy(NIGHT.zenith).lerp(NIGHT.zenithStorm,w),n);
+    sun.intensity+=(NIGHT.sun*(1-.7*w)-sun.intensity)*n;sun.color.lerp(NIGHT.moon,n);
+    hemi.intensity+=(NIGHT.hemi*(1+.25*w)+f*.9-hemi.intensity)*n;hemi.color.lerp(NIGHT.hemiSky,n);hemi.groundColor.lerp(NIGHT.hemiGround,n);
+    rim.intensity+=(NIGHT.rim*(1-.75*w)+f*6-rim.intensity)*n;rim.color.lerp(NIGHT.moon,n);
+    if(!(strike&&f>.01))rim.position.lerp(moonPos.copy(sky.uniforms.moonDir.value).multiplyScalar(60),n);
+    fill.intensity+=(NIGHT.fill-fill.intensity)*n;scene.environmentIntensity+=(NIGHT.env-scene.environmentIntensity)*n;
+    u.exposure.value+=(NIGHT.exposure-u.exposure.value)*n;u.saturation.value+=(NIGHT.saturation-u.saturation.value)*n;u.contrast.value+=(NIGHT.contrast-u.contrast.value)*n;
+    u.volStrength.value+=(NIGHT.vol*(1-.8*w)-u.volStrength.value)*n;u.bloomStrength.value+=(NIGHT.bloom-u.bloomStrength.value)*n;post.volume.sunColor.value.lerp(NIGHT.moon,n);u.shadowTint.value.lerp(NIGHT.shadowTint,n);
+   }
+   scene.environment=envs[(n>.5?'night':'')+(n>.5&&w>.5?'-':'')+(w>.5?'storm':n>.5?'':'clear')]||envs.clear;
    // Rain catches the overcast sky and every lightning flash.
-   c.copy(scene.fog.color).multiplyScalar(2.3).addScalar(.06+f*.55);rain.uniforms.tint.value.copy(c);splash.uniforms.tint.value.copy(c).multiplyScalar(.9);
+   c.copy(scene.fog.color).multiplyScalar(2.3).addScalar(.06*(1-n*.6)+f*.55);rain.uniforms.tint.value.copy(c);splash.uniforms.tint.value.copy(c).multiplyScalar(.9);
   },
   /** Adds the lightning's brief whole-frame lift to the post flash colour. */
   addFlash(color){if(flash>0)color.add(c.setRGB(.55,.62,.8).multiplyScalar(flash*.012));}
  };
- if(target)stormEnv=makeEnvironment(renderer,{storm:1});
+ envFor(api.kind);
  return api;
 }

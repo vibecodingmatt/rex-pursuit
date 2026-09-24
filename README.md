@@ -44,6 +44,9 @@ The Rex's eyes aim independently at a shared player position with a damped respo
 | V / camera buttons | Switch first / third person |
 | Escape or P | Pause |
 | M | Mute |
+| F / touch LIGHT | Night only: switch the gun-mounted flashlight |
+
+Conditions (Menu or Pause): **Storm** (default), **Night**, or **Night + Storm**. At night, the gun-mounted flashlight casts shadows and makes her eyes shine. The Jeep's headlights and taillights light the road, and muzzle flashes briefly light the jungle.
 
 Touch aim sits 96 CSS pixels above the finger in portrait and 72 in landscape. At the top edge it shifts to the side to keep clear of the thumb. Drag with one thumb while holding FIRE with the other; releasing the aiming thumb keeps firing, and releasing FIRE leaves aim in place. The reticle, mounted gun and bullet ray all use the same offset point. RELOAD and GRENADE have dedicated large touch buttons with reload/cooldown feedback. Camera and header controls have at least 44-pixel tap areas, and the control row's empty space passes aiming gestures through to the scene. Portrait screens 650 pixels tall or shorter use a compact objective panel and move camera selection into Pause to keep targets clear.
 

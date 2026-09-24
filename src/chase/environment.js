@@ -2,7 +2,7 @@ import * as T from 'three';
 import {mergeGeometries} from 'three/addons/utils/BufferGeometryUtils.js';
 import {createFoliageKit,dustTexture,seeded,WIND,GRASS_DENSITY} from './foliage.js';
 import {SUN_DIRECTION} from './atmosphere.js';
-import {WET,RAIN,RAIN_TIME,WIND_GUST} from './weather-state.js';
+import {WET,RAIN,RAIN_TIME,WIND_GUST,NIGHT} from './weather-state.js';
 // Scrolling rainforest road. Twelve 28 m chunks recycle along +Z; six unique
 // layouts are shared by chunk pairs 168 m apart. Every layout is merged per
 // material (a handful of draw calls per chunk) and optional planting is ordered
@@ -196,7 +196,7 @@ export function createJungle(root,{canopy}={}){
     const d=Math.max(0,Math.abs(c.group.position.z-6)-CHUNK/2),lod=Math.max(.12,1-Math.max(0,d-18)/70);
     c.grass.count=Math.min(c.grass.instanceMatrix.count,Math.ceil(c.grass.instanceMatrix.count*Math.min(1,grassFactor)*lod*1.08));
    }
-   moteUniforms.time.value=time;moteUniforms.strength.value=1-WET.value;shaftMat.opacity=.02*(1-WET.value);motes.visible=moteUniforms.strength.value>.01&&!shafts.visible;moteUniforms.scroll.value=(moteUniforms.scroll.value+speed*dt)%54;moteUniforms.pixel.value=Math.min(2,devicePixelRatio);
+   moteUniforms.time.value=time;moteUniforms.strength.value=(1-WET.value)*(1-NIGHT.value);shaftMat.opacity=.02*(1-WET.value)*(1-NIGHT.value);motes.visible=moteUniforms.strength.value>.01&&!shafts.visible;moteUniforms.scroll.value=(moteUniforms.scroll.value+speed*dt)%54;moteUniforms.pixel.value=Math.min(2,devicePixelRatio);
    if(canopy){moteUniforms.canopyScroll.value=canopy.scroll%canopy.scale;}
    for(let i=0;i<falling.count;i++){
     const l=leafState[i];l.p.y-=l.fall*dt;l.p.z+=speed*dt*.97;l.p.x+=Math.sin(time*1.3+l.phase)*dt*.6;

@@ -6,7 +6,7 @@ const base=process.env.TEST_URL||'http://127.0.0.1:5188/';
  try{
   for(const [name,width,height,touch,view]of [['first',1600,1000,false,'first'],['third',1600,1000,false,'third'],['phone',390,844,true,'first'],['small-phone',390,680,true,'first'],['compact-phone',320,568,true,'first'],['tablet',768,1024,true,'first'],['landscape',844,390,true,'first'],['phone-third',390,844,true,'third']]){
    if(process.env.TEST_VIEWS&&!process.env.TEST_VIEWS.split(',').includes(name))continue;
-   const p=await browser.newPage({viewport:{width,height},isMobile:touch,hasTouch:touch});p.on('pageerror',e=>errors.push(e.message));p.on('console',m=>{if(m.type()==='error')errors.push(m.text());});await p.goto(base);await p.waitForFunction(()=>window.rexChase?.rex,{timeout:120000});await p.locator('#start').click();await p.waitForFunction(()=>rexChase.mode==='playing');
+   const p=await browser.newPage({viewport:{width,height},isMobile:touch,hasTouch:touch});p.on('pageerror',e=>errors.push(e.message));p.on('console',m=>{if(m.type()==='error')errors.push(m.text());});if(process.env.TEST_CONDITIONS)await p.addInitScript(c=>localStorage.setItem('rex-pursuit-conditions',c),process.env.TEST_CONDITIONS);await p.goto(base);await p.waitForFunction(()=>window.rexChase?.rex,{timeout:120000});await p.locator('#start').click();await p.waitForFunction(()=>rexChase.mode==='playing');
    await p.evaluate(view=>{const r=rexChase;r.setView(view);r.state.transition('pursuit');r.state.nextDebris=Infinity;r.state.distance=12.5;r.state.beginChallenge();},view);await p.waitForTimeout(850);
    const sites=await p.evaluate(()=>{
     const r=rexChase;r.freeze=true;const out=[],o=r.state.objective;

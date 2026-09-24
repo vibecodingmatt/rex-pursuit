@@ -7,6 +7,10 @@ import * as T from 'three';
 // Key light from above, behind and to the right of the Jeep, so the Rex is lit
 // three-quarter on the face as she chases; a sun behind her made her a silhouette.
 export const SUN_DIRECTION=new T.Vector3(-.5,.78,-.38).normalize();
+// At night the moon hangs low over the road behind the Rex, so it rims her
+// silhouette and sits in view from the gun. The sun light stays on
+// SUN_DIRECTION as a faint sky key, keeping the canopy dapple aligned.
+export const MOON_DIRECTION=new T.Vector3(-.08,.27,.96).normalize();
 
 /** Height-attenuated exp2 fog with a warm in-scatter lobe toward the sun. Must run before materials compile. */
 export function installAtmosphericFog(sun=SUN_DIRECTION){
@@ -44,22 +48,43 @@ const NOISE=`
 `;
 function skyMaterial({forest=false}={}){
  return new T.ShaderMaterial({side:T.BackSide,depthWrite:false,fog:false,toneMapped:false,
-  uniforms:{sunDir:{value:SUN_DIRECTION.clone()},zenith:{value:new T.Color(0x6f9fc4)},horizon:{value:new T.Color(0xc4c9a8)},ground:{value:new T.Color(0x2c3120)},sunColor:{value:new T.Color(1,.86,.62)},time:{value:0},sunDisk:{value:forest?0:26},storm:{value:0},flash:{value:0},flashDir:{value:new T.Vector3(0,1,0)},drift:{value:0}},
+  uniforms:{sunDir:{value:SUN_DIRECTION.clone()},zenith:{value:new T.Color(0x6f9fc4)},horizon:{value:new T.Color(0xc4c9a8)},ground:{value:new T.Color(0x2c3120)},sunColor:{value:new T.Color(1,.86,.62)},time:{value:0},sunDisk:{value:forest?0:26},storm:{value:0},flash:{value:0},flashDir:{value:new T.Vector3(0,1,0)},drift:{value:0},night:{value:0},moonDir:{value:MOON_DIRECTION.clone()},moonColor:{value:new T.Color(.78,.86,1)}},
   vertexShader:'varying vec3 vDir;void main(){vec4 w=modelMatrix*vec4(position,1.);vDir=w.xyz-cameraPosition;gl_Position=projectionMatrix*viewMatrix*w;}',
-  fragmentShader:`varying vec3 vDir;uniform vec3 sunDir,zenith,horizon,ground,sunColor,flashDir;uniform float time,sunDisk,storm,flash,drift;${NOISE}
+  fragmentShader:`varying vec3 vDir;uniform vec3 sunDir,zenith,horizon,ground,sunColor,flashDir,moonDir,moonColor;uniform float time,sunDisk,storm,flash,drift,night;${NOISE}
   void main(){
-   vec3 d=normalize(vDir);float h=d.y,mu=dot(d,sunDir);
+   vec3 d=normalize(vDir);float h=d.y,mu=dot(d,sunDir),mm=dot(d,moonDir),day=1.-night;
    vec3 sky=mix(horizon,zenith,pow(smoothstep(-.02,.75,h),.55));
-   sky+=sunColor*(pow(max(mu,0.),6.)*.55+pow(max(mu,0.),48.)*1.6)*(1.-storm*.92);
+   sky+=sunColor*(pow(max(mu,0.),6.)*.55+pow(max(mu,0.),48.)*1.6)*(1.-storm*.92)*day;
+   // Night: a wide, faint moon glow scattered through the humid air.
+   sky+=moonColor*(pow(max(mm,0.),8.)*.07+pow(max(mm,0.),90.)*.22)*(1.-storm*.8)*night;
+   float cloud=0.;
+   if(h>0.&&night>0.){
+    // Stars: one candidate per cell of a direction lattice, twinkling slowly.
+    vec3 sp=d*260.;vec3 cell=floor(sp);float sh=fract(sin(dot(cell,vec3(127.1,311.7,74.7)))*43758.5453);
+    vec3 off=fract(sin(cell*vec3(12.9898,78.233,37.719)+sh*9.)*43758.5453)-.5;
+    float sd=length(fract(sp)-.5-off*.6),star=smoothstep(.16,0.,sd)*step(.955,sh)*(sh-.955)*22.;
+    star*=.65+.35*sin(time*(1.3+sh*3.)+sh*80.);
+    sky+=vec3(.85,.9,1.)*star*smoothstep(.04,.35,h)*night*(1.-storm);
+   }
    if(h>0.){
     vec2 p=d.xz/(h+.09)*1.25+(time+drift)*vec2(.0035,.0019);
     // Storm: the deck closes over and its heavy base goes dark and ragged.
-    float cover=mix(.46,.1,storm),c=smoothstep(cover,cover+.36-.12*storm,fbm(p))*smoothstep(.0,.22,h);
+    float cover=mix(.46,.1,storm)+.1*night*(1.-storm),c=smoothstep(cover,cover+.36-.12*storm,fbm(p))*smoothstep(.0,.22,h);
     vec3 lit=mix(horizon*1.08,vec3(1.35,1.3,1.2),.55)+sunColor*pow(max(mu,0.),5.)*2.2*(1.-storm);
     lit=mix(lit,mix(vec3(.13,.15,.16),vec3(.34,.37,.38),fbm(p*1.6+3.1)),storm);
-    sky=mix(sky,lit*(.82+.3*fbm(p*2.7)),c*mix(.8,.97,storm));
+    // Night clouds are dark wool with a silver edge toward the moon.
+    vec3 nightLit=mix(horizon*1.1,zenith*1.6,.5)+moonColor*(.025+.2*pow(max(mm,0.),6.))*(1.-storm*.85);
+    lit=mix(lit,nightLit*mix(1.,.55,fbm(p*1.6+3.1)*storm),night);
+    cloud=c*mix(.8,.97,storm);
+    sky=mix(sky,lit*(.82+.3*fbm(p*2.7)),cloud);
    }
-   sky+=sunColor*sunDisk*smoothstep(.99955,.9998,mu)*(1.-storm);
+   sky+=sunColor*sunDisk*smoothstep(.99955,.9998,mu)*(1.-storm)*day;
+   // Moon: a lit disk with darker maria, dimmed wherever the deck crosses it.
+   if(night>0.&&mm>.998){
+    vec3 mr=normalize(cross(moonDir,vec3(0,1,0))),mv=cross(mr,moonDir);vec2 mp=vec2(dot(d,mr),dot(d,mv))/.0275;
+    float disk=smoothstep(1.,.93,length(mp)),maria=smoothstep(.45,.75,fbm(mp*1.7+4.));
+    sky=mix(sky,moonColor*mix(2.6,1.7,maria)*(1.-.3*dot(mp,mp)),disk*night*(1.-cloud*.7)*(1.-storm*.9));
+   }
    // Lightning lights the cloud deck from within, brightest toward the stroke.
    sky+=vec3(.7,.76,1.)*flash*(.3+2.4*pow(max(dot(d,flashDir),0.),5.))*smoothstep(-.05,.15,h);
    ${forest?`
@@ -77,8 +102,9 @@ export function createSky(scene){
   palette(fog,zenith){material.uniforms.horizon.value.copy(fog);material.uniforms.zenith.value.set(zenith);}};
 }
 /** Natural image-based lighting: sky above, a forest band at the horizon, earth below. */
-export function createEnvironmentMap(renderer,{storm=0}={}){
+export function createEnvironmentMap(renderer,{storm=0,night=0}={}){
  const scene=new T.Scene(),material=skyMaterial({forest:true});material.uniforms.horizon.value.set(storm?0x5e6860:0xaab394);material.uniforms.storm.value=storm;if(storm)material.uniforms.zenith.value.set(0x46525a);
+ if(night){material.uniforms.night.value=1;material.uniforms.horizon.value.set(storm?0x161d22:0x1b2633);material.uniforms.zenith.value.set(storm?0x10161c:0x0c1628);}
  scene.add(new T.Mesh(new T.SphereGeometry(50,64,32),material));
  const pmrem=new T.PMREMGenerator(renderer),target=pmrem.fromScene(scene,0,.1,100);
  pmrem.dispose();material.dispose();return target.texture;

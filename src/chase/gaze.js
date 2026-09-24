@@ -7,13 +7,13 @@ export function createGaze(mesh,head){
  const boxes=[new T.Box3(),new T.Box3()],p=new T.Vector3();
  for(let i=0;i<a.count;i++){p.fromBufferAttribute(a,i);boxes[p.x<mid?0:1].expandByPoint(p);}
  const centers=boxes.map(b=>b.getCenter(new T.Vector3())),directions=[new T.Vector3(0,0,1),new T.Vector3(0,0,1)];
- const uniforms={rexEyeLeft:{value:directions[0]},rexEyeRight:{value:directions[1]},rexEyeSplit:{value:mid},blink:{value:0}};
+ const uniforms={rexEyeLeft:{value:directions[0]},rexEyeRight:{value:directions[1]},rexEyeSplit:{value:mid},blink:{value:0},eyeShine:{value:0}};
  const material=mesh.material=mesh.material.clone();material.roughness=.42;material.color.setRGB(1,.74,.3);
  material.onBeforeCompile=shader=>{
   Object.assign(shader.uniforms,uniforms);
   shader.vertexShader=shader.vertexShader.replace('#include <common>','#include <common>\nvarying vec3 rexEyeNormal;\nvarying float rexEyeSide;\nuniform float rexEyeSplit;')
    .replace('#include <begin_vertex>','#include <begin_vertex>\nrexEyeNormal=normal;\nrexEyeSide=step(rexEyeSplit,position.x);');
-  shader.fragmentShader=shader.fragmentShader.replace('#include <common>','#include <common>\nvarying vec3 rexEyeNormal;\nvarying float rexEyeSide;\nuniform vec3 rexEyeLeft;\nuniform vec3 rexEyeRight;\nuniform float blink;')
+  shader.fragmentShader=shader.fragmentShader.replace('#include <common>','#include <common>\nvarying vec3 rexEyeNormal;\nvarying float rexEyeSide;\nuniform vec3 rexEyeLeft;\nuniform vec3 rexEyeRight;\nuniform float blink;\nuniform float eyeShine;')
    .replace('#include <map_fragment>',`vec3 eyeForward=normalize(mix(rexEyeLeft,rexEyeRight,rexEyeSide));
     vec3 eyeRight=normalize(cross(vec3(0.0,1.0,0.0),eyeForward));
     vec3 eyeUp=cross(eyeForward,eyeRight);
@@ -23,9 +23,12 @@ export function createGaze(mesh,head){
     // Dark limbal ring, then an upper lid that sweeps down on each blink.
     float eyeR=length(eyeUV-.5);diffuseColor.rgb*=mix(1.,.62,smoothstep(.15,.225,eyeR));
     float lidEdge=mix(.78,.2,blink)+.9*(eyeUV.x-.5)*(eyeUV.x-.5);
-    diffuseColor.rgb=mix(diffuseColor.rgb,vec3(.055,.038,.028),smoothstep(lidEdge-.015,lidEdge+.015,eyeUV.y));`);
+    float eyeOpen=1.-smoothstep(lidEdge-.015,lidEdge+.015,eyeUV.y);
+    diffuseColor.rgb=mix(diffuseColor.rgb,vec3(.055,.038,.028),1.-eyeOpen);`)
+   // Night eye shine: a tapetum behind the pupil returns the flashlight beam.
+   .replace('#include <emissivemap_fragment>','#include <emissivemap_fragment>\ntotalEmissiveRadiance+=vec3(.95,1.,.42)*eyeShine*9.*smoothstep(.2,.08,eyeR)*eyeOpen;');
  };
- material.customProgramCacheKey=()=> 'rex-converging-eyes-v2';
+ material.customProgramCacheKey=()=> 'rex-converging-eyes-v3';
  // Natural blinks every few seconds; impacts can force one.
  let blinkAge=1,nextBlink=2.4;const blinkCurve=a=>a<.07?a/.07:a<.1?1:Math.max(0,1-(a-.1)/.11);
  const inverse=new T.Matrix4(),localTarget=new T.Vector3(),desired=new T.Vector3();

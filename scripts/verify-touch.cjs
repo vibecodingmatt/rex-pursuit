@@ -33,7 +33,13 @@ const base=process.env.TEST_URL||'http://127.0.0.1:5188/';
    await send('touchStart',[fire]);await page.setViewportSize({width:844,height:390});await page.waitForTimeout(120);assert.equal(await page.locator('#touch-fire').evaluate(b=>b.classList.contains('pressed')),false,'Rotation clears held input');await send('touchEnd',[]);await page.setViewportSize({width,height});await page.evaluate(()=>window.dispatchEvent(new Event('blur')));assert.equal(await page.evaluate(()=>rexChase.mode),'paused');await page.locator('#resume').tap();
   }
   await page.locator('#pause').tap();await page.locator('#pause-screen [data-camera="third"]').tap();assert.equal(await page.evaluate(()=>rexChase.view),'third');await page.locator('#resume').tap();assert.equal(await page.evaluate(()=>rexChase.mode),'playing');
-  report.push({name,offset,layout,multitouch:true,longPress:true,cancel:true,pauseCamera:true,gap});await page.close();
+  // Night adds a LIGHT button above FIRE: on screen, full size, clear of the others, and it switches the beam.
+  await page.evaluate(()=>rexChase.setConditions('night',true));await page.waitForTimeout(150);
+  const lights=await page.evaluate(()=>[...document.querySelectorAll('#touch-controls button')].filter(b=>b.getClientRects().length&&getComputedStyle(b).display!=='none').map(b=>{const r=b.getBoundingClientRect();return{id:b.id,x:r.x,y:r.y,w:r.width,h:r.height};}));
+  const light=lights.find(b=>b.id==='touch-light');assert.ok(light,`${name}: LIGHT shown at night`);assert.ok(light.x>=0&&light.y>=0&&light.x+light.w<=width+1&&light.y+light.h<=height+1&&light.w>=44&&light.h>=44,`${name}: LIGHT clipped or small`);
+  for(const o of lights)if(o!==light)assert.ok(o.x>=light.x+light.w||light.x>=o.x+o.w||o.y>=light.y+light.h||light.y>=o.y+o.h,`${name}: LIGHT overlaps ${o.id}`);
+  await page.locator('#touch-light').tap();assert.equal(await page.evaluate(()=>rexChase.night.flashlightOn),false,'LIGHT switches the flashlight off');await page.locator('#touch-light').tap();assert.equal(await page.evaluate(()=>rexChase.night.flashlightOn),true);
+  report.push({name,offset,layout,multitouch:true,longPress:true,cancel:true,pauseCamera:true,gap,light});await page.close();
  }
  assert.deepEqual(errors,[]);fs.writeFileSync('art/review/touch-verification.json',JSON.stringify({errors,report},null,2));console.log('Touch passed on phone, small phone, landscape and tablet: trusted two-thumb input, visible reticle offset, aimed hits, hold/release/cancel, long-press prevention, reload/HE, pause/rotation and 44px controls.');
  }finally{await browser.close();}})().catch(e=>{console.error(e);process.exit(1);});
