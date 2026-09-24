@@ -1,4 +1,7 @@
 ﻿import {AUDIO_KEY,DEFAULT_ROLES,readCatalog,resolveAudioSettings,clipEnvelope} from './audio-catalog.js';
+// Equal-power crossfade of the tail into the head, so a recorded bed loops without a seam.
+function loopable(c,b,seconds){const n=Math.floor(seconds*b.sampleRate);if(b.length<n*3)return b;const out=c.createBuffer(b.numberOfChannels,b.length-n,b.sampleRate);
+ for(let ch=0;ch<b.numberOfChannels;ch++){const src=b.getChannelData(ch),dst=out.getChannelData(ch);dst.set(src.subarray(0,b.length-n));for(let i=0;i<n;i++){const t=i/n*Math.PI/2;dst[i]=src[i]*Math.sin(t)+src[b.length-n+i]*Math.cos(t);}}return out;}
 export class ChaseAudio {
  constructor(){this.context=null;this.muted=false;this.buffers=new Map();this.envelopes=new Map();this.ready=false;this.active=[];this.roles={...DEFAULT_ROLES};this.voice=null;this.jaw=0;this.labels={};this.ambientWait=12;this.ambientIndex=0;this.stepIndex=0;this.lastPain=-10;}
  async readRoles(){
@@ -26,6 +29,30 @@ export class ChaseAudio {
   if(vocal){this.stopVoice();this.voice={source,gain,id:n,kind:vocal,start:c.currentTime,rate,envelope:this.envelopes.get(n),duration:source.buffer.duration/rate};}
   source.start();this.active.push(source);
   source.onended=()=>{this.active=this.active.filter(x=>x!==source);if(this.voice?.source===source)this.voice=null;source.disconnect();gain.disconnect();pan.disconnect();};return source;
+ }
+ // Storm: recorded rain bed and thunder, loaded the first time the storm is heard.
+ async loadStorm(){
+  if(this.storm||!this.context)return;this.storm={};
+  await Promise.all([['rain','rain-loop'],['near','thunder-near'],['far','thunder-far']].map(async([k,f])=>{try{const r=await fetch(`./audio/storm/${f}.mp3`);if(!r.ok)throw Error(r.status);this.storm[k]=await this.context.decodeAudioData(await r.arrayBuffer());}catch(e){console.warn('Storm audio unavailable',f,e.message);}}));
+  if(this.storm.rain)this.storm.rain=loopable(this.context,this.storm.rain,1.2);
+ }
+ weather(level){
+  if(!this.context)return;if(level>.01&&!this.storm)this.loadStorm();
+  const c=this.context;
+  if(!this.rainBed&&this.storm?.rain){
+   // Two copies of the bed, offset, slightly detuned and panned apart: a wide wash that hides the loop length.
+   const gain=c.createGain();gain.gain.value=0;gain.connect(this.master);
+   this.rainBed={gain,sources:[-.6,.6].map((p,i)=>{const s=c.createBufferSource(),pan=c.createStereoPanner();s.buffer=this.storm.rain;s.loop=true;s.playbackRate.value=i?1.03:.97;pan.pan.value=p;s.connect(pan);pan.connect(gain);s.start(0,i*s.buffer.duration*.5);return s;})};
+  }
+  if(this.rainBed)this.rainBed.gain.gain.setTargetAtTime(level*1.5,c.currentTime,.35);
+ }
+ /** Thunder arrives after the flash by distance / speed of sound; air absorbs the highs of far strikes. */
+ thunder(delay,near){
+  if(!this.context)return;if(!this.storm){this.loadStorm();return;}
+  const buffer=near>.72?this.storm.near:this.storm.far;if(!buffer)return;
+  const c=this.context,s=c.createBufferSource(),f=c.createBiquadFilter(),g=c.createGain();
+  s.buffer=buffer;s.playbackRate.value=.92+Math.random()*.14;f.type='lowpass';f.frequency.value=700+near*near*9000;g.gain.value=.25+near*.55;
+  s.connect(f);f.connect(g);g.connect(this.master);s.start(c.currentTime+Math.min(delay,6));s.onended=()=>{s.disconnect();f.disconnect();g.disconnect();};
  }
  stopVoice(){if(this.voice){try{this.voice.source.stop();}catch{}}this.voice=null;}
  roar(opening=false){return this.play(opening?this.roles.opening:this.roles.charge,opening?.96:.68,opening?.95:1.03,{vocal:'roar'});}

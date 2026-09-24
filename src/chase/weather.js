@@ -109,7 +109,7 @@ export function createWeather(scene,{renderer,sky,makeEnvironment,reducedMotion=
  const api={
   bolt,rain:rain.mesh,splashes:splash.mesh,
   onThunder:null,
-  get kind(){return target>.5?'storm':'clear';},get value(){return value;},get flash(){return flash;},get strike(){return strike;},
+  get kind(){return target>.5?'storm':'clear';},get rainLevel(){return RAIN.value;},get value(){return value;},get flash(){return flash;},get strike(){return strike;},
   /** Record the lighting a location sets, so the storm always blends from it. */
   captureBase({sun,hemi,rim,fill,post}){
    Object.assign(base,{sun:sun.intensity,sunColor:sun.color.clone(),hemi:hemi.intensity,hemiSky:hemi.color.clone(),hemiGround:hemi.groundColor.clone(),rim:rim.intensity,rimPos:rim.position.clone(),fill:fill.intensity,

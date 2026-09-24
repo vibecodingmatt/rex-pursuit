@@ -166,6 +166,6 @@ Base mesh, textures, rig and original **RunRoar** animation: **Tyrannosaurus Rex
 
 Modifications: skull proportions, standing pose, outline-shell removal, clean skeleton rebind, jaw hierarchy repair, brown palette, skin subdivision, original behavior clips, procedural running, impact materials, lighting and web presentation. The current Sketchfab listing has different license metadata; provenance here is the CC BY 4.0 copy distributed by NAVER and its embedded author/license/source fields. The source is retained in `art/`.
 
-Dinosaur audio was supplied by the user in the reference MP3; its filename identifies joelfazhari. Foliage texture generated using OpenAI ImageGen. Jeep, environment geometry, effects and synthesized sounds authored for this prototype.
+Dinosaur audio was supplied by the user in the reference MP3; its filename identifies joelfazhari. Storm audio (CC0, Freesound): heavy rain loop by Rubaoliva (https://freesound.org/people/Rubaoliva/sounds/624645/), close thunder by loganzsound (https://freesound.org/people/loganzsound/sounds/840628/), distant thunder by Fission9 (https://freesound.org/people/Fission9/sounds/581125/). Foliage texture generated using OpenAI ImageGen. Jeep, environment geometry, effects and synthesized sounds authored for this prototype.
 
 The 1993 Jurassic Park T. rex is the visual reference for this unofficial fan concept. The model is an attributed artist-created foundation, not a verified movie replica or an original film production mesh.

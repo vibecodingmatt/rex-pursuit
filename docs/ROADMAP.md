@@ -71,7 +71,7 @@ Started 2026-09-24. The user shared the prompt history behind a viral Three.js o
 
 ## Drop 2: Real sound
 
-**Needs:** the shopping list below, downloaded by the user.
+**Needs:** candidates are already downloaded and screened (2026-09-24) in the ignored `audio_reference/drop-audio/`: 35 CC0 Freesound files in 12 slot folders, `SOURCES.md` (author, license, measurements, TOP PICK per slot) and `index.html` (open from disk to audition). Use the user's picks if they gave any; otherwise the TOP PICKs. The storm rain and thunder are already wired (Drop 1).
 
 **What you'll hear:**
 - Real .50-cal bursts with an echo tail off the jungle, and real impacts on hide and dirt.
@@ -201,4 +201,4 @@ This is Rex's version of his parameter UI, and it makes the upgrades shareable.
 | Drop | Status | Date | Notes |
 | --- | --- | --- | --- |
 | Roadmap | done | 2026-09-24 | Inspiration mapped; nothing shipped. |
-| 1 Storm | done (local, not pushed) | 2026-09-24 | `weather.js` + `weather-state.js`; Conditions picker; rain, splashes, puddle ripples, wet ground/foliage/hide, lightning + bolt, storm sky/grade, third-person lens beads, `?fps`. `audio.thunder(delay,near)` and `audio.weather(level)` are called but not yet implemented (Drop 2). Review captures in `art/review/storm/`. Checks: build, test:logic, test:smoke, test:pressure (first run hit the known intermittent compact-phone case; the re-run passed every view), phone portrait and menu captures. |
+| 1 Storm | done (local, not pushed) | 2026-09-24 | `weather.js` + `weather-state.js`; Conditions picker; rain, splashes, puddle ripples, wet ground/foliage/hide, lightning + bolt, storm sky/grade, third-person lens beads, `?fps`. Storm audio added afterwards: a rain bed (two detuned, offset copies of a crossfaded loop) and distance-delayed, low-passed thunder from `public/audio/storm/` (CC0, credited in README). Review captures in `art/review/storm/`. Checks: build, test:logic, test:smoke, test:pressure (first run hit the known intermittent compact-phone case; the re-run passed every view), phone portrait and menu captures. |
