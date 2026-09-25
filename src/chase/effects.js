@@ -44,9 +44,9 @@ export function createEffects(scene,dustMap){
 
  // ---- Fire stays an additive sprite pool; puffs, smoke and mist are soft (soft-smoke.js).
  const makePool=(n,map,blending,color)=>Array.from({length:n},()=>{const s=new T.Sprite(new T.SpriteMaterial({map,color,transparent:true,opacity:0,depthWrite:false,blending}));s.visible=false;s.renderOrder=4;scene.add(s);return{sprite:s,life:0,max:1,velocity:new T.Vector3(),size:1,growth:1,opacity:1,spin:0,ground:false,hdr:1,base:new T.Color(color)};});
- const soft=createSoftSmoke(96),chunks=createChunks(scene);
- const fire=makePool(24,fireMap,T.AdditiveBlending,0xffffff),puffs=soft.pool(24,0xa9916a),smoke=soft.pool(44,0x3c3a34),mist=soft.pool(28,0xd8d4c8,.6);
- let puffId=0,fireId=0,smokeId=0,mistId=0,lastRoad=0;
+ const soft=createSoftSmoke(140),chunks=createChunks(scene);
+ const fire=makePool(24,fireMap,T.AdditiveBlending,0xffffff),puffs=soft.pool(24,0xa9916a),smoke=soft.pool(44,0x3c3a34),mist=soft.pool(28,0xd8d4c8,.6),ground=soft.pool(44,0xa58f6b);
+ let puffId=0,fireId=0,smokeId=0,mistId=0,groundId=0,lastRoad=0;
  function launch(pool,idx,p,{life:l,size,growth,opacity,velocity:v,color,spin=0,ground=false,hdr=1,rise=0,drag=1.1}){
   const d=pool[idx%pool.length];d.life=d.max=l;d.size=d.now=size;d.growth=growth;d.opacity=opacity;d.velocity.copy(v||ZERO);d.spin=spin;d.ground=ground;d.hdr=hdr;d.rise=rise;d.drag=drag;d.rot=rnd()*6.28;d.seed=rnd();d.alpha=0;
   if(color!==undefined)d.base.set(color);if(d.soft){d.pos.copy(p);return d;}
@@ -113,6 +113,13 @@ export function createEffects(scene,dustMap){
   footstep(p,speed){stats.footsteps++;const strength=T.MathUtils.clamp(speed/10,.65,1.35),dry=1-WET.value;groundDust(p,Math.round(5*dry),strength);grit(p,strength,8*dry);kick(p,strength);},
   bodyImpact(p,strength){stats.bodyImpacts++;const dry=1-WET.value;groundDust(p,Math.ceil(18*strength*dry),.7+strength*.55,true);grit(p,2*strength,18*dry);kick(p,1.4*strength);this.splash?.(p,strength);},
   bodySlide(p,strength){groundDust(p,Math.round(3*(1-WET.value)),.5+strength*.6,true);this.splash?.(p,strength*.5);},
+  // Primitives for the Rex's fall (skid.js). Dust and haze velocities are relative
+  // to the ground (they ride the road); debris and specks are in the Jeep's frame.
+  get particleScale(){return particleScale;},
+  groundDust(p,v,{life=2,size=.6,growth=3,opacity=.5,color=0xa58f6b,drag=1.6,rise=.1,lit=1}={}){const d=launch(ground,groundId++,p,{life,size,growth,opacity,velocity:v,color,ground:true,drag,rise});d.lit=lit;return d;},
+  haze(p,v,{life=1,size=.4,growth=2,opacity=.1,color=0xdcd8cc,drag=1.5,rise=.2}={}){return launch(mist,mistId++,p,{life,size,growth,opacity,velocity:v,color,ground:true,drag,rise});},
+  debris(kind,p,v,scale=1){chunks.spawn(kind,p,v,scale);},
+  speck(p,v,color,size,life){emit(p,v,color,size,life);},
   reset(){life.fill(0);position.fill(-1000);groundRelative.fill(0);geo.attributes.position.needsUpdate=true;for(const d of dust){d.life=0;d.sprite.visible=false;}for(const p of fire){p.life=0;p.sprite.visible=false;}soft.reset();chunks.reset();for(const t of tracers){t.life=0;t.mesh.visible=false;}lightTime=0;burstLight.intensity=0;screenFlash=0;stats.footsteps=stats.bodyImpacts=stats.explosions=stats.breaths=0;},
   trace(a,b){
    shotDir.subVectors(b,a).normalize();const t=tracers[traceId++%tracers.length];t.u.a.value.copy(a);t.u.b.value.copy(b);const bright=roundCount++%3===0;const d=a.distanceTo(b);t.flight=Math.min(.2,Math.max(.07,d/160));t.hold=.05;t.u.gain.value=bright?1:.5;t.age=0;t.life=t.flight+t.hold;t.mesh.visible=true;t.u.head.value=0;t.u.tail.value=0;t.u.seg.value=Math.min(.6,(bright?6:3.5)/Math.max(d,1));t.u.trail.value=1;t.u.slug.value=1;

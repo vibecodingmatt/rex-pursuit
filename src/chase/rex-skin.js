@@ -41,14 +41,16 @@ export function markGape(mesh){
  g.setAttribute('rexGape',new T.BufferAttribute(out,1));
 }
 export function createRexSkin(){
- const uniforms={tRexScales:{value:scaleTexture()},uRexDetail:{value:1},uRexDebug:{value:0},uRexJaw:{value:0},uRexRain:WET};
+ // uRexFallMud: soil picked up in the victory fall (x jaw and throat, y chest and
+ // belly, z tail) and how wet it is (w); written by skid.js.
+ const uniforms={tRexScales:{value:scaleTexture()},uRexDetail:{value:1},uRexDebug:{value:0},uRexJaw:{value:0},uRexRain:WET,uRexFallMud:{value:new T.Vector4()}};
  function extend(s){
   Object.assign(s.uniforms,uniforms);
   s.vertexShader=s.vertexShader.replace('#include <common>','#include <common>\nvarying vec3 vRexNormal;attribute float rexGape;varying float vRexGape;')
    .replace('#include <beginnormal_vertex>','#include <beginnormal_vertex>\nvRexNormal=objectNormal;vRexGape=rexGape;');
   s.fragmentShader=s.fragmentShader.replace('#include <common>',`#include <common>
-   varying vec3 vRexNormal;varying float vRexGape;uniform sampler2D tRexScales;uniform float uRexDetail,uRexDebug,uRexJaw,uRexRain;
-   float rexScaleH,rexMud,rexWet,rexMouth,rexCavity,rexSoak,rexStreak;
+   varying vec3 vRexNormal;varying float vRexGape;uniform sampler2D tRexScales;uniform float uRexDetail,uRexDebug,uRexJaw,uRexRain;uniform vec4 uRexFallMud;
+   float rexScaleH,rexMud,rexWet,rexMouth,rexCavity,rexSoak,rexStreak,rexFallMud;
    // Oral cavity in rest space: between the jaws around the off-centre midline
    // (x~.17), on surfaces that face into the mouth rather than out of the head.
    float rexMouthMask(vec3 p,vec3 n){
@@ -106,6 +108,24 @@ export function createRexSkin(){
     // Cavity occlusion: the jaws shade the interior, most deeply toward the throat.
     rexCavity=rexMouth*mix(.82,.55,depth);
     c=mix(c,flesh,rexMouth);rexScaleH=mix(rexScaleH,.85,rexMouth);rexMud*=1.-rexMouth;
+    // Victory fall: soil ground into everything that met the road — the lower jaw
+    // and throat, the chest and belly (bottom profile ~1.8+.12(z-1)^2), the tail's
+    // underside — streaked along the slide, ragged at the edge, spattered above it.
+    rexFallMud=0.;
+    if(uRexFallMud.x+uRexFallMud.y+uRexFallMud.z>.002){
+     float down=smoothstep(.2,-.5,rn.y),bottom=1.8+.12*(p.z-1.)*(p.z-1.);
+     float jaw=smoothstep(4.7,5.2,p.z)*(1.-smoothstep(3.62,3.9,p.y))*(.45+.55*down);
+     float throat=smoothstep(3.2,3.7,p.z)*(1.-smoothstep(4.7,5.1,p.z))*(1.-smoothstep(3.15,3.55,p.y))*(.5+.5*down);
+     float body=smoothstep(-.9,-.3,p.z)*(1.-smoothstep(3.3,3.8,p.z))*(1.-smoothstep(bottom+.2,bottom+.55,p.y))*(.3+.7*down);
+     float tail=(1.-smoothstep(-.7,-.1,p.z))*smoothstep(-.05,-.45,rn.y);
+     float along=rexNoise(vec3(p.x*6.,p.y*6.,p.z*.8)),rag=rexNoise(p*4.3+5.);
+     float m=max(uRexFallMud.x*max(jaw,throat),max(uRexFallMud.y*body,uRexFallMud.z*tail));
+     rexFallMud=smoothstep(.3,.62,m*(.65+.7*along)+(rag-.5)*.4);
+     rexFallMud=max(rexFallMud,smoothstep(.83,.9,rexNoise(p*11.+2.))*smoothstep(.05,.3,m)*.8);
+     rexFallMud*=1.-rexMouth;
+     vec3 caked=mix(vec3(.2,.155,.105)*(.8+.35*mid),vec3(.068,.05,.035)*(.75+.5*mid),uRexFallMud.w);
+     c=mix(c,caked,rexFallMud*.92);
+    }
     // Rain: the hide soaks darkest along the back where water sheets off, with
     // runoff rivulets (noise stretched vertically) and water held in the scale cavities.
     rexStreak=smoothstep(.5,.85,rexNoise(vec3(p.x*6.,p.y*.7,p.z*6.)+vec3(0.,big,0.)));
@@ -118,6 +138,7 @@ export function createRexSkin(){
    roughnessFactor=mix(roughnessFactor,.5,rexWet*.7);
    roughnessFactor=mix(roughnessFactor,.46,rexMouth);
    roughnessFactor=mix(roughnessFactor,mix(.52,.9,smoothstep(.2,1.4,vImpactRest.y)),rexMud);
+   roughnessFactor=mix(roughnessFactor,mix(.97,.3,uRexFallMud.w),rexFallMud);
    roughnessFactor+=(1.-rexScaleH)*.07;
    roughnessFactor=mix(roughnessFactor,max(roughnessFactor,.62),(1.-rexWet)*(1.-rexMouth));
    roughnessFactor=mix(roughnessFactor,mix(.36,.2,rexStreak)+(1.-rexScaleH)*.08,rexSoak);
@@ -127,7 +148,7 @@ export function createRexSkin(){
    {
     float fade=(1.-smoothstep(6.,26.,length(vViewPosition)))*uRexDetail;
     normal=normalize(mix(normal,rexBaseNormal,rexMouth*.85));
-    if(fade>0.)normal=rexBump(-vViewPosition,normal,rexScaleH,.0022*fade*(1.-rexMud*.5),faceDirection);
+    if(fade>0.)normal=rexBump(-vViewPosition,normal,rexScaleH,.0022*fade*(1.-rexMud*.5)*(1.-rexFallMud*.6),faceDirection);
     // Specular anti-aliasing: widen highlights where micro-normals vary per pixel.
     vec3 dn=fwidth(normal);roughnessFactor=max(roughnessFactor,min(.95,.46+length(dn)*1.6));
    }`)
@@ -153,7 +174,7 @@ export function createRexSkin(){
     reflectedLight.indirectDiffuse+=material.diffuseColor*vec3(.58,.62,.55)*facing*.55*(1.-.5*rexMouth);
    }`);
  }
- return{uniforms,extend,key:'rex-hide-v5'};
+ return{uniforms,extend,key:'rex-hide-v6'};
 }
 
 /** Wet, ivory teeth with darker roots; a clear specular cornea. */

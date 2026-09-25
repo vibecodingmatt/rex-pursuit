@@ -42,7 +42,7 @@ const fs=require('node:fs');
      const t=(i+1)/fps,coast=Math.max(0,Math.min(1,(t-.8)/1.2)),speed=10-5*coast*coast*(3-2*coast);
      rex.update(1/fps,{phase,phaseTime:1,distance:18,result:'won'},1+t,speed);
      maxPhaseChange=Math.max(maxPhaseChange,Math.abs(frozenPhase-rex.gait.phase));
-     for(const e of rex.drainMotionEvents())events.push({type:e.type,strength:e.strength,time:t,position:e.position.toArray()});
+     for(const e of rex.drainMotionEvents())events.push({type:e.type,part:e.part,strength:e.strength,time:t,position:e.position.toArray()});
      if(t>=nextSample){
       let minY=Infinity;const p=rex.actor.position.clone();
       for(const mesh of rex.meshes)if(mesh.isSkinnedMesh)for(let v=0;v<mesh.geometry.attributes.position.count;v++){mesh.getVertexPosition(v,p);p.applyMatrix4(mesh.matrixWorld);minY=Math.min(minY,p.y);}
@@ -71,7 +71,7 @@ const fs=require('node:fs');
   assert.deepEqual(errors,[]);
   for(const r of report.runs){assert.ok(r.maxKneeSpeed<(r.phase==='charge'?13:10),`${r.phase}: knee speed ${r.maxKneeSpeed}`);assert.ok(r.maxHipSpeed<(r.phase==='charge'?11:8),`${r.phase}: hip snaps`);assert.ok(r.footfalls.length>=(r.phase==='charge'?7:5)&&r.footfalls.length<=(r.phase==='charge'?9:6),'Footstep count must follow the slower stride cadence');for(let i=1;i<r.footfalls.length;i++)assert.notEqual(r.footfalls[i].side,r.footfalls[i-1].side,'Dust follows alternating foot contacts');assert.ok(r.footfalls.every(f=>f.height<.1));assert.ok(r.activePuffs>0&&r.activePuffs<=96);}
   assert.ok(Math.abs(report.dustDisplacement-report.expectedDustDisplacement)<1e-6,'Dust must advect with road');
-  for(const d of report.deaths){assert.equal(d.maxPhaseChange,0,'Running cycle stops immediately at death');assert.ok(d.settledMovement<1e-6,'Limbs must settle');assert.equal(d.forwardSpeed,0);assert.equal(d.complete,true);assert.equal(d.events.filter(e=>e.type==='footstep').length,0);assert.equal(d.events.filter(e=>e.type==='body-impact').length,3);assert.ok(d.samples.every(s=>s.minY>-.08),`${d.phase} ${d.fps}fps: body sinks below road`);assert.ok(d.headMinY<.2,'Head must settle beside the body');for(const b of d.bending)assert.ok(b.range>.025,`${b.bone}: independent movement through impact and slide`);}
+  for(const d of report.deaths){assert.equal(d.maxPhaseChange,0,'Running cycle stops immediately at death');assert.ok(d.settledMovement<1e-6,'Limbs must settle');assert.equal(d.forwardSpeed,0);assert.equal(d.complete,true);assert.equal(d.events.filter(e=>e.type==='footstep').length,0);const impacts=d.events.filter(e=>e.type==='body-impact');assert.ok(impacts.length>=3&&impacts.length<=4,`${d.phase} ${d.fps}fps: ${impacts.length} impacts`);assert.ok(['chin','chest','hips'].every(p=>impacts.some(e=>e.part===p)),'Chin, chest and hips each land once');const chin=impacts.find(e=>e.part==='chin'),hips=impacts.find(e=>e.part==='hips');assert.ok(chin.time<=hips.time+.05,'She goes down face first');assert.ok(d.samples.every(s=>s.minY>-.08),`${d.phase} ${d.fps}fps: body sinks below road`);assert.ok(d.headMinY<.2,'Head must settle beside the body');for(const b of d.bending)assert.ok(b.range>.025,`${b.bone}: independent movement through impact and slide`);}
   assert.deepEqual(report.reset,{death:false,dust:0,footsteps:0});
   console.log('Knee recovery, synchronized footsteps, road-relative dust, and grounded death fall verified.');
  }finally{await browser.close();}

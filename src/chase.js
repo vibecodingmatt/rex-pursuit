@@ -21,6 +21,7 @@ import {setupSharing} from './chase/share.js';
 import {createBirds} from './chase/birds.js';
 import {createWeather} from './chase/weather.js';
 import {createMud} from './chase/mud.js';
+import {createSkid} from './chase/skid.js';
 import {createNight} from './chase/night.js';
 import {createCritters} from './chase/critters.js';
 import {createInsects} from './chase/insects.js';
@@ -53,7 +54,7 @@ function tierName(){return quality==='auto'?autoTier:quality;}
 function applyQuality(){
  const t=TIERS[tierName()];renderer.setPixelRatio(Math.min(devicePixelRatio,t.pixelRatio));governor.setRange(t.scale);governor.reset();
  if(sun.shadow.mapSize.x!==t.shadow){sun.shadow.mapSize.set(t.shadow,t.shadow);sun.shadow.map?.dispose();sun.shadow.map=null;}
- post.configure({scale:governor.scale,msaa:t.msaa,bloomLevels:t.bloomLevels,volumetric:t.volumetric,ao:t.ao});jungle?.setQuality?.(t);critters?.setQuality(t);insects?.setQuality(t);brachio?.setQuality(t);effects?.setQuality?.(t);weather?.setQuality(t);night?.setQuality(t);mud?.setQuality(t);
+ post.configure({scale:governor.scale,msaa:t.msaa,bloomLevels:t.bloomLevels,volumetric:t.volumetric,ao:t.ao});jungle?.setQuality?.(t);critters?.setQuality(t);insects?.setQuality(t);brachio?.setQuality(t);effects?.setQuality?.(t);weather?.setQuality(t);night?.setQuality(t);mud?.setQuality(t);skid?.setQuality(t);
  document.body.dataset.quality=tierName();document.body.dataset.post=post.supported?'on':'off';document.querySelectorAll('[data-quality]').forEach(b=>b.setAttribute('aria-pressed',String(b.dataset.quality===quality)));
  const gpu=(detected.gpu.match(/(rtx|gtx|rx|arc|radeon|apple md|adreno|mali|intel|iris|uhd)[^,(]*/i)?.[0]||'').replace(/s+/g,' ').trim().toUpperCase();
  document.querySelectorAll('.quality-readout').forEach(e=>e.textContent=`Rendering ${t.label.toUpperCase()}${quality==='auto'?' (auto)':''}${gpu?' · '+gpu:''} · ${t.volumetric?'volumetric light':'light shafts'} · ${t.msaa}× MSAA`);
@@ -72,6 +73,7 @@ ambushScenery.root.scale.x=-1;
 const debris=createDebris(scene,camera,$('#target-layer'));
 const birds=createBirds(scene);
 const mud=createMud(scene);effects.splash=(p,strength)=>mud.burst(p,strength);
+const skid=createSkid(scene,{effects,mud});
 const raycaster=new T.Raycaster(),pointer=new T.Vector2(),aimTarget=new T.Vector3(0,3.7,16);let rex,mode='loading',view='first',firing=false,breathClock=0,stomp=0,stompVel=0,stompOffset=0,time=0,last=performance.now(),shake=0,gunKick=0,hitTime=0,damageFlash=0,endTime=0,frameCount=0,freeze=false;
 const reducedMotion=matchMedia('(prefers-reduced-motion: reduce)').matches;
 weather=createWeather(scene,{renderer,sky,makeEnvironment:createEnvironmentMap,reducedMotion});weather.captureBase({sun,hemi,rim,fill,post});
@@ -114,7 +116,7 @@ async function start(){
  try{await audio.init();}catch(e){console.warn('Audio initialization failed',e.message);}
  audio.stopCalls();state.reset();
  state.introDuration=Math.max(RULES.intro,RULES.roarAt+(audio.buffers.get(audio.roles.opening)?.duration||3.64)/.95+1.5);
- rex.reset();effects.reset();night.reset();updateLightButton();mud.reset();birds.reset();jeep.reset();jungle.reset();critters.reset({intro:true});insects.reset();brachio.reset();opening.reset();ambushScenery.reset();targets?.reset();debris.reset();swallow.reset();visitorCenter.reset();sharing.reset();
+ rex.reset();effects.reset();night.reset();updateLightButton();mud.reset();skid.reset();birds.reset();jeep.reset();jungle.reset();critters.reset({intro:true});insects.reset();brachio.reset();opening.reset();ambushScenery.reset();targets?.reset();debris.reset();swallow.reset();visitorCenter.reset();sharing.reset();
  jungleRoot.visible=true;rex.actor.visible=true;jungleLighting();canopy.reset();
  $('#arrival-caption').style.opacity=0;
  time=0;endTime=0;shake=0;stomp=stompVel=stompOffset=0;damageFlash=0;firing=false;pointer.set(0,.08);moveReticle();
@@ -226,14 +228,16 @@ function handleEvents(){for(const event of state.drainEvents()){
   setView('first');camera.position.set(.06,2.4,-.45);cameraLook.set(0,3.4,12);camera.lookAt(cameraLook);camera.fov=62;camera.updateProjectionMatrix();
  }
 }}
-function handleMotionEvents(playing){for(const e of rex.drainMotionEvents()){
+function handleMotionEvents(playing,speed){for(const e of rex.drainMotionEvents()){
  if(e.type==='footstep'){critters.alarm(e.position,4+Math.min(6,e.speed*.5));effects.footstep(e.position,e.speed);mud.step(e.position,e.speed,e.side);if(playing&&!(state.result==='lost'&&endTime>DEFEAT.contact)){const concealed=state.phase==='flank'&&state.phaseTime>=AMBUSH.vanish&&state.phaseTime<AMBUSH.returnAt;audio.footstep(.22*Math.min(1,18/state.distance)*(concealed?.13:1),e.position);
    // Each footfall carries through the ground: a small jolt that grows as she closes.
    // No stomp while aiming at targets or debris: the framing must hold still.
    const aiming=['warning','challenge'].includes(state.phase)||state.debris?.status==='active';
    if(!concealed&&!aiming&&!(state.result==='lost'&&endTime>DEFEAT.openAt-.4)){const d=Math.hypot(e.position.x,e.position.z);stomp=Math.max(stomp,.045*T.MathUtils.clamp(1-(d-7)/13,0,1));}}}
- if(e.type==='body-impact'){critters.alarm(e.position,14);effects.bodyImpact(e.position,e.strength);if(playing){audio.groundImpact(e.strength);shake=Math.max(shake,e.strength*.38);}}
+ // The victory fall: each landing (chin, chest, hips, tail) and her last breath.
+ if(e.type==='body-impact'){critters.alarm(e.position,14);if(e.part)skid.impact(e,speed);else effects.bodyImpact(e.position,e.strength);if(playing){audio.groundImpact(e.part==='chin'?e.strength*.75:e.strength,e.position);if(e.part==='chest')audio.impact();shake=Math.max(shake,e.strength*(e.part==='chest'||e.part==='hips'?.38:.22));}}
  if(e.type==='body-slide')effects.bodySlide(e.position,e.strength);
+ if(e.type==='exhale')skid.exhale(e);
 }}
 function finish(){
  setMode('ended');audio.stopCalls();$('#end-screen').hidden=false;const won=state.result==='won',timeout=state.lossReason==='timeout';
@@ -241,7 +245,7 @@ function finish(){
  $('#end-copy').textContent=won?'The Jeep is safe at the Visitor Center. Take a breath. You earned it.':timeout?'She caught the Jeep. Take her down before the 90-second clock reaches zero.':'Break her attacks with the numbered targets. Shoot incoming debris—or save a grenade to clear it.';
  $('#end-stats').textContent=`${Math.floor(state.fightTime)}s · ${state.objectivesCleared} attacks repelled · ${state.debrisCleared} debris cleared`;hud.warning.style.opacity=0;arcade.card.hidden=true;audio.update(0,0,false,false);sharing.reset();$('#restart').focus({preventScroll:true});
 }
-const cameraTarget=new T.Vector3(),cameraPos=new T.Vector3(),cameraLook=new T.Vector3(0,3.16,18);
+const cameraTarget=new T.Vector3(),cameraPos=new T.Vector3(),cameraLook=new T.Vector3(0,3.16,18),fallFocus=new T.Vector3(),fallLean=new T.Vector3();
 function updateCamera(dt){
  if(state.result==='won'&&state.victory){
   const v=state.victory,p=victoryPose(v.time,state.distance),portrait=innerHeight>innerWidth;
@@ -251,8 +255,12 @@ function updateCamera(dt){
    cameraTarget.set(p.jeepX,1.8,p.jeepZ-3).lerp(new T.Vector3(0,8.2,-72),.3+p.crane*.6);
    camera.fov=portrait?64:54;
   }else{
-   cameraPos.fromArray(v.camera).lerp(new T.Vector3(portrait?-3.4:-5.2,4.5,-8),p.pullback);
-   cameraTarget.fromArray(v.look).lerp(new T.Vector3(0,2.5,10),p.pullback);camera.fov=T.MathUtils.lerp(v.fov,portrait?68:58,p.pullback);
+   cameraPos.fromArray(v.camera);if(!v.exterior)cameraPos.add(fallLean.set(portrait?.3:.5,.32,.1).multiplyScalar(p.lean));
+   cameraPos.lerp(new T.Vector3(portrait?-3.4:-5.2,4.5,-8),p.pullback);
+   cameraTarget.fromArray(v.look).lerp(new T.Vector3(0,2.5,10),p.pullback);let fov=T.MathUtils.lerp(v.fov,portrait?68:58,p.pullback);
+   // Follow her down: the look tracks her chest and the lens pushes in by distance.
+   if(rex&&p.watch>0){rex.actor.localToWorld(fallFocus.set(0,2.3,3.4));fallFocus.y=Math.min(fallFocus.y,2.6);const d=fallFocus.distanceTo(cameraPos),tight=T.MathUtils.clamp(2*Math.atan((portrait?6:4.4)/d)*57.3,18,fov),k=p.watch*(reducedMotion?.5:1);cameraTarget.lerp(fallFocus,k*.9);fov=T.MathUtils.lerp(fov,tight,k);}
+   camera.fov=fov;
   }
   camera.position.copy(cameraPos);cameraLook.copy(cameraTarget);camera.lookAt(cameraLook);camera.updateProjectionMatrix();camera.updateMatrixWorld();return;
  }
@@ -325,7 +333,7 @@ function frame(now){
    $('#fatal-blood').style.opacity=pose.blood;$('#fatal-black').style.opacity=pose.black;
   }else if(state.victory){
    const v=state.victory;v.time=endTime;const pose=victoryPose(endTime,state.distance);speed=pose.speed;
-   if(pose.arrival&&!v.arrival){v.arrival=true;baseLights();visitorCenter.root.visible=true;jungleRoot.visible=false;opening.reset();ambushScenery.reset();effects.reset();mud.reset();birds.reset();audio.stopCalls();scene.background.setHex(0xbac8c4);scene.fog.color.setHex(0xbac8c4);scene.fog.density=.004;sun.position.set(-30,50,-35);sun.target.position.set(0,4,-80);Object.assign(sun.shadow.camera,{left:-60,right:60,top:60,bottom:-60,near:.5,far:150});sun.shadow.camera.updateProjectionMatrix();
+   if(pose.arrival&&!v.arrival){v.arrival=true;baseLights();visitorCenter.root.visible=true;jungleRoot.visible=false;opening.reset();ambushScenery.reset();effects.reset();mud.reset();skid.reset();birds.reset();audio.stopCalls();scene.background.setHex(0xbac8c4);scene.fog.color.setHex(0xbac8c4);scene.fog.density=.004;sun.position.set(-30,50,-35);sun.target.position.set(0,4,-80);Object.assign(sun.shadow.camera,{left:-60,right:60,top:60,bottom:-60,near:.5,far:150});sun.shadow.camera.updateProjectionMatrix();
     // Open sky over the Visitor Center: no canopy, a brighter dome and softer rim.
     canopy.enabled=false;sky.palette(scene.fog.color,0x8fb8d8);sky.uniforms.sunDir.value.subVectors(sun.position,sun.target.position).normalize();rim.intensity=.45;hemi.intensity=1.45;weather.captureBase({sun,hemi,rim,fill,post});}
    $('#fatal-black').style.opacity=pose.black;$('#arrival-caption').style.opacity=pose.caption;
@@ -336,7 +344,9 @@ function frame(now){
  const ambushTime=state.ambush?state.time-state.ambush.startedAt+endTime:0,breakoutTime=ambushTime-(AMBUSH.crashAt-1.28);
  ambushScenery.update(dt,breakoutTime,speed,playing&&!!state.ambush&&breakoutTime>0&&breakoutTime<6);
  const vocal=audio.vocalPose(dt);
- if(rex){const actorState=menu?{phase:'pursuit',phaseTime:0,distance:20,result:null}:state;rex.update(dt,actorState,time,speed,vocal);if(state.victory?.arrival)rex.actor.visible=false;handleMotionEvents(playing);
+ if(rex){const actorState=menu?{phase:'pursuit',phaseTime:0,distance:20,result:null}:state;rex.update(dt,actorState,time,speed,vocal);if(state.victory?.arrival)rex.actor.visible=false;handleMotionEvents(playing,speed);
+  if(state.result==='won'&&rex.death.active&&!state.victory?.arrival){const contacts=rex.death.contacts;skid.contacts(contacts,dt,speed,rex.death.heading);let scrape=0,at=null;for(const c of contacts)if(!c.kind.startsWith('foot')&&c.slip*Math.min(1,c.load)>scrape){scrape=c.slip*Math.min(1,c.load);at=c.position;}if(playing)audio.skid(Math.min(1,scrape/7),at,dt);}
+  skid.update(dt,speed,jungleRoot.visible&&!state.victory?.arrival);
   // Humid-air breath and saliva stream from the jaws while she roars.
   const roaring=rex.vocal?.roar||0;breathClock-=dt;if(roaring>.3&&rex.actor.visible&&breathClock<=0&&!swallow.coversFrame){breathClock=.13;const m=rex.mouthPosition(),dir=m.center.clone().sub(rex.headPosition()).setY(0).normalize();dir.y=-.12;effects.breath(m.center,dir.normalize(),Math.min(1,roaring*1.2));}}
  jeep.pose(time,speed,state);updateCamera(dt);camera.updateMatrixWorld();audio.listen(camera,rex?.actor.visible?rex.headPosition():null);
@@ -363,7 +373,7 @@ ${tierName()} · scale ${Math.round(governor.scale*100)}% · ${renderer.info.ren
 }
 requestAnimationFrame(frame);
 const boot=(stage,fraction)=>{$('#boot-stage').textContent=stage;$('#boot-fill').style.transform=`scaleX(${fraction})`;$('#boot-percent').textContent=`${Math.round(fraction*100)}%`;};boot('Waking the predator',.12);
-try{rex=await createRex(scene,p=>{const f=p.total?p.loaded/p.total:0;$('#loading-status').textContent=p.total?`Creature ${Math.round(f*100)}%`:'Preparing the creature…';boot('Waking the predator',.12+f*.66);});boot('Compiling light and shadow',.82);targets=createTargets(rex,camera,$('#target-layer'));await renderer.compileAsync(scene,camera);await swallow.prepare();boot('Ready',1);setMode('menu');$('#start').disabled=false;$('#start-label').textContent='START THE CHASE';$('#loading-status').textContent='Headphones recommended · First / third person';}
+try{rex=await createRex(scene,p=>{const f=p.total?p.loaded/p.total:0;$('#loading-status').textContent=p.total?`Creature ${Math.round(f*100)}%`:'Preparing the creature…';boot('Waking the predator',.12+f*.66);});boot('Compiling light and shadow',.82);targets=createTargets(rex,camera,$('#target-layer'));skid.attachCoat(rex.hide.uniforms.uRexFallMud);skid.prepare(true);await renderer.compileAsync(scene,camera);skid.prepare(false);await swallow.prepare();boot('Ready',1);setMode('menu');$('#start').disabled=false;$('#start-label').textContent='START THE CHASE';$('#loading-status').textContent='Headphones recommended · First / third person';}
 catch(e){console.error(e);$('#loading-status').textContent='The creature could not load. Refresh to try again.';$('#start-label').textContent='LOAD FAILED';}
 // Exposed for local visual and interaction verification; no network or remote state.
 window.rexChase={scene,camera,renderer,post,birds,critters,insects,brachio,sky,canopy,weather,night,setConditions,toggleFlashlight,mud,governor,sun,lights:{hemi,rim,fill},jungle,get quality(){return{setting:quality,tier:tierName(),detected:detected.tier,gpu:detected.gpu,scale:governor.scale,frameMs:governor.frameMs};},setQuality,jeep,effects,opening,ambushScenery,debris,swallow,visitorCenter,get targets(){return targets;},get rex(){return rex;},state,audio,start,setView,shoot,grenade,get mode(){return mode;},get view(){return view;},get frames(){return frameCount;},set freeze(v){freeze=v;},get freeze(){return freeze;},aimAt(world){pointer.copy(world.clone().project(camera));moveReticle();},snapshot(){return{mode,view,health:state.health,jeep:state.jeep,phase:state.phase,ammo:state.ammo,wounds:rex?.damage.count,damageStage:rex?.damage.stage,persistentImpacts:rex?.damage.totalImpacts,headshots:state.headshots,drawCalls:renderer.info.render.calls,triangles:renderer.info.render.triangles,audioClips:audio.buffers.size,remaining:state.remaining,objectives:state.objectivesCleared,debrisCleared:state.debrisCleared,debrisMissed:state.debrisMissed};}};

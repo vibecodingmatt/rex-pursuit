@@ -211,8 +211,29 @@ export function createMud(scene){
    let e=list.length>=PRINTS?list.shift():{p:new T.Vector3()};
    Object.assign(e,{side,age:0,yaw:Math.atan2(dir.x,dir.z)+(rnd()-.5)*.12,size:1.05+rnd()*.15,fade:w});e.p.set(p.x,.004,p.z);list.push(e);
   },
+  /** A body ploughing through wet ground: water and mud heap up against its
+   *  front and peel off both sides as a bow wave, thrown forward and outward
+   *  (`dir` is the ground-relative direction of travel, `slip` its speed). */
+  plough(p,dir,slip,strength,ground,width=1){
+   const w=WET.value;if(w<.05)return;
+   const n=Math.floor(14*scale*strength*w*Math.min(1.5,slip/4));
+   for(let i=0;i<n;i++){
+    const k=cursor++%DROPS,side=rnd()<.5?-1:1,roll=rnd(),isMud=roll<.4,isSheet=!isMud&&roll<.72;
+    // Heading of this drop: 20-80 degrees off the line of travel, to either side.
+    const out=side*(.35+rnd()*1.05),c=Math.cos(out),s=Math.sin(out),dx=dir.x*c-dir.z*s,dz=dir.x*s+dir.z*c;
+    const elev=isSheet?.55+rnd()*.5:.25+rnd()*.6,speed=slip*(isMud?.3+rnd()*.4:.45+rnd()*.65),h=Math.cos(elev)*speed;
+    const size=isSheet?.022+rnd()*.024:isMud?.012+rnd()*.016:.006+rnd()*.008,across=(rnd()-.5)*width,lead=.15+rnd()*.3;
+    launch(k,p.x+dir.x*lead-dir.z*across,.05,p.z+dir.z*lead+dir.x*across,dx*h,Math.sin(elev)*speed,dz*h+ground,time+rnd()*.03,isMud?-size:size,isMud||rnd()<.45,ground);
+   }
+   drops.a0.needsUpdate=drops.a1.needsUpdate=rings.a0.needsUpdate=rings.a1.needsUpdate=true;
+  },
+  /** Water squeezed out from under a body slamming flat: low, fast radial sheets. */
+  squeeze(p,strength,ground=0){
+   const w=WET.value;if(w<.05)return;
+   spray(p,strength*1.6,{count:70*strength*w,mud:.25,spread:1.5+strength,ground});
+  },
   /** Body slams and skids in the wet. */
-  burst(p,strength){if(WET.value<.05)return;spray(p,.9+strength*.8,{count:90*strength*WET.value,mud:.4,spread:1.6+strength,ground:0});crown(p,Math.min(1.8,.8+strength)*WET.value);rimDrops(p,Math.min(1.8,.8+strength)*WET.value,0);drops.a0.needsUpdate=drops.a1.needsUpdate=rings.a0.needsUpdate=rings.a1.needsUpdate=true;},
+  burst(p,strength,ground=0){if(WET.value<.05)return;spray(p,.9+strength*.8,{count:90*strength*WET.value,mud:.4,spread:1.6+strength,ground});crown(p,Math.min(1.8,.8+strength)*WET.value);rimDrops(p,Math.min(1.8,.8+strength)*WET.value,ground);drops.a0.needsUpdate=drops.a1.needsUpdate=rings.a0.needsUpdate=rings.a1.needsUpdate=true;},
   update(dt,speed,camera,renderer,show=true){
    time+=dt;visible=show;drops.uniforms.time.value=rings.uniforms.time.value=time;rings.mesh.visible=show;
    renderer.getDrawingBufferSize(drops.uniforms.viewport.value);drops.uniforms.minPx.value=Math.max(1,renderer.getPixelRatio()*.9);

@@ -172,6 +172,15 @@ export class ChaseAudio {
   this.sample('explosion',{volume:.75,rate:.72,lowpass:650,duration:.9,fade:.35,wet:.2});
  }
  groundImpact(weight=.3,at=null){if(!this.context)return;this.sample('explosion',{volume:.35+weight*.9,rate:.5,lowpass:160,duration:.3+weight*.45,fade:.2,at});}
+ /** A body dragged through dirt: overlapping grains of the dirt-strike recording,
+  *  slowed and muffled into a grinding scrape, denser and brighter with speed.
+  *  `level` 0..1; call every frame while she slides. */
+ skid(level,at=null,dt=0){
+  if(!this.context)return;this.skidClock=(this.skidClock||0)-dt;if(level<.03||this.skidClock>0)return;
+  const b=this.sfx?.['impact-dirt'];if(!b)return;this.skidClock=.045+.07*(1-level)*Math.random();
+  const offset=.04+Math.random()*Math.max(0,b.duration-.35);
+  this.sample(b,{volume:.08+.3*level,rate:.42+.2*level+Math.random()*.12,offset,duration:.2+.1*Math.random(),fade:.09,lowpass:500+1400*level,at,wet:.12});
+ }
  cue(success=false){if(!this.context)return;const c=this.context,t=c.currentTime;for(let i=0;i<(success?3:1);i++){const o=c.createOscillator(),g=c.createGain();o.type='sine';o.frequency.value=success?[440,554,660][i]:520;g.gain.setValueAtTime(.075,t+i*.055);g.gain.exponentialRampToValueAtTime(.001,t+i*.055+.10);o.connect(g);g.connect(this.master);o.start(t+i*.055);o.stop(t+i*.055+.11);o.onended=()=>{o.disconnect();g.disconnect();};}}
  reload(){if(!this.context)return;this.sample('reload',{volume:.8});}
  vehicleCrash(){
