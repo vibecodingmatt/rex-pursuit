@@ -6,4 +6,4 @@ Selected by the user on 2026-09-20 from generated image folder `01a0c0e0-86d4-73
 
 This is promotional artwork, not an in-game capture. It is the same image used for the portfolio's Rex: Pursuit key art. No new image generation or creative retouching was used for this update.
 
-`npm run social:render` exports a top-aligned 1200×630 JPEG crop at quality 92, retaining the Rex's head and the Jeep and adding no text or overlays. The published output is `public/social/rex-pursuit-v3.jpg`; the original in-game `v1` remains available for old links. App icons are unchanged.
+`npm run social:render` exports a top-aligned 1200×630 JPEG crop at quality 92, retaining the Rex's head and the Jeep and adding no text or overlays. It was published as `public/social/rex-pursuit-v2.jpg` and `v3.jpg`, which stay available for old links; [v3 key art](rex-pursuit-keyart-v3.md), with the in-game Jeep, replaced it as `v4.jpg`. App icons are unchanged.

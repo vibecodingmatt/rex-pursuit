@@ -4,8 +4,8 @@ const path=require('node:path');
 
 // Package the approved artwork; no running game, overlays or creative retouching.
 const root=path.resolve(__dirname,'..');
-const source=path.join(root,'art/rex-pursuit-keyart-v2.png');
-const output=path.join(root,'public/social/rex-pursuit-v3.jpg');
+const source=path.join(root,'art/rex-pursuit-keyart-v3.png');
+const output=path.join(root,'public/social/rex-pursuit-v4.jpg');
 
 (async()=>{
  const dataUrl=`data:image/png;base64,${fs.readFileSync(source).toString('base64')}`;
