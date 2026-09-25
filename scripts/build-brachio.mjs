@@ -36,7 +36,7 @@ const R={torso:0,neck:1,head:2,jaw:3,eye:4,claw:5,fore:6,hind:7,tail:8};
 // Centreline from the tail tip to the snout: arclength along it is the spine coordinate.
 // The front stands higher than the hips (long forelimbs); the tail is short and carried
 // clear of the ground.
-const SPINE=[[.7,1.7,-12.8],[.4,2.35,-11.3],[.15,3.15,-9.5],[0,3.9,-7.6],[0,4.45,-5.7],[0,4.7,-3.7],[0,4.9,-1],[0,5.35,1.9],
+const SPINE=[[.7,1.75,-12.8],[.4,2.35,-11.3],[.15,2.95,-9.5],[0,3.55,-7.6],[0,4.05,-5.7],[0,4.4,-3.8],[0,4.9,-1],[0,5.35,1.9],
  [0,6,3.4],[0,7.5,4.4],[0,9.05,5.1],[0,10.6,5.7],[0,12,6.25],[0,12.95,6.75],[0,13.45,7.2],[0,13.62,7.55],[0,13.05,8.75]];
 const NECK=SPINE.slice(8,15);
 
@@ -45,14 +45,15 @@ const group=(region,k,prims,blend)=>groups.push({region,k,prims,blend});
 // Torso: pelvis, deep ribcage tilted up at the front, tall withers and a shoulder hump
 // at the neck base, so the back slopes down to the hips; clear air under the chest.
 group(R.torso,.65,[
- ellipsoid([0,4.7,-2.8],[1.1,1.1,1.5]),
- ellipsoid([0,4.45,-.6],[1.38,1.55,2.25],{pitch:-.06}),
- ellipsoid([0,5,1.5],[1.34,1.9,2.05],{pitch:-.08}),
- ellipsoid([0,6.45,1.55],[.85,1,2.3],{pitch:-.3}),
- ellipsoid([0,5.4,-1.4],[.75,.6,2.2],{pitch:-.2}),
- ellipsoid([0,4.15,2.8],[1.05,1.15,1]),
- ellipsoid([0,3.75,.35],[1.08,.9,1.8]),
- ellipsoid([0,6.75,2.65],[.92,.95,1.15])],0);
+ ellipsoid([0,4.35,-2.7],[1.05,1.05,1.35]),
+ ellipsoid([0,4.65,-.5],[1.36,1.4,2.1],{pitch:-.06}),
+ ellipsoid([0,5.15,1.5],[1.32,1.72,1.95],{pitch:-.08}),
+ ellipsoid([0,4.45,2.8],[1.02,1.05,1]),
+ ellipsoid([0,4.05,.35],[1.05,.8,1.8])],0);
+// The back is one straight slope from the withers (about 7 m) down over the hips into
+// the tail: a dorsal ridge sets that line, and nothing below may bulge above it. The
+// segments join with almost no blend so the ridge doesn't swell at its joints.
+group(R.torso,.02,[roundCone([0,6.2,2.3],[0,5.6,0],.8,.76),roundCone([0,5.6,0],[0,4.95,-2.6],.76,.7),roundCone([0,4.95,-2.6],[0,4.62,-3.8],.7,.76,{squeeze:.9})],.6);
 // Neck: deep at the base where the long cervical ribs run beneath it, funnelling out
 // of the shoulders and tapering evenly; its underside is one smooth curve. The
 // segments already meet cleanly, so they join with almost no blend: a soft blend
@@ -75,23 +76,24 @@ group(R.jaw,.1,[roundCone(hp(0,.15,-.22),hp(0,1.12,-.25),.22*S,.14*S),ellipsoid(
 // Eyes bulge from the sides of the skull under the brow.
 group(R.eye,.03,[sphere(hp(.31,.3,.24),.085*S),sphere(hp(-.31,.3,.24),.085*S)],.05);
 // Tail: short and heavy for a sauropod, curving a little aside.
-group(R.tail,.02,SPINE.slice(0,6).reverse().map((a,i,arr)=>i<arr.length-1?roundCone(a,arr[i+1],[1.35,1.02,.72,.46,.26][i],[1.02,.72,.46,.26,.1][i],{squeeze:.86}):null).filter(Boolean),.85);
+// The tail starts at hip height, deep and narrow (the chevrons hang below), and carries on the line of the back before it droops.
+group(R.tail,.02,SPINE.slice(0,6).reverse().map((a,i,arr)=>i<arr.length-1?roundCone(a,arr[i+1],[1.02,.82,.6,.42,.25][i],[.82,.6,.42,.25,.1][i],{squeeze:.8}):null).filter(Boolean),.85);
 // Legs: long columnar forelimbs and massive hindlimbs, with shoulder and thigh muscle
 // masses, elbow and knee, padded feet.
 for(const s of [-1,1]){
  group(R.fore,.3,[
   ellipsoid([s*1.05,5.75,2.1],[.52,1.25,.95],{pitch:.3}),
-  roundCone([s*1.12,5.45,2.45],[s*1.1,3.25,2.25],.7,.5),
-  sphere([s*1.1,3.3,2],.42),
-  roundCone([s*1.1,3.2,2.3],[s*1.06,1.2,2.5],.47,.35),
-  roundCone([s*1.06,1.2,2.5],[s*1.07,.3,2.56],.36,.43),
-  ellipsoid([s*1.07,.22,2.58],[.47,.24,.47])],.5);
+  roundCone([s*1.12,5.45,2.45],[s*1.1,3.25,2.25],.64,.46),
+  sphere([s*1.1,3.3,2],.38),
+  roundCone([s*1.1,3.2,2.3],[s*1.06,1.2,2.5],.41,.3),
+  roundCone([s*1.06,1.2,2.5],[s*1.07,.3,2.56],.31,.38),
+  ellipsoid([s*1.07,.22,2.58],[.42,.23,.42])],.45);
  group(R.hind,.3,[
-  ellipsoid([s*1.05,3.95,-2.5],[.72,1.35,1.1],{pitch:-.1}),
-  roundCone([s*1,4.6,-2.6],[s*1.05,2.4,-2.05],.9,.55),
-  sphere([s*1.05,2.4,-2.02],.52),
-  roundCone([s*1.07,2.35,-2.08],[s*1.05,.85,-2.42],.52,.4),
-  ellipsoid([s*1.07,.42,-2.2],[.55,.44,.72])],.55);
+  ellipsoid([s*1.02,3.85,-2.5],[.62,1.02,1],{pitch:-.1}),
+  roundCone([s*.98,4.3,-2.6],[s*1.04,2.4,-2.05],.78,.5),
+  sphere([s*1.05,2.4,-2.02],.46),
+  roundCone([s*1.06,2.35,-2.08],[s*1.05,.85,-2.42],.45,.35),
+  ellipsoid([s*1.06,.4,-2.2],[.5,.4,.66])],.45);
  // Short, blunt claws tucked at the front of the feet: one thumb claw, three on each hind foot.
  group(R.claw,.03,[roundCone([s*.8,.42,2.92],[s*.75,.08,3.08],.07,.03),
   ...[0,1,2].map(k=>roundCone([s*(1.07-.2+k*.18),.24,-1.62],[s*(1.07-.21+k*.19),.04,-1.4],.08,.03))],.04);
