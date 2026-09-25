@@ -152,11 +152,13 @@ export function createEffects(scene,dustMap){
      for(let i=0;i<9*particleScale;i++){const v=new T.Vector3(rnd()-.5,rnd()*.9+.2,rnd()-.5).normalize().multiplyScalar(1.5+rnd()*3);emit(p,v,[.18+rnd()*.08,.13+rnd()*.05,.07],.025+rnd()*.03,.45+rnd()*.35);}}
    }
   },
-  /** A round through a compy: a brief flash, a small red puff and droplets thrown on along the shot. */
-  critter(p,dir){
-   launch(fire,fireId++,p,{life:.05,size:.16,growth:.3,opacity:1,color:0xffd29a,hdr:3});
-   launch(mist,mistId++,p,{life:.45+rnd()*.2,size:.16,growth:.9,opacity:.6,velocity:tmp.copy(dir).multiplyScalar(1.4).setY(.35),color:0x4a0906,drag:3});
-   for(let i=0;i<10*particleScale;i++)emit(p,cone(dir,.7).multiplyScalar(1.5+rnd()*2.5).add(tmp.set(0,.8+rnd(),0)),[.11+rnd()*.06,.012,.008],.016+rnd()*.018,.4+rnd()*.3);
+  /** A round through a small animal: a brief flash, a red puff and droplets thrown on along the
+   *  shot, sized by `scale` (1 for a compy, about 2 for a Gallimimus or Pteranodon). */
+  critter(p,dir,scale=1){
+   const k=Math.sqrt(scale);
+   launch(fire,fireId++,p,{life:.05,size:.16*k,growth:.3*k,opacity:1,color:0xffd29a,hdr:3});
+   launch(mist,mistId++,p,{life:.45+rnd()*.2,size:.16*scale,growth:.9*scale,opacity:.6,velocity:tmp.copy(dir).multiplyScalar(1.4*k).setY(.35),color:0x4a0906,drag:3});
+   for(let i=0;i<10*k*particleScale;i++)emit(p,cone(dir,.7).multiplyScalar((1.5+rnd()*2.5)*k).add(tmp.set(0,.8+rnd(),0)),[.11+rnd()*.06,.012,.008],(.016+rnd()*.018)*k,.4+rnd()*.3);
   },
   casing(){},
   /** Roar exhalation: warm breath condensing in the humid air, with saliva. */

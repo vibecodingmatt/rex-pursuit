@@ -1,5 +1,19 @@
 # Rex: Pursuit handoff
 
+## More wildlife to shoot, and a kill count (2026-09-25, branch `wildlife-targets`, not shipped)
+
+The user then asked for a kill count and for more things to shoot at random: things sitting in trees, flying by and running by. See the README's play section for the player-facing summary.
+
+- **Bag** (`combat.js`): `state.bag` counts kills by species; `bagged(kind)` returns the running total, which the hit label shows ("PTERANODON DOWN · 5"). `finish()` appends a "Wildlife bagged" line (`#end-bag`) under the chase stats; `test:victory` still finds "attacks repelled". Reset clears it.
+- **Routing** (`chase.js`): `wildlifeHit` takes the nearest of `critters.hit`, `flyers.hit`, `birds.hit` and `brachio.hit` within the Rex's hit distance. `wildlifeStrike` kills by kind; `blastWildlife` tallies everything a grenade takes out. `flyers.nearMiss` flushes perched Dimorphodon near every round's path.
+- **Critters** (`critters.js`) are now per species (`kinds`: centre, hit radius, hull, gravity, heavy, lean, stride, full-run speed, acceleration, jink). New Gallimimus kind on the compy rig (hips at 0.31, instance scale 5.1–6), `herd(side)` queued like `stream` and scheduled by travel (`herds` flag: not in the opening, the detour or after the result). Heavy kills keep the running momentum and roll forward; `onLand` throws dust. Lizards can be shot (death pose in the lizard gait). `blast` returns the kinds it killed.
+- **Flyers** (new `flyers.js`): Pteranodon (6 m span) and Dimorphodon (1.4 m, scaled 1.5–1.8), each one instanced draw; wing sweep/fold/flap/crumple in the vertex shader from `aFly`, and normals turn with the wings. Dimorphodon roost on the leaning edge trees: `foliage.js` returns three trunk points per leaner and `environment.js` records them per chunk as `roosts` (swapped with the ford like the perches; no `rand()` calls added, so the layouts are unchanged). Half the trees get one or two, when the chunk comes up the road. They flush on near misses, alarms (roars, the crash, the stomp, blasts), a roost-mate being shot, 30% as the Jeep passes and 55% as the Rex passes (in front of the gun). 70% of Pteranodon flocks fly down the corridor from 75–90 m and overtake the chase at about 6 m/s; the rest cross. The canopy leaves the sky open only over the road, so flights across from the forest spent most of their time hidden.
+- **Birds** (`birds.js`): hit, kill (drooped wings via a `still` attribute), fall to the road; `live()` for checks.
+- **Audio:** `audio.death(kind)` (raptor clips pitched to size), `herd` (honks), `screech`, `flush` (the bird take-off recording plus a chirp). `squeal` became `death('compy')`.
+- **Grenades** aimed at the road burst on it (unchanged from the first part).
+- **Checks:** `test:logic` (bag), `test:smoke`, `npm test`, `test:cinematic`, `test:arcade` and the extended `test:wildlife` pass; `build` below. Frame cost against the previous commit is within noise on every tier (−0.3 to +0.7 ms, +2 to 4 draw calls; `art/review/perf-tiers.cjs`). Review tools in `art/review/wildlife/`: `studio.cjs` (models against the sky, jungle hidden), `zoo.cjs`, `sky-film.cjs`, `kill-film.cjs`, `perch-near.cjs`, `roost-probe.cjs`.
+- **Open:** perched Dimorphodon are small (about 20 px at 18 m); beyond 35 m they are lost in the haze. The models are low-poly primitives, fine at play distance but crude in close-ups. The share text does not mention the bag.
+
 ## Shootable wildlife and a live gun in the detour (2026-09-25, branch `wildlife-targets`, not shipped)
 
 The user asked for the gun to fire at all times (held only at the start), for compies crossing the road to be shootable and sent tumbling, for compies to scurry across behind the Jeep while the Rex is off screen, and for a shot brachiosaur to rear up on her hind legs as in the film.

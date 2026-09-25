@@ -3,7 +3,7 @@ import {AMBUSH,ambushPose} from './ambush.js';
 export const RULES={health:5600,magazine:80,reload:2.6,fireInterval:.085,grenadeCooldown:11,intro:9.4,roarAt:3.25,deadline:90,bodyDamage:10,headDamage:14,explosiveDamage:190,warning:1.25,retreat:3.05,debrisFlight:[1.8,1.5,1.25]};
 export class Encounter {
  constructor(random=Math.random){this.random=random;this.reset();}
- reset(){Object.assign(this,{time:0,fightTime:0,remaining:RULES.deadline,introDuration:RULES.intro,health:RULES.health,jeep:100,ammo:RULES.magazine,reload:0,heat:0,overheated:false,grenade:0,shotTimer:0,phase:'intro',phaseTime:0,distance:18,stagger:0,hits:0,headshots:0,shots:0,interrupts:0,result:null,events:[],attackNumber:0,objective:null,objectivesCleared:0,objectivesMissed:0,challengeNumber:0,attackCommitted:false,lossReason:null,introCues:new Set(),previousOrder:[],debris:null,debrisNumber:0,debrisCleared:0,debrisMissed:0,nextDebris:12,ambushPlayed:false,ambush:null,defeat:null,victory:null});}
+ reset(){Object.assign(this,{time:0,fightTime:0,remaining:RULES.deadline,introDuration:RULES.intro,health:RULES.health,jeep:100,ammo:RULES.magazine,reload:0,heat:0,overheated:false,grenade:0,shotTimer:0,phase:'intro',phaseTime:0,distance:18,stagger:0,hits:0,headshots:0,shots:0,interrupts:0,result:null,events:[],attackNumber:0,objective:null,objectivesCleared:0,objectivesMissed:0,challengeNumber:0,attackCommitted:false,lossReason:null,introCues:new Set(),previousOrder:[],debris:null,debrisNumber:0,debrisCleared:0,debrisMissed:0,bag:{},nextDebris:12,ambushPlayed:false,ambush:null,defeat:null,victory:null});}
  get tier(){return Math.min(2,Math.max(Math.floor(this.fightTime/30),this.health<=RULES.health*.35?2:this.health<=RULES.health*.7?1:0));}
  // The gun is live everywhere but the opening and the final overrun, including the
  // detour, when the compies bolting across the road are the targets.
@@ -102,5 +102,8 @@ export class Encounter {
   d.hits+=explosive?d.hitsRequired:1;this.events.push('debris-hit');
   if(d.hits>=d.hitsRequired){d.status='cleared';this.debrisCleared++;this.events.push('debris-cleared');}return true;
  }
+ /** Wildlife shot down, by species; returns the running total. Nothing here touches the Rex, the clock or the Jeep. */
+ bagged(kind){this.bag[kind]=(this.bag[kind]||0)+1;return this.bagTotal;}
+ get bagTotal(){return Object.values(this.bag).reduce((n,v)=>n+v,0);}
  drainEvents(){return this.events.splice(0);}
 }

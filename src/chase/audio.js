@@ -171,8 +171,18 @@ export class ChaseAudio {
  birds(){this.sample('birds-takeoff',{volume:.5,rate:.95+Math.random()*.1,pan:(Math.random()-.5)*.8,wet:.2});}
  /** Alarm chirp where a compy pack breaks: a raptor call pitched up to their size. */
  chirp(at){this.play(Math.random()<.5?14:12,.07,2.1+Math.random()*.35,{vocal:false,at,wet:.12});}
- /** A shot compy's squeal: the same call pitched higher and cut short by its speed. */
- squeal(at){if(!this.context||this.context.currentTime-(this.lastSqueal||0)<.08)return;this.lastSqueal=this.context.currentTime;this.play(Math.random()<.5?14:12,.1,2.8+Math.random()*.5,{vocal:false,at,wet:.1});}
+ /** A shot animal's death call: raptor clips pitched to its size (the compy's is the chirp pitched higher still). */
+ death(kind,at){
+  if(!this.context||this.context.currentTime-(this.lastDeath||0)<.07)return;this.lastDeath=this.context.currentTime;const r=Math.random();
+  const call={compy:[r<.5?14:12,.1,2.8+r*.5],lizard:[14,.05,3.6+r*.4],gallimimus:[11,.22,1.55+r*.2],dimorphodon:[13,.1,2.1+r*.3],pteranodon:[13,.26,1.2+r*.15],bird:[14,.06,3.3+r*.4]}[kind];
+  if(call)this.play(call[0],call[1],call[2],{vocal:false,at,wet:.15});
+ }
+ /** A Gallimimus herd breaking cover: honking calls. */
+ herd(at){this.play(11,.2,1.5+Math.random()*.25,{vocal:false,at,wet:.3});}
+ /** Pteranodon passing overhead: a distant screech. */
+ screech(at){this.play(13,.16,1.15+Math.random()*.12,{vocal:false,at,wet:.5});}
+ /** Dimorphodon flushed off a trunk: wingbeats and a chirp. */
+ flush(at){if(!this.context||this.context.currentTime-(this.lastFlush||0)<.5)return;this.lastFlush=this.context.currentTime;this.sample('birds-takeoff',{volume:.18,rate:1.2+Math.random()*.2,at,duration:.9,fade:.3,wet:.2});this.play(12,.05,2.3+Math.random()*.3,{vocal:false,at,wet:.15});}
  /** The passing brachiosaur's trumpet, placed at her head. */
  brachio(at){this.play(Math.random()<.5?30:31,.32,.92+Math.random()*.08,{vocal:false,at,wet:.45});}
  stopVoice(){if(this.voice){try{this.voice.source.stop();}catch{}}this.voice=null;}

@@ -289,7 +289,10 @@ export function createFoliageKit(branchMap){
   const top=pts[6],crowns=[];
   for(let i=0;i<6;i++){const c=top.clone().add(new T.Vector3(r()*.38-.06,(r()-.6)*.14,(r()-.5)*.4));crowns.push(cardCluster(r,{count:18,radius:.13+r()*.05,size:.13,center:c.toArray(),flat:.42,lift:.3}));}
   const limbs=[1,2].map(()=>{const b=pts[4].clone(),t=top.clone().add(new T.Vector3((r()-.5)*.2,-.05,(r()-.5)*.35));return tube([b,b.clone().lerp(t,.5).add(new T.Vector3(0,.03,0)),t],(v)=>.011*(1-v*.6),{radial:6,rings:6,uvScale:[1,5]});});
-  return{wood:mergeGeometries([trunk,...limbs].map(strip)),leaves:mergeGeometries(crowns)};
+  // Roosts: points on the road side of the trunk (+x, the way it leans) below the crown,
+  // with the outward surface normal, where a small pterosaur can cling.
+  const roosts=[.42,.52,.62].map(v=>{const f=v*6,i=Math.min(5,Math.floor(f)),a=pts[i].clone().lerp(pts[i+1],f-i),t=pts[i+1].clone().sub(pts[i]).normalize(),n=new T.Vector3(1,0,0).addScaledVector(t,-t.x).normalize();return{p:a.addScaledVector(n,.03*(1-v*.55)),n};});
+  return{wood:mergeGeometries([trunk,...limbs].map(strip)),leaves:mergeGeometries(crowns),roosts};
  }
  function palmTree(seed){
   const r=seeded(seed),bendX=(r()-.5)*.3,bendZ=.12+r()*.2,pts=[];for(let i=0;i<=6;i++){const v=i/6;pts.push(new T.Vector3(bendX*v*v,v,bendZ*v*v));}

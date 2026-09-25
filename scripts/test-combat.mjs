@@ -48,5 +48,9 @@ for(const fps of [30,60,144]){
  }
  const lethal=new Encounter();lethal.transition('pursuit');lethal.jeep=1;lethal.spawnDebris();advance(lethal,7,1/fps);assert.equal(lethal.result,'lost');assert.equal(lethal.lossReason,'debris');assert.equal(lethal.jeep,0);
 }
-console.log('Combat passed: opening cues, fire/reload/heat, ordered objectives, escalating difficulty, committed attacks, deadline, victory, reset and defeat at 30/60/144 Hz.');
+// The wildlife bag: a tally by species that never touches the Rex, the clock or the Jeep, and clears on reset.
+{const w=new Encounter();w.transition('pursuit');const before={health:w.health,jeep:w.jeep,remaining:w.remaining};
+ assert.equal(w.bagged('compy'),1);assert.equal(w.bagged('compy'),2);assert.equal(w.bagged('pteranodon'),3);assert.deepEqual(w.bag,{compy:2,pteranodon:1});
+ assert.deepEqual({health:w.health,jeep:w.jeep,remaining:w.remaining},before);w.reset();assert.deepEqual(w.bag,{});assert.equal(w.bagTotal,0);}
+console.log('Combat passed: opening cues, fire/reload/heat, ordered objectives, escalating difficulty, committed attacks, deadline, victory, reset and defeat at 30/60/144 Hz, wildlife bag.');
 console.log('Pressure passed: randomized mixed targets, all sites sampled, debris interception/HE/failure, lethal impacts and resets.');

@@ -187,8 +187,11 @@ export function createJungle(root,{canopy}={}){
   const side=()=>rand()<.5?-1:1,zz=()=>(rand()-.5)*CHUNK;
   // Rainforest giants: a few frame the verge, most stand back in the haze.
   for(let i=0;i<8;i++){const sd=i%2?1:-1,x=sd*(i<2?12.5+rand()*3:16+Math.pow(rand(),.7)*28),z=zz(),h=17+rand()*15,t=kit.giants[Math.floor(rand()*kit.giants.length)],m=at(x,z,-.3,rand()*TAU,[h*(.85+rand()*.3),h,h*(.85+rand()*.3)]),tone=[.85+rand()*.25,.85+rand()*.2,.8+rand()*.2];put(M.bark,t.wood,m,false,tone);put(M.canopy,t.leaves,m,false,[.8+rand()*.3,.85+rand()*.25,.75+rand()*.25]);}
-  // Leaning edge trees close a canopy tunnel over the road at 10-17 m.
-  for(let i=0;i<4;i++){const sd=i%2?1:-1,x=sd*(10.5+rand()*3.5),z=zz(),h=15+rand()*6,t=kit.leaners[Math.floor(rand()*kit.leaners.length)],m=at(x,z,-.2,(sd>0?Math.PI:0)+(rand()-.5)*.5,[h,h,h]);put(M.bark,t.wood,m,false,[.85+rand()*.2,.85+rand()*.2,.8+rand()*.2]);put(M.canopy,t.leaves,m,false,[.75+rand()*.3,.82+rand()*.25,.7+rand()*.25]);}
+  // Leaning edge trees close a canopy tunnel over the road at 10-17 m. Their trunks carry
+  // the roosts (road side, below the crown) where Dimorphodon cling (flyers.js).
+  const roosts=[];
+  for(let i=0;i<4;i++){const sd=i%2?1:-1,x=sd*(10.5+rand()*3.5),z=zz(),h=15+rand()*6,t=kit.leaners[Math.floor(rand()*kit.leaners.length)],m=at(x,z,-.2,(sd>0?Math.PI:0)+(rand()-.5)*.5,[h,h,h]);const trunk=put(M.bark,t.wood,m,false,[.85+rand()*.2,.85+rand()*.2,.8+rand()*.2]);
+   if(trunk)roosts.push(t.roosts.map(r=>{const p=r.p.clone().applyMatrix4(m),n=r.n.clone().transformDirection(m);return{x:p.x,y:p.y,z:p.z,nx:n.x,ny:n.y,nz:n.z};}));put(M.canopy,t.leaves,m,false,[.75+rand()*.3,.82+rand()*.25,.7+rand()*.25]);}
   // Palms lean toward the light over the road edge; tree ferns fill the mid layer.
   for(let i=0;i<5;i++){const sd=side(),x=sd*(7+rand()*13),z=zz(),h=9+rand()*6,t=kit.palms[Math.floor(rand()*kit.palms.length)],m=at(x,z,-.1,sd>0?Math.PI+(rand()-.5)*.8:(rand()-.5)*.8,h);put(M.bark,t.wood,m,false);put(M.palm,t.fronds,m,false,[.9+rand()*.2,.9+rand()*.2,.85+rand()*.2]);}
   for(let i=0;i<5;i++){const x=side()*(8.8+rand()*9),z=zz(),h=2.6+rand()*2.6,t=kit.treeFerns[Math.floor(rand()*kit.treeFerns.length)],m=at(x,z,0,rand()*TAU,h);put(M.bark,t.wood,m,true);put(M.fern,t.fronds,m,true,[.95,1,.95]);}
@@ -275,7 +278,7 @@ export function createJungle(root,{canopy}={}){
   tufts.push(...reeds);
   for(let i=tufts.length-1;i>0;i--){const j=Math.floor(rand()*(i+1));[tufts[i],tufts[j]]=[tufts[j],tufts[i]];}
   H=groundHeight;
-  return{meshes,tufts,perches,stones};
+  return{meshes,tufts,perches,stones,roosts};
  }
  const layouts=Array.from({length:UNIQUE},(_,i)=>layout(9001+i*37));
  const tuftGeometry=mergeGeometries([kit.grass[0]]);
@@ -287,16 +290,16 @@ export function createJungle(root,{canopy}={}){
   const floor=new T.Mesh(floorGeometry,floorMaterial);floor.receiveShadow=true;floor.name='Jungle ground';group.add(floor);
   const parts=data.meshes.map(d=>{const mesh=new T.Mesh(d.geometry,d.material);mesh.castShadow=d.material===M.bark||d.material===M.rock;mesh.receiveShadow=true;group.add(mesh);return{mesh,data:d};});
   const grass=new T.InstancedMesh(tufts,M.grass,data.tufts.length);data.tufts.forEach((m,i)=>grass.setMatrixAt(i,m));grass.receiveShadow=true;grass.computeBoundingSphere();group.add(grass);
-  return{group,parts,grass,perches:data.perches};
+  return{group,parts,grass,perches:data.perches,roosts:data.roosts};
  }
  const chunks=[];
- for(let k=0;k<COUNT;k++){const c=buildChunk(layouts[k%UNIQUE],ground,groundMat,tuftGeometries[k%UNIQUE]);c.group.position.z=k*CHUNK+START;c.home=c.perches;chunks.push(c);}
+ for(let k=0;k<COUNT;k++){const c=buildChunk(layouts[k%UNIQUE],ground,groundMat,tuftGeometries[k%UNIQUE]);c.group.position.z=k*CHUNK+START;c.home=c.perches;c.homeRoosts=c.roosts;chunks.push(c);}
  // The river ford: a seventh layout that stands in for one chunk slot while it is live.
  const fordData=layout(9001+UNIQUE*37,true),fordChunk=buildChunk(fordData,groundGeometry(fordHeight),groundMaterial(kit,{ford:true}),tuftsFor(fordData.tufts));
  fordChunk.group.visible=false;fordChunk.stones=fordData.stones;fordChunk.group.name='River ford';
  let fordSlot=null;
  const inFord=z=>fordSlot&&Math.abs(z-fordSlot.group.position.z)<CHUNK/2;
- function releaseFord(){if(!fordSlot)return;fordSlot.perches=fordSlot.home;fordSlot=null;fordChunk.group.visible=false;FORD.state.value.x=0;}
+ function releaseFord(){if(!fordSlot)return;fordSlot.perches=fordSlot.home;fordSlot.roosts=fordSlot.homeRoosts;fordSlot=null;fordChunk.group.visible=false;FORD.state.value.x=0;}
 
  // ---- Air: sunbeam motes and falling leaves -------------------------------
  const moteCount=900,moteSeeds=new Float32Array(moteCount*4),rnd=seeded(606);for(let i=0;i<moteCount*4;i++)moteSeeds[i]=rnd();
@@ -344,7 +347,7 @@ export function createJungle(root,{canopy}={}){
   ford:{chunk:fordChunk,get active(){return !!fordSlot;},get z(){return fordSlot?fordSlot.group.position.z:null;},
    /** Swap a chunk slot for the river: by default the farthest one ahead, still hidden beyond the fog; or the slot nearest scene z. */
    place(z=null){releaseFord();const c=chunks.reduce((b,c)=>(z===null?c.group.position.z<b.group.position.z:Math.abs(c.group.position.z-z)<Math.abs(b.group.position.z-z))?c:b);
-    fordSlot=c;c.perches=fordChunk.perches;fordChunk.group.position.z=c.group.position.z;FORD.state.value.set(1,c.group.position.z,0,0);return c.group.position.z;},
+    fordSlot=c;c.perches=fordChunk.perches;c.roosts=fordChunk.roosts;fordChunk.group.position.z=c.group.position.z;FORD.state.value.set(1,c.group.position.z,0,0);return c.group.position.z;},
    release:releaseFord},
   setQuality(t){grassFactor=t.grass;GRASS_DENSITY.value=Math.min(1,t.grass);floraFactor=t.flora;particleFactor=t.particles;shafts.visible=!!t.beams;motes.visible=!t.beams;moteGeo.setDrawRange(0,Math.floor(moteCount*particleFactor));falling.count=Math.floor(fallingCount*particleFactor);thin();},
   reset(){positionChunks();releaseFord();},
