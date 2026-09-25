@@ -24,6 +24,8 @@ Read its `AGENTS.md` and `docs/HANDOFF.md`, then inspect current source and Git 
 | Hide finish, mouth interior, teeth, cornea | `src/chase/rex-skin.js` (composed via `damage.js`) |
 | Combat/creature particles, flock | `src/chase/effects.js`, `birds.js` |
 | Compies, lizards, insects, brachiosaur; track clutter | `src/chase/critters.js`, `insects.js`, `brachio.js`; clutter in `environment.js`, `foliage.js` |
+| River ford: channel, layout slot, water, spray, wet ground | `src/chase/river.js`, `ford.js`; ford layout and ground shader in `environment.js`; splash and river sounds in `audio.js`; `scripts/prepare-ford-audio.cjs` |
+| Mud and wetness the Rex gathers over the chase | `src/chase/rex-coat.js` (drawn in `rex-skin.js`) |
 | Brachiosaur shape and baked High/Low meshes | `scripts/build-brachio.mjs`, `public/models/brachio.bin`, `public/models/brachio-low.bin` |
 | Rules, pressure, damage totals, objectives, deadline | `src/chase/combat.js`, `src/chase/targets.js` |
 | Rig orchestration and layered poses | `src/chase/creature.js` |

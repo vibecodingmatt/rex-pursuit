@@ -26,6 +26,8 @@ import {createNight} from './chase/night.js';
 import {createCritters} from './chase/critters.js';
 import {createInsects} from './chase/insects.js';
 import {createBrachio} from './chase/brachio.js';
+import {createFord} from './chase/ford.js';
+import {createRexCoat} from './chase/rex-coat.js';
 const $=s=>document.querySelector(s),canvas=$('#scene');
 installAtmosphericFog();
 const renderer=new T.WebGLRenderer({canvas,antialias:false,powerPreference:'high-performance'});renderer.shadowMap.enabled=true;renderer.shadowMap.type=T.PCFSoftShadowMap;renderer.toneMapping=T.ACESFilmicToneMapping;renderer.toneMappingExposure=1.13;renderer.info.autoReset=false;
@@ -54,7 +56,7 @@ function tierName(){return quality==='auto'?autoTier:quality;}
 function applyQuality(){
  const t=TIERS[tierName()];renderer.setPixelRatio(Math.min(devicePixelRatio,t.pixelRatio));governor.setRange(t.scale);governor.reset();
  if(sun.shadow.mapSize.x!==t.shadow){sun.shadow.mapSize.set(t.shadow,t.shadow);sun.shadow.map?.dispose();sun.shadow.map=null;}
- post.configure({scale:governor.scale,msaa:t.msaa,bloomLevels:t.bloomLevels,volumetric:t.volumetric,ao:t.ao});jungle?.setQuality?.(t);critters?.setQuality(t);insects?.setQuality(t);brachio?.setQuality(t);effects?.setQuality?.(t);weather?.setQuality(t);night?.setQuality(t);mud?.setQuality(t);skid?.setQuality(t);
+ post.configure({scale:governor.scale,msaa:t.msaa,bloomLevels:t.bloomLevels,volumetric:t.volumetric,ao:t.ao});jungle?.setQuality?.(t);critters?.setQuality(t);insects?.setQuality(t);brachio?.setQuality(t);effects?.setQuality?.(t);weather?.setQuality(t);night?.setQuality(t);mud?.setQuality(t);skid?.setQuality(t);ford?.setQuality(t);
  document.body.dataset.quality=tierName();document.body.dataset.post=post.supported?'on':'off';document.querySelectorAll('[data-quality]').forEach(b=>b.setAttribute('aria-pressed',String(b.dataset.quality===quality)));
  const gpu=(detected.gpu.match(/(rtx|gtx|rx|arc|radeon|apple md|adreno|mali|intel|iris|uhd)[^,(]*/i)?.[0]||'').replace(/s+/g,' ').trim().toUpperCase();
  document.querySelectorAll('.quality-readout').forEach(e=>e.textContent=`Rendering ${t.label.toUpperCase()}${quality==='auto'?' (auto)':''}${gpu?' · '+gpu:''} · ${t.volumetric?'volumetric light':'light shafts'} · ${t.msaa}× MSAA`);
@@ -74,7 +76,10 @@ const debris=createDebris(scene,camera,$('#target-layer'));
 const birds=createBirds(scene);
 const mud=createMud(scene);effects.splash=(p,strength)=>mud.burst(p,strength);
 const skid=createSkid(scene,{effects,mud});
-const raycaster=new T.Raycaster(),pointer=new T.Vector2(),aimTarget=new T.Vector3(0,3.7,16);let rex,mode='loading',view='first',firing=false,breathClock=0,stomp=0,stompVel=0,stompOffset=0,time=0,last=performance.now(),shake=0,gunKick=0,hitTime=0,damageFlash=0,endTime=0,frameCount=0,freeze=false;
+// The river ford: a chunk of road where a jungle river crosses; the Jeep rides down its banks.
+const ford=createFord(scene,{jungle,effects,mud,canopy}),drips=[];jeep.ground=(x,z)=>jungle.fordDip(x,z);
+ford.onSplash=(kind,at,strength)=>audio.splash(kind,at,strength);
+const raycaster=new T.Raycaster(),pointer=new T.Vector2(),aimTarget=new T.Vector3(0,3.7,16);let rex,coat,mode='loading',view='first',firing=false,breathClock=0,stomp=0,stompVel=0,stompOffset=0,time=0,last=performance.now(),shake=0,gunKick=0,hitTime=0,damageFlash=0,endTime=0,frameCount=0,freeze=false;
 const reducedMotion=matchMedia('(prefers-reduced-motion: reduce)').matches;
 weather=createWeather(scene,{renderer,sky,makeEnvironment:createEnvironmentMap,reducedMotion});weather.captureBase({sun,hemi,rim,fill,post});
 weather.onThunder=(delay,near)=>audio.thunder(delay,near);
@@ -116,7 +121,7 @@ async function start(){
  try{await audio.init();}catch(e){console.warn('Audio initialization failed',e.message);}
  audio.stopCalls();state.reset();
  state.introDuration=Math.max(RULES.intro,RULES.roarAt+(audio.buffers.get(audio.roles.opening)?.duration||3.64)/.95+1.5);
- rex.reset();effects.reset();night.reset();updateLightButton();mud.reset();skid.reset();birds.reset();jeep.reset();jungle.reset();critters.reset({intro:true});insects.reset();brachio.reset();opening.reset();ambushScenery.reset();targets?.reset();debris.reset();swallow.reset();visitorCenter.reset();sharing.reset();
+ rex.reset();coat.reset();effects.reset();night.reset();updateLightButton();mud.reset();skid.reset();ford.reset();birds.reset();jeep.reset();jungle.reset();critters.reset({intro:true});insects.reset();brachio.reset();opening.reset();ambushScenery.reset();targets?.reset();debris.reset();swallow.reset();visitorCenter.reset();sharing.reset();
  jungleRoot.visible=true;rex.actor.visible=true;jungleLighting();canopy.reset();
  $('#arrival-caption').style.opacity=0;
  time=0;endTime=0;shake=0;stomp=stompVel=stompOffset=0;damageFlash=0;firing=false;pointer.set(0,.08);moveReticle();
@@ -144,15 +149,17 @@ function shoot(){
  const hit=getHit(),threat=debris.hit(raycaster.ray,hit?.distance),target=threat?-1:targets?.hit(raycaster.ray,state)??-1,origin=jeep.muzzle.getWorldPosition(new T.Vector3());
  const end=threat?threat.point:hit?hit.point:target>=0?targets.targets[target].world:aimPoint(new T.Vector3());
  effects.trace(origin,end);jeep.shoot();audio.gun();gunKick=.035;critters.alarm(end,end.y<.3?4:2.5);
- {const dist=end.distanceTo(origin);if(threat)audio.hit('wood',dist,end);else if(hit||target>=0)audio.hit('flesh',dist,end);else if(end.y<.05)audio.hit('dirt',dist,end);}
+ const water=!threat&&!hit&&target<0&&end.y<.05&&ford.depth(end)>.03;
+ {const dist=end.distanceTo(origin);if(threat)audio.hit('wood',dist,end);else if(hit||target>=0)audio.hit('flesh',dist,end);else if(water)audio.hit('water',dist,end);else if(end.y<.05)audio.hit('dirt',dist,end);}
  if(threat)debrisHit(threat);else if(hit)weaponHit(hit,false);else if(target>=0){state.hit(false);effects.burst(end,true);}
+ else if(water)ford.impact(end);
  else if(end.y<.05)effects.burst(end,false);
  targetHit(target);return !!threat||!!hit||target>=0;
 }
 function grenade(){
  if(mode!=='playing'||!state.launch())return false;
  const hit=getHit(),threat=debris.hit(raycaster.ray,hit?.distance),target=threat?-1:targets?.hit(raycaster.ray,state)??-1,origin=jeep.muzzle.getWorldPosition(new T.Vector3()),point=threat?threat.point:hit?hit.point:target>=0?targets.targets[target].world:raycaster.ray.at(40,new T.Vector3());
- effects.trace(origin,point);if(threat)debrisHit(threat,true);else if(hit)weaponHit(hit,true);else{effects.burst(point,false,true);if(target>=0)state.hit(false,true);}
+ effects.trace(origin,point);if(threat)debrisHit(threat,true);else if(hit)weaponHit(hit,true);else{effects.burst(point,false,true);if(point.y<.8&&ford.impact(point,true))audio.splash('blast',point);if(target>=0)state.hit(false,true);}
  targetHit(target,true);audio.impact(true);critters.alarm(point,16);shake=.2;return !!threat||!!hit||target>=0;
 }
 function updateHud(){
@@ -229,7 +236,10 @@ function handleEvents(){for(const event of state.drainEvents()){
  }
 }}
 function handleMotionEvents(playing,speed){for(const e of rex.drainMotionEvents()){
- if(e.type==='footstep'){critters.alarm(e.position,4+Math.min(6,e.speed*.5));effects.footstep(e.position,e.speed);mud.step(e.position,e.speed,e.side);if(playing&&!(state.result==='lost'&&endTime>DEFEAT.contact)){const concealed=state.phase==='flank'&&state.phaseTime>=AMBUSH.vanish&&state.phaseTime<AMBUSH.returnAt;audio.footstep(.22*Math.min(1,18/state.distance)*(concealed?.13:1),e.position);
+ if(e.type==='footstep'){
+  // In the river a footfall is a plunge (ford.js); just out of it the foot is still streaming.
+  const wade=ford.footfall(e.position,e.speed,e.side);
+  critters.alarm(e.position,4+Math.min(6,e.speed*.5));if(wade!=='water'){effects.footstep(e.position,e.speed);mud.step(e.position,e.speed,e.side,wade||0);if(playing&&!state.result)coat.step(e.speed);}if(playing&&!(state.result==='lost'&&endTime>DEFEAT.contact)){const concealed=state.phase==='flank'&&state.phaseTime>=AMBUSH.vanish&&state.phaseTime<AMBUSH.returnAt;audio.footstep(.22*Math.min(1,18/state.distance)*(concealed?.13:1),e.position);
    // Each footfall carries through the ground: a small jolt that grows as she closes.
    // No stomp while aiming at targets or debris: the framing must hold still.
    const aiming=['warning','challenge'].includes(state.phase)||state.debris?.status==='active';
@@ -243,7 +253,7 @@ function finish(){
  setMode('ended');audio.stopCalls();$('#end-screen').hidden=false;const won=state.result==='won',timeout=state.lossReason==='timeout';
  $('#end-eyebrow').textContent=won?'VISITOR CENTER REACHED':timeout?'ESCAPE WINDOW CLOSED':'JEEP LOST';$('#end-title').textContent=won?'You made it.':timeout?'Time ran out.':'Too close.';
  $('#end-copy').textContent=won?'The Jeep is safe at the Visitor Center. Take a breath. You earned it.':timeout?'She caught the Jeep. Take her down before the 90-second clock reaches zero.':'Break her attacks with the numbered targets. Shoot incoming debris—or save a grenade to clear it.';
- $('#end-stats').textContent=`${Math.floor(state.fightTime)}s · ${state.objectivesCleared} attacks repelled · ${state.debrisCleared} debris cleared`;hud.warning.style.opacity=0;arcade.card.hidden=true;audio.update(0,0,false,false);sharing.reset();$('#restart').focus({preventScroll:true});
+ $('#end-stats').textContent=`${Math.floor(state.fightTime)}s · ${state.objectivesCleared} attacks repelled · ${state.debrisCleared} debris cleared`;hud.warning.style.opacity=0;arcade.card.hidden=true;audio.update(0,0,false,false);audio.river(0,null,0);sharing.reset();$('#restart').focus({preventScroll:true});
 }
 const cameraTarget=new T.Vector3(),cameraPos=new T.Vector3(),cameraLook=new T.Vector3(0,3.16,18),fallFocus=new T.Vector3(),fallLean=new T.Vector3();
 function updateCamera(dt){
@@ -290,6 +300,8 @@ function updateCamera(dt){
   if(t>=DEFEAT.spinEnd){const gazeY=T.MathUtils.lerp(mouth.center.y,3.25,fatal.look*(1-focus));cameraTarget.lerp(new T.Vector3(mouth.center.x,gazeY,Math.max(fatal.jeepZ+2,mouth.center.z+1.4)),T.MathUtils.smoothstep(t,DEFEAT.spinEnd,5.4));cameraPos.x=T.MathUtils.lerp(cameraPos.x,mouth.center.x,focus);cameraPos.y=T.MathUtils.lerp(cameraPos.y,mouth.center.y,focus);}
   fov=T.MathUtils.lerp(innerWidth<600?80:72,innerWidth<600?67:54,T.MathUtils.smoothstep(t,DEFEAT.openAt,DEFEAT.contact));
  }
+ // Through the ford the Jeep dips and pitches on the banks; the seat and the chase camera ride with it.
+ {const lift=jeep.root.position.y,pitch=jeep.root.rotation.x;if(lift||pitch){cameraPos.y+=lift;cameraTarget.y+=lift-(cameraTarget.z-cameraPos.z)*Math.sin(pitch)*.6;}}
  const intensity=reducedMotion?.2:1,speed=fatal?fatal.speed/10:state.phase==='intro'?openingPose(state.phaseTime,state.introDuration).launch:1;
  if(mode==='playing'){cameraPos.y-=stompOffset*intensity;cameraPos.x+=Math.sin(time*17)*.011*intensity*speed;cameraPos.y+=(Math.sin(time*18)*.014+Math.sin(time*27)*.01)*intensity*speed;cameraPos.x+=(Math.random()-.5)*shake*.32*intensity;cameraPos.y+=(Math.random()-.5)*shake*.2*intensity;cameraTarget.y+=gunKick*6*intensity;}
  if(fatal){camera.position.copy(cameraPos);cameraLook.copy(cameraTarget);}else{camera.position.lerp(cameraPos,1-Math.exp(-dt*7));cameraLook.lerp(cameraTarget,1-Math.exp(-dt*8));}camera.lookAt(cameraLook);camera.fov=T.MathUtils.damp(camera.fov,fov,7,dt);camera.rotation.z+=(Math.sin(time*13)*.0015*speed+Math.sin(time*44)*shake*.024+(fatal?.jeepRoll||0))*intensity;camera.updateProjectionMatrix();camera.updateMatrixWorld();
@@ -333,7 +345,7 @@ function frame(now){
    $('#fatal-blood').style.opacity=pose.blood;$('#fatal-black').style.opacity=pose.black;
   }else if(state.victory){
    const v=state.victory;v.time=endTime;const pose=victoryPose(endTime,state.distance);speed=pose.speed;
-   if(pose.arrival&&!v.arrival){v.arrival=true;baseLights();visitorCenter.root.visible=true;jungleRoot.visible=false;opening.reset();ambushScenery.reset();effects.reset();mud.reset();skid.reset();birds.reset();audio.stopCalls();scene.background.setHex(0xbac8c4);scene.fog.color.setHex(0xbac8c4);scene.fog.density=.004;sun.position.set(-30,50,-35);sun.target.position.set(0,4,-80);Object.assign(sun.shadow.camera,{left:-60,right:60,top:60,bottom:-60,near:.5,far:150});sun.shadow.camera.updateProjectionMatrix();
+   if(pose.arrival&&!v.arrival){v.arrival=true;baseLights();visitorCenter.root.visible=true;jungleRoot.visible=false;opening.reset();ambushScenery.reset();effects.reset();mud.reset();skid.reset();ford.reset();birds.reset();audio.stopCalls();scene.background.setHex(0xbac8c4);scene.fog.color.setHex(0xbac8c4);scene.fog.density=.004;sun.position.set(-30,50,-35);sun.target.position.set(0,4,-80);Object.assign(sun.shadow.camera,{left:-60,right:60,top:60,bottom:-60,near:.5,far:150});sun.shadow.camera.updateProjectionMatrix();
     // Open sky over the Visitor Center: no canopy, a brighter dome and softer rim.
     canopy.enabled=false;sky.palette(scene.fog.color,0x8fb8d8);sky.uniforms.sunDir.value.subVectors(sun.position,sun.target.position).normalize();rim.intensity=.45;hemi.intensity=1.45;weather.captureBase({sun,hemi,rim,fill,post});}
    $('#fatal-black').style.opacity=pose.black;$('#arrival-caption').style.opacity=pose.caption;
@@ -362,7 +374,14 @@ function frame(now){
  // At night the menu gunner holds the beam on her face, so the eyes shine back.
  else if(menu&&night.active&&rex?.actor.visible){aimTarget.copy(rex.headPosition());aimTarget.y-=.5;}
  const exterior=state.result==='won'?state.victory?.exterior||state.victory?.time>VICTORY.pullback+.25:menu||(view==='third'&&state.phase!=='intro');
- jeep.update(dt,time,speed,aimTarget,exterior,state);night.update(dt,{time,speed,camera,rex,ground:jungleRoot.visible});effects.update(dt,speed);targets?.update(state);debris.update(dt,state,speed);
+ jeep.update(dt,time,speed,aimTarget,exterior,state);night.update(dt,{time,speed,camera,rex,ground:jungleRoot.visible});
+ ford.update(dt,{speed,pursuit:playing&&state.phase!=='intro'&&!state.result,state,jeep,rex:rex?.actor.visible&&state.result!=='won'?rex:null,tint:weather.rain.material.uniforms.tint.value,sun,beam:weather.rainUniforms,renderer,visible:jungleRoot.visible});
+ // The river is heard from the nearest point of the channel; the tyres churn while they are in it.
+ {const fz=ford.active&&jungleRoot.visible?jungle.ford.z:null,near=fz===null?0:T.MathUtils.clamp(1-(Math.abs(fz-camera.position.z)-10)/45,0,1);
+  audio.river(mode==='playing'?near:0,fz===null?null:new T.Vector3(camera.position.x,.2,fz),mode==='playing'&&ford.jeep.inWater?1:0);}
+ // Mud and water she gathers: the river rinses and soaks her, and she streams water for a while after.
+ if(coat){coat.update(dt,{active:playing&&!state.result});if(ford.rexWet.inWater)coat.wade(.42);
+  if(coat.soak>.25&&rex.actor.visible&&!ford.rexWet.inWater){for(let i=0;i<drips.length;i++)drips[i].bone.getWorldPosition(drips[i].p).y-=drips[i].drop;ford.drip(drips.map(d=>d.p),coat.soak*coat.soak*.3);}}effects.update(dt,speed);targets?.update(state);debris.update(dt,state,speed);
  if(playing){if(firing)shoot();handleEvents();updateHud();}audio.update(speed,dt,mode==='playing'&&(!state.result||state.result==='won'&&endTime<VICTORY.fade||(state.result==='lost'&&endTime<DEFEAT.spinEnd)),!state.result&&!['intro','flank'].includes(state.phase));
  shake=Math.max(0,shake-dt*1.8);stompVel+=(stomp*40-stompOffset*260-stompVel*26)*dt;stompOffset=Math.max(0,stompOffset+stompVel*dt);stomp=Math.max(0,stomp-dt*6);gunKick=Math.max(0,gunKick-dt*.4);hitTime=Math.max(0,hitTime-dt);damageFlash=Math.max(0,damageFlash-dt*.65);
  hud.hit.style.opacity=hitTime>0?1:0;hud.hitLabel.style.opacity=hitTime>0?1:0;hud.flash.style.opacity=damageFlash;
@@ -373,7 +392,9 @@ ${tierName()} · scale ${Math.round(governor.scale*100)}% · ${renderer.info.ren
 }
 requestAnimationFrame(frame);
 const boot=(stage,fraction)=>{$('#boot-stage').textContent=stage;$('#boot-fill').style.transform=`scaleX(${fraction})`;$('#boot-percent').textContent=`${Math.round(fraction*100)}%`;};boot('Waking the predator',.12);
-try{rex=await createRex(scene,p=>{const f=p.total?p.loaded/p.total:0;$('#loading-status').textContent=p.total?`Creature ${Math.round(f*100)}%`:'Preparing the creature…';boot('Waking the predator',.12+f*.66);});boot('Compiling light and shadow',.82);targets=createTargets(rex,camera,$('#target-layer'));skid.attachCoat(rex.hide.uniforms.uRexFallMud);skid.prepare(true);await renderer.compileAsync(scene,camera);skid.prepare(false);await swallow.prepare();boot('Ready',1);setMode('menu');$('#start').disabled=false;$('#start-label').textContent='START THE CHASE';$('#loading-status').textContent='Headphones recommended · First / third person';}
+try{rex=await createRex(scene,p=>{const f=p.total?p.loaded/p.total:0;$('#loading-status').textContent=p.total?`Creature ${Math.round(f*100)}%`:'Preparing the creature…';boot('Waking the predator',.12+f*.66);});boot('Compiling light and shadow',.82);targets=createTargets(rex,camera,$('#target-layer'));skid.attachCoat(rex.hide.uniforms.uRexFallMud);coat=createRexCoat(rex.hide.uniforms);
+ // Where river water streams off her: belly, thighs, shins, feet and the underside of the tail.
+ drips.push(...[['back_02_',1.1],['back_03_',1.2],['tail_02_',.7],['tail_05_',.45],['leg_02_L_',.5],['leg_02_R_',.5],['leg_03_L_',.2],['leg_03_R_',.2],['foot_02_01_L_',.1],['foot_02_01_R_',.1]].map(([n,drop])=>({bone:rex.bones.find(b=>b.name.startsWith(n)),drop,p:new T.Vector3()})).filter(d=>d.bone));rex.gait.ground=(x,z)=>jungle.fordDip(x,z);rex.gait.water=(x,z)=>jungle.waterDepth(x,z);skid.prepare(true);await renderer.compileAsync(scene,camera);skid.prepare(false);await swallow.prepare();boot('Ready',1);setMode('menu');$('#start').disabled=false;$('#start-label').textContent='START THE CHASE';$('#loading-status').textContent='Headphones recommended · First / third person';}
 catch(e){console.error(e);$('#loading-status').textContent='The creature could not load. Refresh to try again.';$('#start-label').textContent='LOAD FAILED';}
 // Exposed for local visual and interaction verification; no network or remote state.
-window.rexChase={scene,camera,renderer,post,birds,critters,insects,brachio,sky,canopy,weather,night,setConditions,toggleFlashlight,mud,governor,sun,lights:{hemi,rim,fill},jungle,get quality(){return{setting:quality,tier:tierName(),detected:detected.tier,gpu:detected.gpu,scale:governor.scale,frameMs:governor.frameMs};},setQuality,jeep,effects,opening,ambushScenery,debris,swallow,visitorCenter,get targets(){return targets;},get rex(){return rex;},state,audio,start,setView,shoot,grenade,get mode(){return mode;},get view(){return view;},get frames(){return frameCount;},set freeze(v){freeze=v;},get freeze(){return freeze;},aimAt(world){pointer.copy(world.clone().project(camera));moveReticle();},snapshot(){return{mode,view,health:state.health,jeep:state.jeep,phase:state.phase,ammo:state.ammo,wounds:rex?.damage.count,damageStage:rex?.damage.stage,persistentImpacts:rex?.damage.totalImpacts,headshots:state.headshots,drawCalls:renderer.info.render.calls,triangles:renderer.info.render.triangles,audioClips:audio.buffers.size,remaining:state.remaining,objectives:state.objectivesCleared,debrisCleared:state.debrisCleared,debrisMissed:state.debrisMissed};}};
+window.rexChase={scene,camera,renderer,post,birds,critters,insects,brachio,ford,get coat(){return coat;},sky,canopy,weather,night,setConditions,toggleFlashlight,mud,governor,sun,lights:{hemi,rim,fill},jungle,get quality(){return{setting:quality,tier:tierName(),detected:detected.tier,gpu:detected.gpu,scale:governor.scale,frameMs:governor.frameMs};},setQuality,jeep,effects,opening,ambushScenery,debris,swallow,visitorCenter,get targets(){return targets;},get rex(){return rex;},state,audio,start,setView,shoot,grenade,get mode(){return mode;},get view(){return view;},get frames(){return frameCount;},set freeze(v){freeze=v;},get freeze(){return freeze;},aimAt(world){pointer.copy(world.clone().project(camera));moveReticle();},snapshot(){return{mode,view,health:state.health,jeep:state.jeep,phase:state.phase,ammo:state.ammo,wounds:rex?.damage.count,damageStage:rex?.damage.stage,persistentImpacts:rex?.damage.totalImpacts,headshots:state.headshots,drawCalls:renderer.info.render.calls,triangles:renderer.info.render.triangles,audioClips:audio.buffers.size,remaining:state.remaining,objectives:state.objectivesCleared,debrisCleared:state.debrisCleared,debrisMissed:state.debrisMissed};}};

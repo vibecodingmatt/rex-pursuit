@@ -141,7 +141,8 @@ export function createWeather(scene,{renderer,sky,makeEnvironment,reducedMotion=
    const w=value,on=w>.001;
    gustTimer-=dt;if(gustTimer<=0){gustTimer=1.5+rand()*4;gustTarget=rand()*rand();}gust+=(gustTarget-gust)*Math.min(1,dt*.8);
    wind=w*(.6+gust*1.2);
-   WIND_GUST.value=1+w*(1.3+gust*1.6);sky.uniforms.drift.value+=dt*w*5;WET.value=w;RAIN.value=w*(1-shelter);RAIN_TIME.value+=dt;
+   // The ripple clock wraps like the sky clock, so the puddle and river shaders get a bounded input.
+   WIND_GUST.value=1+w*(1.3+gust*1.6);sky.uniforms.drift.value+=dt*w*5;WET.value=w;RAIN.value=w*(1-shelter);RAIN_TIME.value=(RAIN_TIME.value+dt)%600;
    rain.mesh.visible=on&&shelter<.99;splash.mesh.visible=on&&ground&&shelter<.99;
    if(on){
     const fall=8.6;rain.uniforms.vel.value.set(-1.6*wind,fall,speed+.9*wind);

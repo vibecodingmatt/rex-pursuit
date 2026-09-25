@@ -6,17 +6,19 @@ import {createParkDriver} from './park-driver.js';
 import {createPlayerCharacter} from './player-character.js';
 import {defeatPose} from './defeat.js';
 import {victoryPose} from './victory.js';
+import {FORD} from './river.js';
 // Field-worn finish: mud caked low and splattered up the panels, a dust film on
 // upward faces, cleaner metal where hands and boots rub. Object-space noise keeps
 // the pattern fixed to the body; world height drives how high mud reaches.
 function grime(material,{mud=1,dust=1,key}){
  material.onBeforeCompile=s=>{
+  s.uniforms.uJeepWet=FORD.jeepWet;
   s.vertexShader=s.vertexShader.replace('#include <common>',`#include <common>
 varying vec3 vGrimeObj;varying vec3 vGrimeWorld;varying float vGrimeUp;`)
    .replace('#include <begin_vertex>',`#include <begin_vertex>
 vGrimeObj=position;vGrimeWorld=(modelMatrix*vec4(transformed,1.)).xyz;vGrimeUp=normalize(mat3(modelMatrix)*objectNormal).y;`);
   s.fragmentShader=s.fragmentShader.replace('#include <common>',`#include <common>
-   varying vec3 vGrimeObj;varying vec3 vGrimeWorld;varying float vGrimeUp;float grimeMud;
+   varying vec3 vGrimeObj;varying vec3 vGrimeWorld;varying float vGrimeUp;uniform float uJeepWet;float grimeMud,grimeWet;
    float gHash(vec3 p){return fract(sin(dot(p,vec3(17.1,113.3,61.7)))*43758.5453);}
    float gNoise(vec3 p){vec3 i=floor(p),f=fract(p);f=f*f*(3.-2.*f);return mix(mix(mix(gHash(i),gHash(i+vec3(1,0,0)),f.x),mix(gHash(i+vec3(0,1,0)),gHash(i+vec3(1,1,0)),f.x),f.y),mix(mix(gHash(i+vec3(0,0,1)),gHash(i+vec3(1,0,1)),f.x),mix(gHash(i+vec3(0,1,1)),gHash(i+vec3(1,1,1)),f.x),f.y),f.z);}`)
   .replace('#include <color_fragment>',`#include <color_fragment>
@@ -28,11 +30,16 @@ vGrimeObj=position;vGrimeWorld=(modelMatrix*vec4(transformed,1.)).xyz;vGrimeUp=n
     float film=(smoothstep(.2,.9,vGrimeUp)*.55+.18)*(.7+.6*n)*${dust.toFixed(2)};
     diffuseColor.rgb=mix(diffuseColor.rgb,vec3(.36,.3,.22)*(.85+.3*n3),clamp(film,0.,.7));
     diffuseColor.rgb=mix(diffuseColor.rgb,vec3(.085,.062,.043)*(.8+.4*n3),grimeMud*.9);
+    // Fresh out of the river: soaked below the line the spray reached, water running
+    // off in streaks, the dust film washed dark. Dries from the top as uJeepWet falls.
+    float streak=gNoise(vec3(vGrimeObj.x*9.,vGrimeObj.y*1.6,vGrimeObj.z*9.));
+    grimeWet=uJeepWet*(1.-smoothstep(.35+.75*uJeepWet,.55+.9*uJeepWet,vGrimeWorld.y+n*.25-streak*.3));
+    diffuseColor.rgb*=1.-grimeWet*(.28+.12*streak);
    }`)
   .replace('#include <roughnessmap_fragment>',`#include <roughnessmap_fragment>
-roughnessFactor=mix(roughnessFactor,.82,grimeMud);`);
+roughnessFactor=mix(roughnessFactor,.82,grimeMud);roughnessFactor=mix(roughnessFactor,.22+.2*(1.-grimeMud),grimeWet);`);
  };
- material.customProgramCacheKey=()=>`rex-jeep-grime-${key}`;
+ material.customProgramCacheKey=()=>`rex-jeep-grime-v2-${key}`;
 }
 export function createJeep(scene){
  const jeep=new T.Group(),body=new T.Group();jeep.add(body);scene.add(jeep);
@@ -78,14 +85,23 @@ export function createJeep(scene){
  function pose(time,speed,state){
   const fatal=state.result==='lost'&&state.defeat?defeatPose(state.defeat.time,state.defeat):null;
   const arrival=state.result==='won'&&state.victory?victoryPose(state.victory.time,state.distance):null,travel=arrival||fatal;
-  jeep.position.set(travel?.jeepX||0,0,travel?.jeepZ||0);jeep.rotation.set(0,travel?.jeepYaw||0,0);
+  const x=travel?.jeepX||0,z=travel?.jeepZ||0,yaw=travel?.jeepYaw||0;
+  // Where the road dips (the river ford), the Jeep rides its four tyres down and up the banks.
+  let lift=0,pitch=0,roll=0;
+  if(api.ground){const c=Math.cos(yaw),s=Math.sin(yaw),h=(wx,wz)=>api.ground(x+wx*c+wz*s,z-wx*s+wz*c),fl=h(-1,-1.16),fr=h(1,-1.16),rl=h(-1,1.16),rr=h(1,1.16);
+   lift=(fl+fr+rl+rr)/4;pitch=Math.atan2((fl+fr-rl-rr)/2,2.32);roll=Math.atan2((fl+rl-fr-rr)/2,2);}
+  jeep.position.set(x,lift,z);jeep.rotation.set(pitch,yaw,roll,'YXZ');
   const bounce=Math.min(1,speed/5);body.position.y=(Math.sin(time*18)*.013+Math.sin(time*29)*.007)*bounce;body.rotation.z=Math.sin(time*7)*.006*bounce+(fatal?.jeepRoll||0);body.rotation.x=Math.sin(time*11)*.004*bounce+(fatal?.jeepPitch||0);jeep.updateMatrixWorld(true);
  }
- return{root:jeep,body,muzzle,gun,yaw,gunner,character,driver,flash,weapon,lamps:{head:lens,tail:red},pose,shoot:weapon.shoot,reset,update(dt,time,speed,aim,third,state){
+ const api={root:jeep,body,muzzle,gun,yaw,gunner,character,driver,flash,weapon,lamps:{head:lens,tail:red},pose,shoot:weapon.shoot,reset,
+  /** Optional road-dip function (x,z)=>metres, set by the chase for the river ford. */
+  ground:null,
+  update(dt,time,speed,aim,third,state){
   rearCrossbar.visible=third;
   pose(time,speed,state);
   // The Jeep drives toward -Z; the contact patch must travel with the road (+Z).
   for(const w of wheels)w.rotation.x-=speed*dt/.43;
   gunner.visible=third;driver.update(dt,time,speed,third);character.pose(time,speed,yaw.rotation.y,state);weapon.update(dt,time,speed,aim,third,state);if(third)character.fitArms(weapon.armRig);
  }};
+ return api;
 }

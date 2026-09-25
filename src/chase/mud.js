@@ -41,7 +41,7 @@ function dropletMesh(){
 // outward and tears into fingers; at its apex the rim pinches off into drops
 // (rimDrops) that fall back outside it, each landing as a ring on the puddle.
 // It is what makes a heavy splash readable from the gunner's seat.
-const CROWNS=10,CROWN_LIFE=.5;
+const CROWNS=14,CROWN_LIFE=.5;
 function crownMesh(){
  const geometry=new T.CylinderGeometry(1,1,1,40,4,true);geometry.translate(0,.5,0);
  const data=new T.InstancedBufferAttribute(new Float32Array(CROWNS*2).fill(1),2);data.setUsage(T.DynamicDrawUsage);geometry.setAttribute('crown',data);
@@ -200,8 +200,9 @@ export function createMud(scene){
   drops:drops.mesh,prints:prints.mesh,get printCount(){return list.length;},
   setQuality(t){scale=Math.min(1,t.particles);},
   /** A wet footfall: crown splash plus a print when the foot lands on the flat road/verge. */
-  step(p,speed,side){
-   const w=WET.value;if(w<.05)return;
+  step(p,speed,side,soaked=0){
+   // soaked: a foot fresh out of the river (ford.js) splashes and prints like the storm's.
+   const w=Math.max(WET.value,soaked);if(w<.05)return;
    const strength=T.MathUtils.clamp(speed/10,.65,1.35);
    spray(p,strength,{count:110*w,mud:.18,ground:speed});crown(p,strength*w);rimDrops(p,strength*w,speed);drops.a0.needsUpdate=drops.a1.needsUpdate=rings.a0.needsUpdate=rings.a1.needsUpdate=true;
    if(Math.abs(p.x)>14)return;
@@ -211,6 +212,8 @@ export function createMud(scene){
    let e=list.length>=PRINTS?list.shift():{p:new T.Vector3()};
    Object.assign(e,{side,age:0,yaw:Math.atan2(dir.x,dir.z)+(rnd()-.5)*.12,size:1.05+rnd()*.15,fade:w});e.p.set(p.x,.004,p.z);list.push(e);
   },
+  /** A crown thrown up by a plunge into standing water, at the water's own height (the river). */
+  waterCrown(p,strength){const c=crownState[crownId++%CROWNS];c.age=0;c.p.set(p.x,p.y,p.z);c.yaw=Math.random()*Math.PI*2;c.strength=strength;},
   /** A body ploughing through wet ground: water and mud heap up against its
    *  front and peel off both sides as a bow wave, thrown forward and outward
    *  (`dir` is the ground-relative direction of travel, `slip` its speed). */

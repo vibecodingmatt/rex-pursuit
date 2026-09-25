@@ -65,6 +65,9 @@ export class RunGait {
   for (const leg of this.legs) leg.initialized = false;
  }
 
+ /** Contact height for a leg at a scene point: its rest claw height plus any dip in the road (the river ford). */
+ floorAt(leg, x, z) { return leg.groundY + (this.ground ? this.ground(x, z) : 0); }
+
  advance(dt, position, roadSpeed = 10, strength = 1, approach = false) {
   if(approach&&!this.approaching){
    // Both feet have settled during the pause after the spin. Begin a fresh
@@ -128,14 +131,14 @@ export class RunGait {
    const wasStance = leg.stance;
    const baseQ = headingQ.clone().multiply(leg.restQ);
    const front = actor.localToWorld(new T.Vector3(leg.contactX, 0, leg.centerZ)).addScaledVector(travelAxis,this.travel/2);
-   front.y = leg.groundY;
+   front.y = this.floorAt(leg, front.x, front.z);
    let turnBlend=1;
 
    if (stance) {
     if (!leg.initialized || !wasStance) {
      // Account for the partial frame after touchdown, then lock this contact to the road.
      leg.anchor.copy(front).addScaledVector(this.groundVelocity.clone().sub(this.rootVelocity), phase / Math.max(.01,this.frequency));
-     leg.anchor.y = leg.groundY;
+     leg.anchor.y = this.floorAt(leg, leg.anchor.x, leg.anchor.z);
      leg.plantedQ.copy(baseQ);
     } else {
      leg.anchor.addScaledVector(this.groundVelocity, dt);
@@ -143,7 +146,7 @@ export class RunGait {
     leg.contact.copy(leg.anchor);
     if (leg.initialized && !wasStance) {
      const position = leg.anchor.clone().add(new T.Vector3(0, 0, -.35).applyQuaternion(headingQ));
-     position.y = .035;
+     position.y = .035 + (this.ground ? this.ground(position.x, position.z) : 0);
      this.footfalls.push({type:'footstep', position, side:leg.side, speed:this.speed});
     }
    } else {
@@ -153,7 +156,7 @@ export class RunGait {
     if (!leg.initialized) {
      leg.plantedQ.copy(baseQ);
      leg.swingFrom.copy(actor.localToWorld(new T.Vector3(leg.contactX, 0, leg.centerZ))).addScaledVector(travelAxis,-this.travel/2);
-     leg.swingFrom.y = leg.groundY;
+     leg.swingFrom.y = this.floorAt(leg, leg.swingFrom.x, leg.swingFrom.z);
      leg.swingFrom.addScaledVector(this.rootVelocity, -u * swingDuration);
     } else if (wasStance) {
      // Reconstruct the exact toe-off instant. Advancing a full frame here
@@ -162,11 +165,12 @@ export class RunGait {
     }
     // Predict the next plant while retaining ground-matched takeoff/landing velocities.
     leg.landing.copy(front).addScaledVector(this.rootVelocity, (1 - u) * swingDuration);
-    leg.landing.y = leg.groundY;
+    leg.landing.y = this.floorAt(leg, leg.landing.x, leg.landing.z);
     swingArc(leg.swingFrom, leg.landing, this.groundVelocity, this.rootVelocity, swingDuration, u, leg.contact);
     // Curled toes raise the ankle for a given claw height, so the running
     // claw no longer relies on the reach clamp below to clear the road.
-    const lift = T.MathUtils.lerp(.17,.36,this.runBlend);
+    // In water she steps higher, but her toes still plough the surface on the way forward.
+    const lift = T.MathUtils.lerp(.17,.36,this.runBlend) + (this.water ? Math.min(.22, this.water(leg.contact.x, leg.contact.z) * .55) : 0);
     leg.contact.y += Math.sin(Math.PI * u) ** 2 * lift * this.strength;
     leg.contact.x += (leg.side === 'L' ? -1 : 1) * Math.sin(Math.PI * u) * .065;
    }
@@ -175,7 +179,7 @@ export class RunGait {
    // speed settle, the last sideways contact survives the turn into the road.
    const settle=1-smooth(this.speed,.25,1.4);
    if(settle>0){
-    const home=actor.localToWorld(new T.Vector3(leg.contactX,0,leg.centerZ));home.y=leg.groundY;
+    const home=actor.localToWorld(new T.Vector3(leg.contactX,0,leg.centerZ));home.y=this.floorAt(leg,home.x,home.z);
     leg.contact.lerp(home,settle);leg.anchor.copy(leg.contact);leg.plantedQ.slerp(baseQ,settle);
    }
    // During the entrance turn, the lifted foot follows the new heading over

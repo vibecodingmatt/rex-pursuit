@@ -61,7 +61,8 @@ export async function createRex(scene,onProgress){
   const motion=gait.advance(dt,new T.Vector3(lane,0,distance),roadSpeed,run,!!fatal&&state.defeat.time>=DEFEAT.walkAt);
   const stride=motion.cycle,heading=scripted?scripted.heading+Math.sin(time*.73)*.027*settle:Math.PI+Math.sin(time*.73)*.027;
   actor.visible=scripted?scripted.visible!==false:true;
-  actor.position.set(lane+motion.sway,motion.height,distance);actor.rotation.set(0,heading,motion.roll);
+  // The body rides down into the river ford with her feet (gait.ground).
+  actor.position.set(lane+motion.sway,motion.height+(gait.ground?gait.ground(lane,distance):0),distance);actor.rotation.set(0,heading,motion.roll);
   pose('back_02_',motion.pitch);pose('back_04_',Math.sin(motion.step-.45)*.009*run);
   // Let the torso absorb landings while the gaze remains comparatively steady.
   pose('neck_01_',-.025-motion.pitch*.8);pose('neck_03_',Math.sin(motion.step-1)*.007*run);

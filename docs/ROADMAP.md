@@ -7,7 +7,7 @@ Started 2026-09-24. The user shared the prompt history behind a viral Three.js o
 - Start a **fresh conversation** in this folder and say: *"Do the next drop in docs/ROADMAP.md."*
 - Read this file, then only the files the drop names. Don't re-survey the codebase or read the handoff end to end.
 - Finish the "Must" items before any "Stretch" items. If the window runs short, cut Stretch and record where work stopped in the progress log.
-- **Shipped 2026-09-24:** Drops 1–5 are live (`8d9fa60`), along with fixes for the menu layout, rain streaks, eye shine and mobile sky precision. Drop 6 is committed on `aaa-upgrade` (not shipped). Next up: Drop 7.
+- **Status 2026-09-25:** Drops 1–6 are live, along with fixes for the menu layout, rain streaks, eye shine and mobile sky precision. **Drop 7 is on hold indefinitely** at the user's request; don't start it unless the user asks. The user chose two backlog items instead: the river ford, and mud and wetness building up on the Rex (branch `river-ford`).
 - **Mobile precision:** local headless captures can't show phone-GPU precision bugs. Keep every shader input bounded (no raw ever-growing clocks into noise or hashes). See [Mobile GPU precision](../.agents/skills/rex-pursuit-maintainer/references/animation-and-rendering.md#mobile-gpu-precision-shader-inputs-must-stay-small).
 - **Do not push.** Pushing `main` deploys the live game. Commit locally on the `aaa-upgrade` branch at the end of each drop; at ship time merge it into `main`. Publish only when the user says "ship it", and run the full release gate from the [verification reference](../.agents/skills/rex-pursuit-maintainer/references/verification-and-release.md) first.
 - Test proportionally. Each drop runs `build`, `test:smoke` and the focused suites it lists. The full browser suite runs only at ship time.
@@ -181,7 +181,9 @@ Started 2026-09-24. The user shared the prompt history behind a viral Three.js o
 
 **Checks:** `build`, `test:smoke`, `test:treeline`, `test:cinematic` (the opening must still read well), performance.
 
-## Drop 7: Photo mode *(small; can be added to any drop that finishes early)*
+## Drop 7: Photo mode *(on hold indefinitely, 2026-09-25)*
+
+The user put this drop on permanent hold. Don't start it, or fold it into another drop, unless the user asks.
 
 Pause, then Photo:
 
@@ -194,14 +196,15 @@ This is Rex's version of his parameter UI, and it makes the upgrades shareable.
 ## Backlog (not scheduled)
 
 - A custom lens flare for the sun in the menu and third person, and an anamorphic muzzle-flash streak.
-- A **river ford** segment where the Jeep and Rex throw spray and leave wet banks. This is the closest match to his water work.
-- Mud and wetness building up on the Rex over the course of the chase.
+- ~~A **river ford** segment where the Jeep and Rex throw spray and leave wet banks.~~ Done 2026-09-25 (branch `river-ford`); see the progress log.
+- ~~Mud and wetness building up on the Rex over the course of the chase.~~ Done 2026-09-25 (branch `river-ford`).
 - Rain beading on the Jeep bodywork.
 
 ## Progress log
 
 | Drop | Status | Date | Notes |
 | --- | --- | --- | --- |
+| Backlog: river ford, mud and wetness on the Rex | committed on `river-ford` (not shipped) | 2026-09-25 | User request; Drop 7 put on hold. **Ford:** once per chase, 45 m into the pursuit, a chunk slot beyond the fog is swapped for a seventh layout (`environment.js`) with a river channel cut through it (`river.js`: 15 m of water, 0.42 m deep at the road, deeper pools either side). Boulders, a drowned log, reeds, driftwood and gravel bars; nothing else grows in the water. The Jeep rides its four tyres down and up the banks (0.56 m dip, about 10 degrees on the ramps) and the camera rides with it; the Rex's body and feet follow the bed (`gait.ground`) and she steps a little higher in water. `ford.js`: the water (silty body colour by depth, flow, V wakes, rings, stone foam, rain rings; reflections traced against the treeline, the canopy gap mask and a proxy of the Rex; caustics on the shallow bed); spray as drops, torn shreds, steady spray sheets off the Jeep's wheels (wings and rooster tails) and ballistic white-water puffs; a wet-ground map riding with the road for spray landings, tyre tracks (~25 m) and her wet prints; bullets and grenades into the water. **Mud and wetness** (`rex-coat.js`, `rex-skin.js`): splatter builds with every footfall (more on wet ground), climbing the legs, belly and tail underside; it dries to a lighter crust in clear weather; the river rinses below the spray line and soaks her, and she drips and dries from the top down; rain soak builds over the first half-minute; rivulets run down the hide. The Jeep's lower body is soaked and dries. **Audio:** six CC0 Freesound recordings in `public/audio/ford/` (credited in README), loaded when the ford is laid out. Checks: build, test:smoke, new test:ford, test:gait, test:vehicle, test:motion, test:cinematic, test:treeline, test:pressure (compact-phone failed once with the known flake, then every view passed). Perf on this machine: +0.1 to +0.8 ms during the crossing. Captures in `art/review/ford/`. Known gap: if she dies while standing in the river, the fall's physics still assumes flat ground. |
 | Off-roadmap: victory fall, swallow, butterflies | shipped | 2026-09-25 | User request outside the drops. **Fall:** face first instead of the sideways roll; a 240 Hz physics rig (rigid torso on buckling legs, throat/jaw struts, neck and tail mass chains with spring bending and joint limits, physics feet by IK), chin → tail → hips/chest landings, a belly skid (μ .48 dry, .3 wet). New `skid.js`: relief furrows (jaw, belly, claws, tail) that pool rain, bow wave of clods/grit/rolling dust or muddy water sheets, radial surges, a mound against the jaw, a mud/dust coat on the hide, an exhale, a scrape sound; the victory camera follows her down. **Swallow:** 15.35 s finish (from 16.15), 1.8 s endoscope-like esophagus (folds, peristalsis, vessels, transmitted daylight, snapping mucus, lens smear), new `stomach.js` (rugae, ulcers, frothing acid, prey remains), a digested Gennaro, a face-first plunge with lens corrosion. **Butterflies:** clear daylight only. Captures in `art/review/fall/`. Checks: the full release gate. |
 | Roadmap | done | 2026-09-24 | Inspiration mapped; nothing shipped. |
 | 6 follow-up 4 (brachiosaur silhouette revision) | shipped | 2026-09-24 | Reworked after the user rejected the previous proportions: compact deep ribcage, reduced balloon chest, fuller curved neck, compact skull, continuous columnar legs with staggered feet, and a shorter, lower tail. New upright lofts eliminate spherical knees; inward shoulder/thigh caps and continuous cap distances prevent ledges. Fixed pale shoulder outlines caused by interpolated region ids crossing the claw id; baked a smooth limb mask into the spare aux byte. High 83.5k triangles / 1.42 MB; Low 28.5k / 0.48 MB (about 24% smaller). Checks: build, test:smoke, test:release, mesh connectivity, desktop/phone calls and visual captures. Comparison: `art/review/brachio-astra/review.html`. User approved f1309d6 and requested production release. |

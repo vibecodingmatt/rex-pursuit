@@ -1,5 +1,16 @@
 # Rex: Pursuit handoff
 
+## River ford and mud build-up (2026-09-25, branch `river-ford`, not shipped)
+
+The user put Drop 7 (photo mode) on permanent hold and asked for two backlog items instead: a river ford where the Jeep and the Rex throw spray and leave wet banks, and mud and wetness building up on the Rex over the chase.
+
+- **Where the ford comes from:** `river.js` defines the channel (centre line, half-width, bed, carve) in chunk-local coordinates and the shared uniforms (`FORD`). `environment.js` builds a seventh layout on carved ground (`fordHeight`) and exposes `jungle.ford.place(z)`/`release()`, `groundAt` (ford-aware), `fordDip` and `waterDepth`. `ford.js` schedules it once per chase (45 m of pursuit travel, never during the detour), and owns the water surface, spray, wakes, the wet-ground map and the splash hooks. `rexChase.ford.stage(z)` lays it out immediately for reviews.
+- **Ground follow:** `jeep.ground` lifts and pitches the Jeep from its four tyres; `updateCamera` adds that lift and 60% of the pitch; `gait.ground`/`gait.water` put her contacts and body on the bed and raise her step. All return 0 away from the ford, so nothing else moves.
+- **Rex coat:** `rex-coat.js` writes `uRexCoat` (splatter level, rinse level and height, dryness) and `uRexSoak` (river soak and line, runoff phase, rain soak). The start state matches the accepted look (compare `art/review/ford/coat-base-clear.png` with `coat-a-start.png`). The new high-frequency noise uses a sin-free hash (`rexNoiseS`) for phone precision.
+- **Also changed:** `RAIN_TIME` now wraps at 600 s (the puddle ripples and the river take a bounded clock). The soft-smoke capacity went to 204 for the 64-puff spindrift pool.
+- **Reviews and checks:** `art/review/ford/capture.cjs [conditions] [tag] [first|third]` (crossing stills), `coat.cjs` (coat stages on a frozen menu Rex), `perf.cjs` (crossing vs road), `scripts/verify-ford.cjs` (`npm run test:ford`).
+- **Open:** the victory fall still assumes flat ground, so if she dies in the river she lies on the surface for the second or two before she slides out. The spray reads well in third person and at night; in first person the gun hides her feet, so the plumes are what show.
+
 ## Face-first victory fall, graphic swallow, daytime butterflies (2026-09-25 release)
 
 The user asked for the Rex to fall face first and skid instead of rolling sideways with rigid legs, with dirt, mud and weather effects; for butterflies only by day in clear weather; and for a shorter, more realistic and deliberately graphic swallow (esophagus, stomach, a semi-digested Gennaro, acid). They authorized publishing these changes.

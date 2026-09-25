@@ -44,9 +44,9 @@ export function createEffects(scene,dustMap){
 
  // ---- Fire stays an additive sprite pool; puffs, smoke and mist are soft (soft-smoke.js).
  const makePool=(n,map,blending,color)=>Array.from({length:n},()=>{const s=new T.Sprite(new T.SpriteMaterial({map,color,transparent:true,opacity:0,depthWrite:false,blending}));s.visible=false;s.renderOrder=4;scene.add(s);return{sprite:s,life:0,max:1,velocity:new T.Vector3(),size:1,growth:1,opacity:1,spin:0,ground:false,hdr:1,base:new T.Color(color)};});
- const soft=createSoftSmoke(140),chunks=createChunks(scene);
- const fire=makePool(24,fireMap,T.AdditiveBlending,0xffffff),puffs=soft.pool(24,0xa9916a),smoke=soft.pool(44,0x3c3a34),mist=soft.pool(28,0xd8d4c8,.6),ground=soft.pool(44,0xa58f6b);
- let puffId=0,fireId=0,smokeId=0,mistId=0,groundId=0,lastRoad=0;
+ const soft=createSoftSmoke(204),chunks=createChunks(scene);
+ const fire=makePool(24,fireMap,T.AdditiveBlending,0xffffff),puffs=soft.pool(24,0xa9916a),smoke=soft.pool(44,0x3c3a34),mist=soft.pool(28,0xd8d4c8,.6),ground=soft.pool(44,0xa58f6b),spindrift=soft.pool(64,0xe4e8e2,.85);
+ let puffId=0,fireId=0,smokeId=0,mistId=0,groundId=0,spindriftId=0,lastRoad=0;
  function launch(pool,idx,p,{life:l,size,growth,opacity,velocity:v,color,spin=0,ground=false,hdr=1,rise=0,drag=1.1}){
   const d=pool[idx%pool.length];d.life=d.max=l;d.size=d.now=size;d.growth=growth;d.opacity=opacity;d.velocity.copy(v||ZERO);d.spin=spin;d.ground=ground;d.hdr=hdr;d.rise=rise;d.drag=drag;d.rot=rnd()*6.28;d.seed=rnd();d.alpha=0;
   if(color!==undefined)d.base.set(color);if(d.soft){d.pos.copy(p);return d;}
@@ -118,6 +118,8 @@ export function createEffects(scene,dustMap){
   get particleScale(){return particleScale;},
   groundDust(p,v,{life=2,size=.6,growth=3,opacity=.5,color=0xa58f6b,drag=1.6,rise=.1,lit=1}={}){const d=launch(ground,groundId++,p,{life,size,growth,opacity,velocity:v,color,ground:true,drag,rise});d.lit=lit;return d;},
   haze(p,v,{life=1,size=.4,growth=2,opacity=.1,color=0xdcd8cc,drag=1.5,rise=.2}={}){return launch(mist,mistId++,p,{life,size,growth,opacity,velocity:v,color,ground:true,drag,rise});},
+  /** River spray left hanging in the air (ford.js); its own pool, so a crossing cannot starve blood or breath mist. */
+  spume(p,v,{life=1.6,size=.6,growth=2.6,opacity=.14,color=0xe4e8e2,drag=1.8,rise=.05}={}){return launch(spindrift,spindriftId++,p,{life,size,growth,opacity:opacity*(particleScale<.6?.8:1),velocity:v,color,ground:true,drag,rise});},
   debris(kind,p,v,scale=1){chunks.spawn(kind,p,v,scale);},
   speck(p,v,color,size,life){emit(p,v,color,size,life);},
   reset(){life.fill(0);position.fill(-1000);groundRelative.fill(0);geo.attributes.position.needsUpdate=true;for(const d of dust){d.life=0;d.sprite.visible=false;}for(const p of fire){p.life=0;p.sprite.visible=false;}soft.reset();chunks.reset();for(const t of tracers){t.life=0;t.mesh.visible=false;}lightTime=0;burstLight.intensity=0;screenFlash=0;stats.footsteps=stats.bodyImpacts=stats.explosions=stats.breaths=0;},

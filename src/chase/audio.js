@@ -106,6 +106,33 @@ export class ChaseAudio {
   const w=c.createGain();w.gain.value=.3;
   s.connect(f);f.connect(g);g.connect(this.world);g.connect(w);w.connect(this.reverb);s.start(c.currentTime+Math.min(delay,6));s.onended=()=>{s.disconnect();f.disconnect();g.disconnect();w.disconnect();};
  }
+ // River ford: CC0 recordings (credited in README), fetched the first time a ford is laid out.
+ async loadFord(){
+  if(this.ford||!this.context)return;this.ford={};
+  const files={river:'river-loop.wav',wade:'wade-loop.wav',pass:'water-pass.wav',slaps:'spray-slaps.wav',big:'splash-big.mp3',small:'splash-small.mp3'};
+  await Promise.all(Object.entries(files).map(async([k,f])=>{try{const r=await fetch(`./audio/ford/${f}`);if(!r.ok)throw Error(r.status);this.ford[k]=normalize(await this.context.decodeAudioData(await r.arrayBuffer()));}catch(e){console.warn('Ford audio unavailable',f,e.message);}}));
+  if(this.ford.slaps)this.ford.slapAt=onsets(this.ford.slaps);
+ }
+ /** The river's bed, placed at the nearest point of the channel (`level` 0..1 by distance),
+  *  and the churn of the Jeep's tyres while they are in the water (`churn` 0..1). */
+ river(level,at,churn=0){
+  if(!this.context)return;if(level>.01&&!this.ford)this.loadFord();const c=this.context,t=c.currentTime;
+  if(!this.riverBed&&this.ford?.river){const g=c.createGain(),p=this.panner(null,{rolloff:.5,ref:9}),s=c.createBufferSource();g.gain.value=0;s.buffer=loopable(c,this.ford.river,1.5);s.loop=true;s.connect(g);g.connect(p);p.connect(this.world);s.start();this.riverBed={g,p};}
+  if(this.riverBed){this.riverBed.g.gain.setTargetAtTime(level*.8,t,.35);if(at)place(this.riverBed.p,at,t,.05);}
+  if(!this.wadeBed&&this.ford?.wade){const g=c.createGain(),s=c.createBufferSource();g.gain.value=0;s.buffer=loopable(c,this.ford.wade,.8);s.loop=true;s.playbackRate.value=1.12;s.connect(g);g.connect(this.world);s.start();this.wadeBed={g};}
+  if(this.wadeBed)this.wadeBed.g.gain.setTargetAtTime(churn*1.05,t,churn>.5?.04:.3);
+ }
+ /** Splashes: a Rex footfall in the river, the Jeep hitting and leaving the water, a round or a grenade into it. */
+ splash(kind,at=null,strength=1){
+  if(!this.context)return;if(!this.ford){this.loadFord();return;}const f=this.ford,r=Math.random;
+  if(kind==='step'){
+   this.sample(f.big,{volume:.5*strength,rate:.6+r()*.14,at,wet:.3,lowpass:6000});
+   const on=f.slapAt||[];if(on.length&&f.slaps){const k=Math.floor(r()*on.length);this.sample(f.slaps,{volume:.5*strength,rate:.78+r()*.1,offset:on[k],duration:1.1,fade:.4,at,wet:.25});}
+  }else if(kind==='enter'){this.sample(f.pass,{volume:1,rate:.95+r()*.06,wet:.2});this.sample(f.big,{volume:.85,rate:.78,wet:.25,delay:.05});}
+  else if(kind==='exit')this.sample(f.pass,{volume:.5,rate:1.05,offset:1.2,wet:.15});
+  else if(kind==='bullet')this.sample(f.small,{volume:.28*strength,rate:1.35+r()*.35,duration:.55,fade:.25,at,wet:.15});
+  else if(kind==='blast')this.sample(f.big,{volume:1,rate:.52,at,wet:.45});
+ }
  async loadSfx(){
   if(this.sfxLoading||!this.context)return this.sfxLoading;
   return this.sfxLoading=(async()=>{
@@ -137,6 +164,7 @@ export class ChaseAudio {
   if(!this.context)return;const now=this.context.currentTime;if(now-(this.lastHit||0)<.05)return;this.lastHit=now;
   const delay=Math.min(.2,distance/343),far=Math.max(.35,1-distance/60);
   if(kind==='flesh')this.sample('impact-flesh',{volume:.55*far,rate:.9+Math.random()*.2,delay,at,wet:.18});
+  else if(kind==='water')this.splash('bullet',at,far);
   else if(kind==='wood')this.sample('branch-snap',{volume:.35*far,rate:1.35+Math.random()*.2,delay,duration:.25,fade:.08,at,wet:.25});
   else this.sample('impact-dirt',{volume:.3*far,rate:.9+Math.random()*.2,delay,duration:Math.random()<.35?undefined:.35,fade:.1,at,wet:.15});
  }

@@ -131,6 +131,18 @@ Named runtime clips live in `public/audio/catalog.json` and `public/audio/clip-N
 - For captures, spawn after `freeze` and step the systems by hand (`critters.update(.025,{speed:0})`). Otherwise the road carries them out of frame before the screenshot.
 - Gait and wing shaders take a phase wrapped to 0..1 on the CPU (`aPose.x`, `aFly.x`), never a clock (see below).
 
+## River ford and the Rex's coat
+
+The ford was added on 2026-09-25 at the user's request (backlog items, with Drop 7 on hold). Invariants:
+
+- **One slot, beyond the fog.** `jungle.ford.place()` swaps the farthest chunk slot (z < -96, never visible) for a seventh layout on carved ground; the slot releases when it wraps past z 200, and restart releases it too. The channel stays inside |z| < 14, so chunk seams are untouched. `ford.js` schedules it once per chase after 45 m of pursuit, never during or just before the detour; `rexChase.ford.stage(z)` places it at once for reviews.
+- **Ground queries are the only coupling.** `jungle.groundAt`, `fordDip` and `waterDepth` are ford-aware and return the ordinary values elsewhere, so `jeep.ground`, `gait.ground` and `gait.water` change nothing away from the river. The camera adds the Jeep's lift and 60% of its pitch.
+- **Water.** A transparent `MeshStandardMaterial` that writes depth, so AO, contact shadows, soft smoke and motion blur see the surface. The custom output keeps the reflection at full strength over clear, shallow water while the silty body fades with depth. The environment map is open sky, which made the river read as pale grey; reflections are traced against a treeline wall, the canopy gap mask and a proxy of the Rex (body ellipsoid, leg columns). Wakes are analytic from each mover's current z, with strength 0 until it has actually entered the water. Flow ripples cross-fade two bounded phases.
+- **Spray.** Drops die at their own floor (the water, or the ground that will be under them), found at launch with drag. Landings on dry ground are queued into the wet-ground map when they arrive. Sheet shreds need a ragged, holed shape; drawn as quads they read as confetti. Pale "surface" around her legs was low spindrift lying on the water; the splash's volume now comes from puffs on ballistic arcs.
+- **Wet-ground map.** 128x256, RG (spray and drips, tyre tracks), in ford-local metres from z -60 to 14, so the tracks continue across the next chunks. The ground shader finds it from world z minus `FORD.state.y`, and gates the noise break-up by the map value, so dry ground never picks up speckle.
+- **The Rex's coat.** `rex-coat.js` owns the uniforms and `rex-skin.js` draws them. Its start state is the accepted hide, so compare against the baseline before changing it (`art/review/ford/coat.cjs` and `coat-base.cjs`). Big pale splats high on the back read as camouflage paint; keep splatter small, dense low down, climbing the undersides. New high-frequency noise uses the sin-free `rexNoiseS`. The runoff phase (`uRexSoak.z`) wraps at 1.
+- **Not handled:** the victory fall assumes flat ground. If she dies standing in the river, she lies on the surface until she slides out.
+
 ## Wind: plants must sway as one body
 
 The user saw the plants "wavy like jello" (2026-09-24). The storm-era wind shader had four faults, all present since Drop 1:

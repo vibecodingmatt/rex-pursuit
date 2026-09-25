@@ -36,6 +36,7 @@ Read `package.json` and the selected script before running it. There is no need 
 | Main game shooting, damage, restart | `npm test` |
 | Walk/run cadence, foot planting, roar locomotion | `npm run test:gait` |
 | Knee continuity, footstep dust, Rex death fall | `npm run test:motion` |
+| River ford, spray, wet ground, the Rex's mud and soak | `npm run test:ford` |
 | Player defeat, post-spin feet, jaw/interior timing | `npm run test:defeat` |
 | Reload hands, ammo feed, driver, steering | `npm run test:vehicle` |
 | Target distribution, HUD paths, debris balance | `npm run test:pressure`; `test:balance` for simulations |

@@ -43,13 +43,19 @@ export function markGape(mesh){
 export function createRexSkin(){
  // uRexFallMud: soil picked up in the victory fall (x jaw and throat, y chest and
  // belly, z tail) and how wet it is (w); written by skid.js.
- const uniforms={tRexScales:{value:scaleTexture()},uRexDetail:{value:1},uRexDebug:{value:0},uRexJaw:{value:0},uRexRain:WET,uRexFallMud:{value:new T.Vector4()}};
+ // uRexCoat, uRexSoak: mud and water gathered over the chase; written by rex-coat.js.
+ //  coat x: splatter level (grows with every footfall), y: the level the river rinsed
+ //  away, z: how high the rinse reached (rest-space m; 0 = never), w: how dry the mud is.
+ //  soak x: river soak 0..1, y: how high it reached, z: runoff phase (0..1, wraps),
+ //  w: rain soak (builds toward the storm's wetness).
+ const uniforms={tRexScales:{value:scaleTexture()},uRexDetail:{value:1},uRexDebug:{value:0},uRexJaw:{value:0},uRexFallMud:{value:new T.Vector4()},
+  uRexCoat:{value:new T.Vector4(.35,0,0,0)},uRexSoak:{value:new T.Vector4(0,0,0,WET.value*.8)}};
  function extend(s){
   Object.assign(s.uniforms,uniforms);
   s.vertexShader=s.vertexShader.replace('#include <common>','#include <common>\nvarying vec3 vRexNormal;attribute float rexGape;varying float vRexGape;')
    .replace('#include <beginnormal_vertex>','#include <beginnormal_vertex>\nvRexNormal=objectNormal;vRexGape=rexGape;');
   s.fragmentShader=s.fragmentShader.replace('#include <common>',`#include <common>
-   varying vec3 vRexNormal;varying float vRexGape;uniform sampler2D tRexScales;uniform float uRexDetail,uRexDebug,uRexJaw,uRexRain;uniform vec4 uRexFallMud;
+   varying vec3 vRexNormal;varying float vRexGape;uniform sampler2D tRexScales;uniform float uRexDetail,uRexDebug,uRexJaw;uniform vec4 uRexFallMud,uRexCoat,uRexSoak;
    float rexScaleH,rexMud,rexWet,rexMouth,rexCavity,rexSoak,rexStreak,rexFallMud;
    // Oral cavity in rest space: between the jaws around the off-centre midline
    // (x~.17), on surfaces that face into the mouth rather than out of the head.
@@ -62,6 +68,11 @@ export function createRexSkin(){
    float rexHash(vec3 p){return fract(sin(dot(p,vec3(41.3,289.1,117.7)))*43758.5453);}
    float rexNoise(vec3 p){vec3 i=floor(p),f=fract(p);f=f*f*(3.-2.*f);
     return mix(mix(mix(rexHash(i),rexHash(i+vec3(1,0,0)),f.x),mix(rexHash(i+vec3(0,1,0)),rexHash(i+vec3(1,1,0)),f.x),f.y),mix(mix(rexHash(i+vec3(0,0,1)),rexHash(i+vec3(1,0,1)),f.x),mix(rexHash(i+vec3(0,1,1)),rexHash(i+vec3(1,1,1)),f.x),f.y),f.z);}
+   // Sin-free value noise for the mud and water detail: phone GPUs lose precision in
+   // fract(sin(x)*big) at these frequencies and draw lines (see the rendering reference).
+   float rexHashS(vec3 p){p=fract(p*vec3(.1031,.1030,.0973));p+=dot(p,p.yxz+33.33);return fract((p.x+p.y)*p.z);}
+   float rexNoiseS(vec3 p){vec3 i=floor(p),f=fract(p);f=f*f*(3.-2.*f);
+    return mix(mix(mix(rexHashS(i),rexHashS(i+vec3(1,0,0)),f.x),mix(rexHashS(i+vec3(0,1,0)),rexHashS(i+vec3(1,1,0)),f.x),f.y),mix(mix(rexHashS(i+vec3(0,0,1)),rexHashS(i+vec3(1,0,1)),f.x),mix(rexHashS(i+vec3(0,1,1)),rexHashS(i+vec3(1,1,1)),f.x),f.y),f.z);}
    vec3 rexTri(vec3 p,vec3 n,float k){
     vec3 w=pow(abs(n),vec3(4.));w/=w.x+w.y+w.z;
     return texture2D(tRexScales,p.zy*k).rgb*w.x+texture2D(tRexScales,p.xz*k).rgb*w.y+texture2D(tRexScales,p.xy*k).rgb*w.z;
@@ -91,11 +102,28 @@ export function createRexSkin(){
     c*=.9+.2*big;c*=1.-smoothstep(.72,.9,speck)*.14*(1.-ventral);
     // Muzzle and brow a touch darker; pale lower jaw.
     c*=1.-.1*head*dorsal;
-    // Mud: caked on the feet and shins, fresh splatter higher up.
-    float legs=1.-smoothstep(.2,1.,abs(p.x)*.9-.2);
-    rexMud=(1.-smoothstep(.45+.5*mid,1.55+.6*big,p.y))+smoothstep(.74,.86,rexNoise(p*7.3))*(1.-smoothstep(1.3,2.7,p.y))*.85;
-    rexMud=clamp(rexMud,0.,1.);
-    c=mix(c,vec3(.075,.055,.038)*(.75+.5*mid),rexMud*.88);
+    // River water on the hide (uRexSoak.xy): soaked up to the line the spray reached, a
+    // line that sinks toward the feet as she dries; spray spots above it.
+    float line=mix(.55,uRexSoak.y,uRexSoak.x);
+    float fordWet=uRexSoak.x*(1.-smoothstep(line-.35,line+.15,p.y+(big-.5)*.6));
+    fordWet=max(fordWet,uRexSoak.x*smoothstep(.78,.9,rexNoiseS(p*9.+1.))*(1.-smoothstep(line,line+1.8,p.y))*.85);
+    // Mud: caked on the feet and shins, and splatter that builds up through the chase
+    // (uRexCoat.x). Every footfall flings more, so it climbs the legs, the belly and the
+    // underside of the tail. The river rinsed off everything below the line it reached
+    // (uRexCoat.yz); what lands afterwards shows on the clean hide.
+    float wash=uRexCoat.z>0.?1.-smoothstep(uRexCoat.z-.35,uRexCoat.z+.25,p.y+(mid-.5)*.5):0.;
+    float cake=(1.-smoothstep(.45+.5*mid,1.55+.6*big,p.y))*mix(1.,.12+.88*smoothstep(uRexCoat.y,uRexCoat.y+.35,uRexCoat.x),wash);
+    float coat=max(0.,uRexCoat.x-uRexCoat.y*wash),under=smoothstep(.35,-.55,rn.y);
+    // The flung mud climbs as she runs: shins first, then thighs and belly, and furthest
+    // up the undersides (belly, tail) that face the spray; it thins out with height.
+    float top=.9+1.5*coat+under*1.1*coat,dens=coat*(1.-smoothstep(top-.7,top+.3,p.y+(big-.5)*.5));
+    // Many small splats and a few big ones, each trailing a drip (noise stretched vertically).
+    float n1=rexNoiseS(vec3(p.x*23.,p.y*9.,p.z*23.)),n2=rexNoiseS(vec3(p.x*11.,p.y*4.5,p.z*11.)+5.),n3=rexNoiseS(p*48.+9.);
+    float spl=max(max(smoothstep(1.-dens*.5,1.-dens*.5+.05,n1),smoothstep(1.-dens*.36,1.-dens*.36+.04,n2)),smoothstep(1.-dens*.45,1.-dens*.45+.06,n3)*.7);
+    rexMud=clamp(max(cake,spl),0.,1.);
+    // Fresh mud is dark and wet; on a dry day it dries to a lighter crust unless water reaches it.
+    float crust=uRexCoat.w*(1.-max(uRexSoak.w,fordWet))*smoothstep(.2,.9,mid+.3);
+    c=mix(c,mix(vec3(.075,.055,.038),vec3(.15,.118,.082),crust)*(.75+.5*mid),rexMud*.88);
     // Scale cavities read as fine occlusion.
     c*=mix(.8,1.05,rexScaleH);
     rexWet=(1.-smoothstep(0.,.14,abs(p.y-3.84)-.1))*smoothstep(6.2,6.7,p.z);
@@ -126,10 +154,14 @@ export function createRexSkin(){
      vec3 caked=mix(vec3(.2,.155,.105)*(.8+.35*mid),vec3(.068,.05,.035)*(.75+.5*mid),uRexFallMud.w);
      c=mix(c,caked,rexFallMud*.92);
     }
-    // Rain: the hide soaks darkest along the back where water sheets off, with
+    // Rain and river: the hide soaks darkest along the back where water sheets off, with
     // runoff rivulets (noise stretched vertically) and water held in the scale cavities.
-    rexStreak=smoothstep(.5,.85,rexNoise(vec3(p.x*6.,p.y*.7,p.z*6.)+vec3(0.,big,0.)));
-    rexSoak=uRexRain*(1.-rexMouth)*mix(.6,1.,dorsal)*(1.-ventral*.35);
+    // The rivulets run down the hide: two copies of the pattern slide downward half a
+    // cycle apart and cross-fade, so the phase stays bounded.
+    float f0=uRexSoak.z,f1=fract(uRexSoak.z+.5),wf=abs(2.*f0-1.);
+    float s0=rexNoise(vec3(p.x*6.,p.y*.7+f0*1.5,p.z*6.)+vec3(0.,big,0.)),s1=rexNoise(vec3(p.x*6.,p.y*.7+f1*1.5+3.1,p.z*6.)+vec3(0.,big,0.));
+    rexStreak=smoothstep(.5,.85,mix(s0,s1,wf));
+    rexSoak=max(uRexSoak.w*mix(.6,1.,dorsal)*(1.-ventral*.35),fordWet)*(1.-rexMouth);
     c*=1.-rexSoak*(.3+.12*rexStreak+.08*(1.-rexScaleH));
     if(uRexDebug>.5)c=mix(vec3(.02),vec3(1.,0.,0.),rexMouth);
     diffuseColor.rgb=c;
@@ -137,7 +169,7 @@ export function createRexSkin(){
   .replace('#include <normal_fragment_begin>',`
    roughnessFactor=mix(roughnessFactor,.5,rexWet*.7);
    roughnessFactor=mix(roughnessFactor,.46,rexMouth);
-   roughnessFactor=mix(roughnessFactor,mix(.52,.9,smoothstep(.2,1.4,vImpactRest.y)),rexMud);
+   roughnessFactor=mix(roughnessFactor,mix(mix(.52,.9,smoothstep(.2,1.4,vImpactRest.y)),.95,uRexCoat.w*(1.-rexSoak)),rexMud);
    roughnessFactor=mix(roughnessFactor,mix(.97,.3,uRexFallMud.w),rexFallMud);
    roughnessFactor+=(1.-rexScaleH)*.07;
    roughnessFactor=mix(roughnessFactor,max(roughnessFactor,.62),(1.-rexWet)*(1.-rexMouth));
@@ -174,7 +206,7 @@ export function createRexSkin(){
     reflectedLight.indirectDiffuse+=material.diffuseColor*vec3(.58,.62,.55)*facing*.55*(1.-.5*rexMouth);
    }`);
  }
- return{uniforms,extend,key:'rex-hide-v6'};
+ return{uniforms,extend,key:'rex-hide-v7'};
 }
 
 /** Wet, ivory teeth with darker roots; a clear specular cornea. */
