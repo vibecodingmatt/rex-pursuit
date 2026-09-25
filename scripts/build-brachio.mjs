@@ -53,10 +53,13 @@ group(R.torso,.65,[
  ellipsoid([0,4.15,2.8],[1.05,1.15,1]),
  ellipsoid([0,3.75,.35],[1.08,.9,1.8]),
  ellipsoid([0,6.75,2.65],[.92,.95,1.15])],0);
-// Neck: deep at the base (cervical ribs and throat), funnelling out of the shoulders,
-// still heavy near the head, S-curving forward at the top; heavier throat below.
-group(R.neck,.35,[...NECK.slice(0,-1).map((a,i)=>roundCone(a,NECK[i+1],[1.55,1.22,.98,.8,.64,.54][i],[1.22,.98,.8,.64,.54,.47][i],{squeeze:i<3?.78:.88})),
- ellipsoid([0,6.35,4.25],[.78,1.02,1.5],{pitch:.95}),ellipsoid([0,8.1,5.0],[.56,.74,1.1],{pitch:.9}),ellipsoid([0,9.8,5.58],[.44,.56,.9],{pitch:.85})],.95);
+// Neck: deep at the base where the long cervical ribs run beneath it, funnelling out
+// of the shoulders and tapering evenly; its underside is one smooth curve. The
+// segments already meet cleanly, so they join with almost no blend: a soft blend
+// between overlapping segments swells every joint into a ring (lumps along the neck).
+group(R.neck,.02,NECK.slice(0,-1).map((a,i)=>roundCone(a,NECK[i+1],[1.55,1.22,.98,.8,.64,.54][i],[1.22,.98,.8,.64,.54,.47][i],{squeeze:[.78,.8,.83,.86,.89,.92][i]})),.95);
+// One tapering fairing under the lower neck gives it its depth, without separate bulges.
+group(R.neck,0,[roundCone([0,5.83,3.71],[0,8.93,5.3],1.02,.6,{squeeze:.8})],.35);
 // Head, built in its own frame: the skull pitches 25 degrees nose-down from the top of
 // the neck. a runs forward along the skull, b up across it; S scales the whole skull.
 const HO=[0,13.5,7.2],HF=[0,-.42,.91],HU=[0,.91,.42],S=1.2,hp=(x,a,b)=>[x*S+HO[0],HO[1]+(HF[1]*a+HU[1]*b)*S,HO[2]+(HF[2]*a+HU[2]*b)*S],hr=r=>r.map(v=>v*S);
@@ -72,7 +75,7 @@ group(R.jaw,.1,[roundCone(hp(0,.15,-.22),hp(0,1.12,-.25),.22*S,.14*S),ellipsoid(
 // Eyes bulge from the sides of the skull under the brow.
 group(R.eye,.03,[sphere(hp(.31,.3,.24),.085*S),sphere(hp(-.31,.3,.24),.085*S)],.05);
 // Tail: short and heavy for a sauropod, curving a little aside.
-group(R.tail,.3,SPINE.slice(0,6).reverse().map((a,i,arr)=>i<arr.length-1?roundCone(a,arr[i+1],[1.35,1.02,.72,.46,.26][i],[1.02,.72,.46,.26,.1][i],{squeeze:.86}):null).filter(Boolean),.85);
+group(R.tail,.02,SPINE.slice(0,6).reverse().map((a,i,arr)=>i<arr.length-1?roundCone(a,arr[i+1],[1.35,1.02,.72,.46,.26][i],[1.02,.72,.46,.26,.1][i],{squeeze:.86}):null).filter(Boolean),.85);
 // Legs: long columnar forelimbs and massive hindlimbs, with shoulder and thigh muscle
 // masses, elbow and knee, padded feet.
 for(const s of [-1,1]){
