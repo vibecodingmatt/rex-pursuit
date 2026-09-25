@@ -29,41 +29,58 @@ function roundCone(A,B,r1,r2,{squeeze=1}={}){
   let d;if(Math.sign(zz)*a2*z2>k)d=Math.sqrt(x2+z2)*il2-r2;else if(Math.sign(yy)*a2*y2<k)d=Math.sqrt(x2+y2)*il2-r1;else d=(Math.sqrt(x2*a2*il2)+yy*rr)*il2-r1;
   return d*(squeeze<1?squeeze*.5+.5:1);}};}
 const sphere=(c,r)=>ellipsoid(c,[r,r,r]);
+/** Monotone cubic (Fritsch-Carlson) through [z, value] keys: smooth, never overshoots. Returns [value, slope]. */
+function curve(keys){
+ const n=keys.length,X=keys.map(k=>k[0]),Y=keys.map(k=>k[1]),D=[],M=[];
+ for(let i=0;i<n-1;i++)D[i]=(Y[i+1]-Y[i])/(X[i+1]-X[i]);
+ M[0]=D[0];M[n-1]=D[n-2];for(let i=1;i<n-1;i++)M[i]=D[i-1]*D[i]<=0?0:(D[i-1]+D[i])/2;
+ for(let i=0;i<n-1;i++){if(D[i]===0){M[i]=M[i+1]=0;continue;}const a=M[i]/D[i],b=M[i+1]/D[i],q=a*a+b*b;if(q>9){const t=3/Math.sqrt(q);M[i]=t*a*D[i];M[i+1]=t*b*D[i];}}
+ return z=>{let i=0;while(i<n-2&&z>X[i+1])i++;const h=X[i+1]-X[i],t=(z-X[i])/h,t2=t*t,t3=t2*t;
+  return [(2*t3-3*t2+1)*Y[i]+(t3-2*t2+t)*h*M[i]+(-2*t3+3*t2)*Y[i+1]+(t3-t2)*h*M[i+1],((6*t2-6*t)*Y[i]+(3*t2-4*t+1)*h*M[i]+(-6*t2+6*t)*Y[i+1]+(3*t2-2*t)*h*M[i+1])/h];};
+}
+/** A body lofted along z from explicit side and top profiles: the dorsal line, the ventral
+ *  line and the half-width, each a smooth curve through keys. The cross-section is an
+ *  ellipse that narrows toward the spine (a ribcage is broader low down). */
+function loft({top,bottom,width}){
+ const T=curve(top),B=curve(bottom),W=curve(width),z0=top[0][0],z1=top[top.length-1][0];
+ return {bound:[0,4.2,(z0+z1)/2,(z1-z0)/2+2.5],d(x,y,z){
+  const zc=Math.min(z1,Math.max(z0,z)),[t,dt]=T(zc),[b,db]=B(zc),[w,dw]=W(zc),yc=(t+b)/2,ry=Math.max(.02,(t-b)/2);
+  const u=Math.max(0,Math.min(1,(y-yc)/ry)),rx=Math.max(.02,w*(1-.22*u*u)),Y=y-yc;
+  const k0=len(x/rx,Y/ry,0),k1=len(x/(rx*rx),Y/(ry*ry),0);let d=k1<1e-9?-Math.min(rx,ry):k0*(k0-1)/k1;
+  d/=Math.sqrt(1+Math.max(dt*dt,db*db,dw*dw)*.5);
+  return z===zc?d:d>0?Math.hypot(d,z-zc):Math.max(d,Math.abs(z-zc));}};
+}
 
 // ------------------------------------------------------------------ anatomy --
 // Regions (baked per vertex): 0 torso, 1 neck, 2 head, 3 jaw, 4 eye, 5 claw, 6 foreleg, 7 hindleg, 8 tail.
 const R={torso:0,neck:1,head:2,jaw:3,eye:4,claw:5,fore:6,hind:7,tail:8};
+// Matched to the Jurassic World brachiosaur (user reference, art/review/drop6/ref-jw-brachio.png).
+// Heights for a 14.9 m head: withers 6.35 m, belly 2.25 m, hips 5 m, tail tip about 2.1 m.
+// The body is short, deep and pear-shaped with a great rounded chest under the neck;
+// the neck is massive at the base and rises almost vertically; the forelegs are long
+// columns, the hind legs shorter under big thighs; the tail is short and thick at the
+// root, runs out nearly level, lifting a little, then droops to the tip.
+//
 // Centreline from the tail tip to the snout: arclength along it is the spine coordinate.
-// The front stands higher than the hips (long forelimbs); the tail is short and carried
-// clear of the ground.
-const SPINE=[[.7,1.75,-12.8],[.4,2.35,-11.3],[.15,2.95,-9.5],[0,3.55,-7.6],[0,4.05,-5.7],[0,4.4,-3.8],[0,4.9,-1],[0,5.35,1.9],
- [0,6,3.4],[0,7.5,4.4],[0,9.05,5.1],[0,10.6,5.7],[0,12,6.25],[0,12.95,6.75],[0,13.45,7.2],[0,13.62,7.55],[0,13.05,8.75]];
-const NECK=SPINE.slice(8,15);
+const TAIL=[[0,2.14,-11.7],[0,2.55,-10.8],[0,3.22,-9.5],[0,3.88,-8],[0,4.12,-6.5],[0,4.08,-3.6]];
+const TORSO=[[0,4.05,-2],[0,4,0],[0,4.35,2]];
+const NECK=[[0,5.2,3.3],[0,6.9,3.95],[0,8.5,4.4],[0,10.1,4.7],[0,11.6,4.95],[0,12.8,5.2],[0,13.6,5.5],[0,14,5.9]];
+// Head, built in its own frame: the skull pitches 25 degrees nose-down from the top of
+// the neck. a runs forward along the skull, b up across it; S scales the whole skull.
+const HO=[0,13.98,5.95],HF=[0,-.17,.985],HU=[0,.985,.17],S=.95,hp=(x,a,b)=>[x*S+HO[0],HO[1]+(HF[1]*a+HU[1]*b)*S,HO[2]+(HF[2]*a+HU[2]*b)*S],hr=r=>r.map(v=>v*S);
+const SPINE=[...TAIL,...TORSO,...NECK,hp(0,1.28,-.04)];
+const IDX={neck:[10,11,12,14,16],tail:[4,3,2,1],torso:[5,9]};
 
 const groups=[];
 const group=(region,k,prims,blend)=>groups.push({region,k,prims,blend});
-// Torso: pelvis, deep ribcage tilted up at the front, tall withers and a shoulder hump
-// at the neck base, so the back slopes down to the hips; clear air under the chest.
-group(R.torso,.65,[
- ellipsoid([0,4.35,-2.7],[1.05,1.05,1.35]),
- ellipsoid([0,4.65,-.5],[1.36,1.4,2.1],{pitch:-.06}),
- ellipsoid([0,5.15,1.5],[1.32,1.72,1.95],{pitch:-.08}),
- ellipsoid([0,4.45,2.8],[1.02,1.05,1]),
- ellipsoid([0,4.05,.35],[1.05,.8,1.8])],0);
-// The back is one straight slope from the withers (about 7 m) down over the hips into
-// the tail: a dorsal ridge sets that line, and nothing below may bulge above it. The
-// segments join with almost no blend so the ridge doesn't swell at its joints.
-group(R.torso,.02,[roundCone([0,6.2,2.3],[0,5.6,0],.8,.76),roundCone([0,5.6,0],[0,4.95,-2.6],.76,.7),roundCone([0,4.95,-2.6],[0,4.62,-3.8],.7,.76,{squeeze:.9})],.6);
-// Neck: deep at the base where the long cervical ribs run beneath it, funnelling out
-// of the shoulders and tapering evenly; its underside is one smooth curve. The
-// segments already meet cleanly, so they join with almost no blend: a soft blend
-// between overlapping segments swells every joint into a ring (lumps along the neck).
-group(R.neck,.02,NECK.slice(0,-1).map((a,i)=>roundCone(a,NECK[i+1],[1.55,1.22,.98,.8,.64,.54][i],[1.22,.98,.8,.64,.54,.47][i],{squeeze:[.78,.8,.83,.86,.89,.92][i]})),.95);
-// One tapering fairing under the lower neck gives it its depth, without separate bulges.
-group(R.neck,0,[roundCone([0,5.83,3.71],[0,8.93,5.3],1.02,.6,{squeeze:.8})],.35);
-// Head, built in its own frame: the skull pitches 25 degrees nose-down from the top of
-// the neck. a runs forward along the skull, b up across it; S scales the whole skull.
-const HO=[0,13.5,7.2],HF=[0,-.42,.91],HU=[0,.91,.42],S=1.2,hp=(x,a,b)=>[x*S+HO[0],HO[1]+(HF[1]*a+HU[1]*b)*S,HO[2]+(HF[2]*a+HU[2]*b)*S],hr=r=>r.map(v=>v*S);
+// Torso and tail: one lofted body. Keys run tail tip (z -11.8) to chest front (z 4.3).
+group(({2:z})=>z<-3.3?R.tail:R.torso,0,[loft({
+ top:[[-11.9,2.18],[-10.8,2.72],[-9.5,3.45],[-8,4.22],[-6.5,4.6],[-5,4.72],[-3.6,4.8],[-2.8,4.95],[-2,5.12],[-1,5.4],[0,5.72],[1,6.02],[2,6.28],[2.8,6.35],[3.6,6.1],[4.3,5.65],[4.75,5.15],[4.95,4.75]],
+ bottom:[[-11.9,2.06],[-10.8,2.38],[-9.5,3],[-8,3.5],[-6.5,3.62],[-5,3.42],[-3.6,3.35],[-2.8,3.2],[-2,2.85],[-1,2.45],[0,2.25],[1,2.3],[2,2.42],[3,2.55],[3.7,2.8],[4.3,3.3],[4.75,4.05],[4.95,4.6]],
+ width:[[-11.9,.04],[-10.8,.12],[-9.5,.23],[-8,.36],[-6.5,.52],[-5,.7],[-3.6,.88],[-2.8,1.25],[-2,1.5],[-1,1.62],[0,1.66],[1,1.66],[2,1.7],[2.8,1.68],[3.6,1.5],[4.3,1.18],[4.75,.72],[4.95,.2]]})],0);
+// Neck: massive where it leaves the chest, tapering steadily; taller than wide. The
+// segments meet cleanly, so they join with almost no blend (a soft blend rings each joint).
+group(R.neck,.02,NECK.slice(0,-1).map((a,i)=>roundCone(a,NECK[i+1],[1.55,.98,.66,.46,.36,.31,.28][i],[.98,.66,.46,.36,.31,.28,.26][i],{squeeze:[.72,.76,.8,.84,.87,.9,.92][i]})),1.1);
 group(R.head,.16,[
  ellipsoid(hp(0,.2,.12),hr([.36,.38,.38])),
  // The tall nasal arch rises above the eyes like a crest.
@@ -75,28 +92,26 @@ group(R.head,.16,[
 group(R.jaw,.1,[roundCone(hp(0,.15,-.22),hp(0,1.12,-.25),.22*S,.14*S),ellipsoid(hp(0,.6,-.3),hr([.2,.12,.42]),{pitch:.45})],.06);
 // Eyes bulge from the sides of the skull under the brow.
 group(R.eye,.03,[sphere(hp(.31,.3,.24),.085*S),sphere(hp(-.31,.3,.24),.085*S)],.05);
-// Tail: short and heavy for a sauropod, curving a little aside.
-// The tail starts at hip height, deep and narrow (the chevrons hang below), and carries on the line of the back before it droops.
-group(R.tail,.02,SPINE.slice(0,6).reverse().map((a,i,arr)=>i<arr.length-1?roundCone(a,arr[i+1],[1.02,.82,.6,.42,.25][i],[.82,.6,.42,.25,.1][i],{squeeze:.8}):null).filter(Boolean),.85);
-// Legs: long columnar forelimbs and massive hindlimbs, with shoulder and thigh muscle
-// masses, elbow and knee, padded feet.
+// Legs: straight columns. A big shoulder and upper-arm mass sits on the side of the
+// chest and a big thigh on the flank, both below the back line.
 for(const s of [-1,1]){
  group(R.fore,.3,[
-  ellipsoid([s*1.05,5.75,2.1],[.52,1.25,.95],{pitch:.3}),
-  roundCone([s*1.12,5.45,2.45],[s*1.1,3.25,2.25],.64,.46),
-  sphere([s*1.1,3.3,2],.38),
-  roundCone([s*1.1,3.2,2.3],[s*1.06,1.2,2.5],.41,.3),
-  roundCone([s*1.06,1.2,2.5],[s*1.07,.3,2.56],.31,.38),
-  ellipsoid([s*1.07,.22,2.58],[.42,.23,.42])],.45);
+  // Shoulder and upper-arm muscle, heavy on the side of the chest.
+  ellipsoid([s*1.3,4.55,2.5],[.66,1.35,1.12],{pitch:.25}),
+  roundCone([s*1.24,4.4,2.55],[s*1.15,2.3,2.35],.8,.58),
+  sphere([s*1.15,2.3,2.3],.5),
+  roundCone([s*1.15,2.25,2.35],[s*1.12,.95,2.45],.52,.45),
+  roundCone([s*1.12,.95,2.45],[s*1.13,.25,2.5],.45,.52),
+  ellipsoid([s*1.13,.22,2.52],[.57,.24,.57])],.45);
  group(R.hind,.3,[
-  ellipsoid([s*1.02,3.85,-2.5],[.62,1.02,1],{pitch:-.1}),
-  roundCone([s*.98,4.3,-2.6],[s*1.04,2.4,-2.05],.78,.5),
-  sphere([s*1.05,2.4,-2.02],.46),
-  roundCone([s*1.06,2.35,-2.08],[s*1.05,.85,-2.42],.45,.35),
-  ellipsoid([s*1.06,.4,-2.2],[.5,.4,.66])],.45);
+  ellipsoid([s*1.12,3.5,-2.35],[.72,1.15,1.15],{pitch:-.1}),
+  roundCone([s*1.08,3.95,-2.4],[s*1.12,1.95,-2],.85,.6),
+  sphere([s*1.13,1.95,-1.95],.56),
+  roundCone([s*1.13,1.9,-2],[s*1.13,.75,-2.35],.56,.47),
+  ellipsoid([s*1.14,.4,-2.15],[.6,.42,.8])],.45);
  // Short, blunt claws tucked at the front of the feet: one thumb claw, three on each hind foot.
- group(R.claw,.03,[roundCone([s*.8,.42,2.92],[s*.75,.08,3.08],.07,.03),
-  ...[0,1,2].map(k=>roundCone([s*(1.07-.2+k*.18),.24,-1.62],[s*(1.07-.21+k*.19),.04,-1.4],.08,.03))],.04);
+ group(R.claw,.03,[roundCone([s*.82,.42,2.95],[s*.77,.08,3.12],.08,.035),
+  ...[0,1,2].map(k=>roundCone([s*(1.14-.24+k*.2),.26,-1.48],[s*(1.14-.25+k*.21),.04,-1.25],.09,.035))],.04);
 }
 // Nostrils (high on the front of the crest) are too small for the mesh; the shader paints them from the header.
 const nostrils=[];
@@ -106,7 +121,7 @@ function field(x,y,z,withRegion=false){
  for(const g of groups){
   let gd=1e9;
   for(const p of g.prims){const [bx,by,bz,br]=p.bound,lb=len(x-bx,y-by,z-bz)-br;if(lb>gd+g.k&&lb>d+g.blend)continue;gd=smin(gd,p.d(x,y,z),g.k);}
-  if(gd<1e8){if(withRegion&&gd<best){best=gd;region=g.region;}d=smin(d,gd,g.blend);}
+  if(gd<1e8){if(withRegion&&gd<best){best=gd;region=typeof g.region==='function'?g.region([x,y,z]):g.region;}d=smin(d,gd,g.blend);}
  }
  for(const n of nostrils)d=smax(d,-n.d(x,y,z),.03);
  d=Math.max(d,-y);// flat soles on the ground
@@ -115,7 +130,7 @@ function field(x,y,z,withRegion=false){
 
 // -------------------------------------------------------------- meshing --
 function build(VOX,file){
-const MIN=[-2.1,0-VOX,-14.4],MAX=[2.1,14.8,9];
+const MIN=[-2.3,0-VOX,-12.4],MAX=[2.3,15.6,8.2];
 const NX=Math.ceil((MAX[0]-MIN[0])/VOX)+1,NY=Math.ceil((MAX[1]-MIN[1])/VOX)+1,NZ=Math.ceil((MAX[2]-MIN[2])/VOX)+1;
 const t0=Date.now(),F=new Float32Array(NX*NY*NZ),idx=(i,j,k)=>i+NX*(j+NY*k);
 // Coarse pass first; only cells near the surface get the exact field.
@@ -167,13 +182,13 @@ for(let v=0;v<nV;v++){const x=P[v*3],y=P[v*3+1],z=P[v*3+2],nx=N[v*3],ny=N[v*3+1]
  CAV[v]=Math.round(255*Math.max(0,Math.min(1,-lap*.12)));
  const [,region]=field(x,y,z,true);REG[v]=region;
  // Limbs ride the torso: their spine coordinate comes from the torso span only.
- const s=region===R.fore||region===R.hind||region===R.claw&&y<1?spineCoord(x,y,z,5,7):spineCoord(x,y,z);SP[v]=Math.round(s*1000);
+ const s=region===R.fore||region===R.hind||region===R.claw&&y<1?spineCoord(x,y,z,IDX.torso[0],IDX.torso[1]):spineCoord(x,y,z);SP[v]=Math.round(s*1000);
 }
 
 // -------------------------------------------------------------- output --
 const joints=i=>({s:+cum[i].toFixed(3),p:SPINE[i]});
 const header={version:1,vertices:nV,indices:I.length,voxel:VOX,
- neck:[9,10,11,12,14].map(joints),tail:[4,3,2,1].map(joints),jaw:{hinge:hp(0,.12,-.12)},head:hp(0,.3,.1),eyes:{centres:[hp(.31,.3,.24),hp(-.31,.3,.24)],radius:.085*S},nostrils:{centres:[hp(.11,.72,.66),hp(-.11,.72,.66)],radius:.06*S},spineLength:+cum[cum.length-1].toFixed(3),
+ neck:IDX.neck.map(joints),tail:IDX.tail.map(joints),jaw:{hinge:hp(0,.12,-.12)},head:hp(0,.3,.1),eyes:{centres:[hp(.31,.3,.24),hp(-.31,.3,.24)],radius:.085*S},nostrils:{centres:[hp(.11,.72,.66),hp(-.11,.72,.66)],radius:.06*S},spineLength:+cum[cum.length-1].toFixed(3),
  regions:R};
 const idxArr=nV<65536?new Uint16Array(I):new Uint32Array(I);
 const Nq=new Int8Array(nV*4);for(let v=0;v<nV;v++){Nq[v*4]=Math.round(N[v*3]*127);Nq[v*4+1]=Math.round(N[v*3+1]*127);Nq[v*4+2]=Math.round(N[v*3+2]*127);}

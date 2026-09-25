@@ -91,7 +91,7 @@ function brachioMaterial(uniforms,skin){
     // Colour: dark dorsal slate-green, lighter flanks, pale throat and belly; broad
     // mottling and faint darker saddles; mud caked up the legs; dirt in the creases.
     float up=vRestN.y;
-    vec3 back=vec3(.036,.042,.036),flank=vec3(.07,.072,.058),belly=vec3(.15,.14,.112);
+    vec3 back=vec3(.05,.047,.04),flank=vec3(.092,.084,.07),belly=vec3(.19,.165,.125);
     vec3 col=mix(belly,flank,smoothstep(-.7,.05,up));col=mix(col,back,smoothstep(.15,.75,up));
     col*=.72+.56*broad.b;col*=1.-.22*smoothstep(.55,.8,coarse.b)*smoothstep(-.1,.5,up);
     // Faint darker saddles across the back and up the neck, broken by the mottling.
@@ -188,7 +188,7 @@ export function createBrachio(scene,{jungle}){
   setQuality(t){mesh.castShadow=!!t.detail;load(t.detail?'brachio.bin':'brachio-low.bin');},
   reset({menu=false}={}){on=false;pending=null;mesh.visible=false;travel=0;next=range(320,480);
    // The menu's slow drift gives a long look: she browses over the road beyond the Rex.
-   if(menu)api.show(-11,34,Math.PI/2-.2);},
+   if(menu)api.show(-9.5,40,Math.PI/2-.1);},
   update(dt,{speed=0,visible=true}={}){
    clock+=dt;
    if(!on&&!pending){travel+=speed*dt;if(speed>4&&travel>=next){travel=0;next=range(900,1400);const side=rnd()<.5?-1:1;api.show(side*range(11,14),-80);}}
