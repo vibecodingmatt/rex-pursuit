@@ -1,6 +1,6 @@
 # Rex: Pursuit handoff
 
-## River ford and mud build-up (2026-09-25, branch `river-ford`, not shipped)
+## River ford and mud build-up (2026-09-25 release, `80c3af0`)
 
 The user put Drop 7 (photo mode) on permanent hold and asked for two backlog items instead: a river ford where the Jeep and the Rex throw spray and leave wet banks, and mud and wetness building up on the Rex over the chase.
 
@@ -9,6 +9,7 @@ The user put Drop 7 (photo mode) on permanent hold and asked for two backlog ite
 - **Rex coat:** `rex-coat.js` writes `uRexCoat` (splatter level, rinse level and height, dryness) and `uRexSoak` (river soak and line, runoff phase, rain soak). The start state matches the accepted look (compare `art/review/ford/coat-base-clear.png` with `coat-a-start.png`). The new high-frequency noise uses a sin-free hash (`rexNoiseS`) for phone precision.
 - **Also changed:** `RAIN_TIME` now wraps at 600 s (the puddle ripples and the river take a bounded clock). The soft-smoke capacity went to 204 for the 64-puff spindrift pool.
 - **Reviews and checks:** `art/review/ford/capture.cjs [conditions] [tag] [first|third]` (crossing stills), `coat.cjs` (coat stages on a frozen menu Rex), `perf.cjs` (crossing vs road), `scripts/verify-ford.cjs` (`npm run test:ford`).
+- **Release:** the full gate passed before the push; after the deploy, live `test:pages` and `test:ford` (with `TEST_URL`) passed.
 - **Open:** the victory fall still assumes flat ground, so if she dies in the river she lies on the surface for the second or two before she slides out. The spray reads well in third person and at night; in first person the gun hides her feet, so the plumes are what show.
 
 ## Face-first victory fall, graphic swallow, daytime butterflies (2026-09-25 release)
