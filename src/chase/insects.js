@@ -2,8 +2,8 @@ import * as T from 'three';
 import {mergeGeometries} from 'three/addons/utils/BufferGeometryUtils.js';
 import {RAIN,NIGHT} from './weather-state.js';
 // Flying insects. By day, butterflies flutter along the verges and dragonflies hover
-// and dart over the track; heavy rain grounds most of them (butterflies shelter under
-// leaves, a few dragonflies keep hawking low). At night moths come out and the
+// and dart over the track. Butterflies are clear-daytime only: any rain or dusk
+// sends them to shelter under leaves; a few dragonflies keep hawking low in rain. At night moths come out and the
 // flashlight draws them. Positions are in the Jeep's frame, where the air slides
 // past at road speed: an insect can't keep up with the Jeep, so at speed they stream
 // through view (moths flare as they cross the beam); in the menu they linger.
@@ -142,7 +142,7 @@ export function createInsects(scene,{night}){
    F[n*4]=b.phase;F[n*4+1]=K.amp*glide;F[n*4+2]=K.mean;F[n*4+3]=K.under;n++;}
   g.mesh.count=n;if(n){g.mesh.instanceMatrix.needsUpdate=true;g.mesh.instanceColor.needsUpdate=true;g.fly.needsUpdate=true;}
  }
- function activity(kind){const n=NIGHT.value,r=RAIN.value;return kind==='moth'?n*(1-.5*r):kind==='butterfly'?(1-n)*(1-.88*r):(1-n)*(1-.6*r);}
+ function activity(kind){const n=NIGHT.value,r=RAIN.value;return kind==='moth'?n*(1-.5*r):kind==='butterfly'?(1-T.MathUtils.smoothstep(n,0,.2))*(1-T.MathUtils.smoothstep(r,0,.2)):(1-n)*(1-.6*r);}
  const api={
   butterflies:lep.mesh,dragonflies:drag.mesh,
   setQuality(t){density=Math.min(1,t.fauna??t.particles);},
