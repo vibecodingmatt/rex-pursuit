@@ -73,13 +73,17 @@ function brachioMaterial(uniforms,skin){
    {
     float region=floor(vAux.z*255.+.5),ao=vAux.x,cav=vAux.y;skinRegion=region;
     vec4 fine=tri(vRest,vRestN,1.65),coarse=tri(vRest,vRestN,.34),broad=tri(vRest*.5+3.1,vRestN,.11);
-    bool limb=region>5.5&&region<7.5,claw=region>4.5&&region<5.5;
+    // A continuous baked limb influence avoids a hard wrinkle/normal seam around
+    // each shoulder and thigh where the categorical region number changes.
+    // Region ids interpolate across triangles: torso (0) to leg (6/7) crosses
+    // claw (5). Restrict horn to the feet so that never paints a pale shoulder rim.
+    float limb=vAux.w;bool claw=region>4.5&&region<5.5&&vRest.y<.55;
     // Relief: pebbly scales everywhere, folded hide in the creases, folds across the
     // throat side of the lower neck, rings up the legs.
     float neckFront=smoothstep(.1,.6,-vRestN.y*.6+vRestN.z*.8)*smoothstep(uFold.x,uFold.x+1.5,vSpine)*(1.-smoothstep(uFold.y-2.,uFold.y,vSpine));
     float folds=neckFront*pow(.5+.5*sin(vSpine*17.+coarse.g*3.),3.)*.9;
     // Leg wrinkles wander and break up, like an elephant's, rather than stacking into rings.
-    float rings=limb?pow(.5+.5*sin(vRest.y*24.+coarse.g*7.+broad.b*9.+vRest.x*3.),3.)*smoothstep(.35,.75,coarse.b+fine.r*.2)*(1.-smoothstep(3.6,4.8,vRest.y)):0.;
+    float rings=limb*pow(.5+.5*sin(vRest.y*24.+coarse.g*7.+broad.b*9.+vRest.x*3.),3.)*smoothstep(.35,.75,coarse.b+fine.r*.2)*(1.-smoothstep(3.6,4.8,vRest.y));
     // Scales finer than a couple of pixels would only shimmer; they fade out with distance.
     float fineFade=1.-smoothstep(.0025,.009,length(fwidth(vRest)));
     skinH=fine.r*.4*fineFade+coarse.g*(.45+cav*1.4)+folds+rings*.55;
@@ -97,7 +101,7 @@ function brachioMaterial(uniforms,skin){
     // Faint darker saddles across the back and up the neck, broken by the mottling.
     col*=1.-.2*smoothstep(.55,.95,.5+.5*sin(vSpine*1.9+broad.b*2.5))*smoothstep(-.2,.6,up);
     col*=1.+.24*(fine.r-.5)*fineFade;
-    skinMud=(1.-smoothstep(.25,1.6+coarse.b*.8,vRest.y))*(limb||claw?1.:.35);
+    skinMud=(1.-smoothstep(.25,1.6+coarse.b*.8,vRest.y))*(claw?1.:mix(.35,1.,limb));
     col=mix(col,vec3(.05,.036,.022)*(.8+.4*coarse.b),skinMud*.9);
     col*=mix(1.,.45,cav)*mix(.55,1.,ao);
     col=mix(col*(1.-.3*lid),vec3(.018,.011,.006),skinEye);
@@ -120,7 +124,7 @@ function brachioMaterial(uniforms,skin){
     // Baked occlusion shades the ambient under the belly, between the legs and in folds.
     reflectedLight.indirectDiffuse*=mix(.35,1.,vAux.x);reflectedLight.indirectSpecular*=mix(.2,1.,vAux.x);`);
  };
- m.customProgramCacheKey=()=> 'rex-brachio-v2';
+ m.customProgramCacheKey=()=> 'rex-brachio-v3';
  // Her shadow follows the posed neck and tail.
  const depth=new T.MeshDepthMaterial({depthPacking:T.RGBADepthPacking});
  depth.onBeforeCompile=s=>{Object.assign(s.uniforms,uniforms);
