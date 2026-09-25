@@ -1,5 +1,5 @@
 import assert from 'node:assert/strict';
-import {DEFEAT,defeatPose,swallowPose,stomachPlunge,defeatVision} from '../src/chase/defeat.js';
+import {DEFEAT,INTERIOR,defeatPose,swallowPose,stomachPlunge,interiorPath,defeatVision} from '../src/chase/defeat.js';
 for(const fps of [30,60,144])for(const start of [{x:0,z:19,heading:Math.PI,speed:10},{x:1,z:10,heading:3.3,speed:1}]){
  let last=defeatPose(0,start),wideJawTime=0,peakLungeSpeed=0;
  for(let frame=1;frame<=Math.ceil(DEFEAT.duration*fps);frame++){
@@ -26,27 +26,27 @@ for(const fps of [30,60,144])for(const start of [{x:0,z:19,heading:Math.PI,speed
   assert.ok(p.swallow>=last.swallow&&p.swallow<=1,'Swallow moves forward continuously');
   if(t<DEFEAT.slideAt)assert.equal(p.swallow,0,'Player stays in the mouth until the head lift triggers the slide');
   if(t<DEFEAT.headLiftAt)assert.equal(p.headLift,0,'A still beat separates contact from the swallowing head lift');
-  assert.ok((p.swallow-last.swallow)*fps*10.5<5,'Descent stays below five scene metres per second');
+  assert.ok((p.swallow-last.swallow)*fps*(INTERIOR.esophagus-INTERIOR.start)<8,'Descent stays below eight scene metres per second');
   if(t<=DEFEAT.acidAt)assert.equal(p.black,0,'No blackout until the player hits the acid');
   if(t>=DEFEAT.black)assert.equal(p.black,1);last=p;
  }
  assert.ok(wideJawTime<.55,'The mouth is held wide for less than half a second');assert.ok(peakLungeSpeed>10,'The gulp is a distinct fast lunge');assert.ok(defeatPose(DEFEAT.lungeAt,start).rear>.95,'The head draws back before lunging');
 }
 assert.ok(DEFEAT.ram<DEFEAT.spinEnd&&DEFEAT.spinEnd<DEFEAT.walkAt&&DEFEAT.walkAt<DEFEAT.contact&&DEFEAT.black<DEFEAT.duration);
-assert.ok(DEFEAT.headLiftAt-DEFEAT.contact>.6&&DEFEAT.slideAt-DEFEAT.contact>1.2,'Mouth hold precedes the slide by more than a second');
+assert.ok(DEFEAT.headLiftAt-DEFEAT.contact>.35&&DEFEAT.slideAt-DEFEAT.contact>.75,'A short mouth hold precedes the slide');
 assert.ok(swallowPose(DEFEAT.slideAt).lift>.75,'The head is mostly lifted before gravity takes over');
-assert.ok(DEFEAT.bellyAt-DEFEAT.slideAt>=3.2,'Throat descent lasts at least 3.2 seconds');
+assert.ok(DEFEAT.bellyAt-DEFEAT.slideAt>=1.7&&DEFEAT.bellyAt-DEFEAT.slideAt<=2.2,'The esophagus takes about two seconds');
+assert.ok(DEFEAT.plungeAt-DEFEAT.bellyAt>=1,'The stomach is on screen for at least a second before the plunge');
 assert.equal(stomachPlunge(DEFEAT.plungeAt).travel,0);
 assert.equal(stomachPlunge(DEFEAT.acidAt).travel,1,'The plunge reaches the acid at the splash cue');
 for(const fps of [30,60,144]){
  let lastY=null,lastTravel=0;
- for(let t=13.5;t<DEFEAT.black;t+=1/fps){
-  const p=stomachPlunge(t),z=-1.1+10.5*swallowPose(t).progress;
-  const y=-.036*z*z+(-5.48+.036*9.4**2)*p.travel;
+ for(let t=DEFEAT.plungeAt;t<DEFEAT.black;t+=1/fps){
+  const p=stomachPlunge(t),y=interiorPath(t).y;
   assert.ok(Object.values(p).every(Number.isFinite));assert.ok(p.travel>=lastTravel);
   if(lastY!==null){assert.ok(y<lastY,'The camera keeps descending through the chamber without a hover');assert.ok((lastY-y)*fps<5,'The final drop stays continuous at different frame rates');}
   if(t<=DEFEAT.acidAt){assert.equal(defeatPose(t,{x:0,z:19,heading:Math.PI}).black,0,'No fade above the pool');assert.equal(p.immersion,0,'No underwater wash above the acid');}
-  else assert.ok(y<-5.48,'The camera is submerged when blackout begins');
+  else assert.ok(y<INTERIOR.acid,'The camera is submerged when blackout begins');
   lastY=y;lastTravel=p.travel;
  }
 }

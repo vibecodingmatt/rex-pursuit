@@ -41,68 +41,145 @@ function exposeSkull(geometry){
  return{skull,margin,border:borderGeo};
 }
 
-/** A late, diegetic sight gag inside the existing throat shot. All movement
- * follows defeat time, including the pooled bubbles and loose costume pieces. */
-export function createStomachGuest(scene){
+// Digestion, painted per fragment from the surface's own (group-local)
+// position: macerated, marbled skin → blisters → sloughing skin → raw flesh →
+// muscle → eaten through. Soaked parts near the acid are furthest gone. Holes
+// discard, and the far side of a hole renders as the dark flesh inside, so
+// torn cloth and skin open onto the body beneath. `wounds` pins extra damage
+// to places (head-local mouth, cheek, eye).
+const DIGEST_GLSL=`
+ float dh(vec3 p){return fract(sin(dot(p,vec3(127.1,311.7,74.7)))*43758.5453);}
+ float dn(vec3 p){vec3 i=floor(p),f=fract(p);f=f*f*(3.-2.*f);
+  return mix(mix(mix(dh(i),dh(i+vec3(1,0,0)),f.x),mix(dh(i+vec3(0,1,0)),dh(i+vec3(1,1,0)),f.x),f.y),mix(mix(dh(i+vec3(0,0,1)),dh(i+vec3(1,0,1)),f.x),mix(dh(i+vec3(0,1,1)),dh(i+vec3(1,1,1)),f.x),f.y),f.z);}
+ float df(vec3 p){return dn(p)*.5+dn(p*2.1+3.)*.3+dn(p*4.3+7.)*.2;}`;
+function digest(material,{bias=0,cloth=false,holes=.93,wounds=[],acid}){
+ material.side=T.DoubleSide;
+ const W=wounds.length,previous=material.onBeforeCompile,previousKey=material.customProgramCacheKey?.bind(material);
+ material.onBeforeCompile=(shader,renderer)=>{
+  previous?.call(material,shader,renderer);
+  shader.uniforms.digestAcid=acid;
+  shader.vertexShader=shader.vertexShader.replace('#include <common>','#include <common>\nvarying vec3 vDig,vDigWorld;').replace('#include <begin_vertex>','#include <begin_vertex>\nvDig=position;').replace('#include <project_vertex>','#include <project_vertex>\nvDigWorld=(modelMatrix*vec4(transformed,1.)).xyz;');
+  shader.fragmentShader=shader.fragmentShader.replace('#include <common>',`#include <common>
+   varying vec3 vDig,vDigWorld;uniform float digestAcid;float digH,digStage;
+   ${DIGEST_GLSL}`)
+   .replace('#include <color_fragment>',`#include <color_fragment>
+   {
+    vec3 p=vDig*9.;float n=df(p),grain=dn(p*6.);
+    float soak=1.-smoothstep(-.1,.7,vDigWorld.y-digestAcid);
+    float d=clamp(n*.95+${bias.toFixed(3)}+soak*.3,0.,1.);
+    ${wounds.map(([x,y,z,r,k])=>`d=max(d,${k.toFixed(3)}*(1.-smoothstep(${(r*.4).toFixed(3)},${r.toFixed(3)},length(vDig-vec3(${x.toFixed(3)},${y.toFixed(3)},${z.toFixed(3)}))+(n-.5)*${(r*.9).toFixed(3)}+(dn(p*14.)-.5)*${(r*.35).toFixed(3)})));`).join('\n')}
+    digStage=d;
+    if(d>${holes.toFixed(3)})discard;
+    vec3 c=diffuseColor.rgb;
+    ${cloth?`
+    // Cloth: bile-stained, bleached thin, then gone, fraying at the edges.
+    c=mix(c,c*vec3(.72,.66,.4)+vec3(.05,.04,0.),smoothstep(.2,.55,d));
+    c=mix(c,vec3(.36,.33,.2)*(.8+.4*grain),smoothstep(.55,.75,d)*.7);
+    c=mix(c,vec3(.18,.12,.05),smoothstep(.84,.92,d));
+    digH=-smoothstep(.8,.93,d);`:`
+    // Skin: waterlogged grey-green with dark marbling and purple lividity.
+    vec3 macerated=mix(vec3(.44,.43,.33),vec3(.33,.36,.26),grain)*(.8+.35*dn(p*1.7));
+    float marble=pow(1.-abs(dn(p*2.2)*2.-1.),10.);macerated=mix(macerated,vec3(.14,.2,.12),marble*.7);
+    macerated=mix(macerated,vec3(.33,.2,.28),smoothstep(.55,.75,dn(p*.8+4.))*.5);
+    // Blisters: taut, yellow, translucent domes.
+    float cell=dn(p*4.5+2.),blister=smoothstep(.35,.45,d)*(1.-smoothstep(.5,.56,d))*smoothstep(.55,.72,cell);
+    // Sloughing: skin peels in sheets off the raw dermis beneath.
+    float slough=smoothstep(.44,.5,d),flesh=smoothstep(.6,.66,d),muscle=smoothstep(.76,.8,d);
+    vec3 dermis=vec3(.62,.24,.2),raw=vec3(.42,.05,.045),fiber=mix(vec3(.28,.02,.025),vec3(.46,.07,.06),.5+.5*sin(vDig.y*260.+n*9.));
+    c=macerated;c=mix(c,vec3(.78,.68,.36),blister*.85);c=mix(c,dermis,slough);c=mix(c,raw,flesh);c=mix(c,fiber,muscle);
+    c=mix(c,vec3(.12,.02,.02),smoothstep(.86,.92,d));
+    // A blackened crust rims every hole.
+    c=mix(c,vec3(.07,.03,.02),smoothstep(.83,.88,d)*(1.-smoothstep(.9,.93,d))*.8);
+    // Peeled edges curl pale.
+    c=mix(c,vec3(.8,.76,.64),smoothstep(.02,0.,abs(d-.47))*.8);
+    digH=blister*.8+smoothstep(.02,0.,abs(d-.47))*.5-flesh*.4-smoothstep(.84,.93,d)*.8;`}
+    // The far side of a hole is the dark flesh inside.
+    if(!gl_FrontFacing){c=mix(vec3(.16,.02,.02),vec3(.3,.05,.04),grain);digH=0.;}
+    diffuseColor.rgb=c;
+   }`)
+   .replace('#include <roughnessmap_fragment>',`#include <roughnessmap_fragment>
+   roughnessFactor=${cloth?'mix(roughnessFactor,.35,smoothstep(.5,.9,digStage))':'mix(mix(.74,.24,smoothstep(.35,.5,digStage)),.3,smoothstep(.6,.7,digStage))'};`)
+   .replace('#include <normal_fragment_maps>',`#include <normal_fragment_maps>
+   {vec3 sx=dFdx(-vViewPosition),sy=dFdy(-vViewPosition),r1=cross(sy,normal),r2=cross(normal,sx);float det=dot(sx,r1);
+    vec2 g=vec2(dFdx(digH),dFdy(digH))*.012;normal=normalize(abs(det)*normal-sign(det)*(g.x*r1+g.y*r2));}`);
+ };
+ material.customProgramCacheKey=()=>`digest-v1-${cloth}-${bias}-${holes}-${W}-${wounds.flat().join(',')}-${previousKey?previousKey():''}`;
+ return material;
+}
+
+/** Gennaro, the lawyer, days into being digested: slumped waist-deep in the
+ * acid against the stomach wall. All movement follows defeat time. */
+export function createStomachGuest(scene,stomach){
  const root=new T.Group();root.name='stomach-lawyer-reveal';root.visible=false;scene.add(root);
  let seed=19930611;const rand=()=>{seed=(1664525*seed+1013904223)>>>0;return seed/4294967296;};
  const stained=painted(c=>{
   c.fillStyle='#6a7b86';c.fillRect(0,0,512,512);
   for(let x=0;x<512;x+=12){c.fillStyle='#c7ceca';c.fillRect(x,0,3,512);c.fillStyle='#3d4e59';c.fillRect(x+5,0,1,512);}
-  for(let i=0;i<100;i++){const x=rand()*512,y=rand()*512,r=5+rand()*40,g=c.createRadialGradient(x,y,0,x,y,r);g.addColorStop(0,i%3?'#51573450':'#44352e65');g.addColorStop(1,'#25291800');c.fillStyle=g;c.fillRect(x-r,y-r,r*2,r*2);}
+  for(let i=0;i<140;i++){const x=rand()*512,y=rand()*512,r=5+rand()*50,g=c.createRadialGradient(x,y,0,x,y,r);g.addColorStop(0,i%3?'#51573450':i%2?'#44352e75':'#5a120e70');g.addColorStop(1,'#25291800');c.fillStyle=g;c.fillRect(x-r,y-r,r*2,r*2);}
   for(let i=0;i<1800;i++){c.fillStyle=i%2?'#f3e5c212':'#17241618';c.fillRect(rand()*512,rand()*512,1,3);}
  });
  const tieMap=painted(c=>{
   c.fillStyle='#242626';c.fillRect(0,0,512,512);
   for(let y=12;y<512;y+=62)for(let x=12;x<512;x+=75){const px=x+(y%124?28:0);c.strokeStyle='#776b504e';c.lineWidth=4;c.strokeRect(px,y,20,27);c.fillStyle='#92826660';c.fillRect(px+7,y+8,6,10);}
  });
- const skinMap=painted(c=>{
-  c.fillStyle='#b4ac87';c.fillRect(0,0,512,512);
-  for(let i=0;i<75;i++){const x=rand()*512,y=rand()*512,r=16+rand()*48,g=c.createRadialGradient(x,y,0,x,y,r);g.addColorStop(0,i%3?'#626a4850':'#5b39435a');g.addColorStop(1,'#48372300');c.fillStyle=g;c.fillRect(x-r,y-r,r*2,r*2);}
-  for(let i=0;i<1700;i++){c.fillStyle='#3d3f2c30';c.fillRect(rand()*512,rand()*512,1,1);}
- });
- const mat=(color,extra={})=>new T.MeshStandardMaterial({color,roughness:.67,...extra});
- const acidLevel=-5.48,poolUniforms={time:{value:0},reveal:{value:0}};
- const m={shirt:mat(0xd5d9d4,{map:stained,bumpMap:stained,bumpScale:.001,side:T.DoubleSide}),cuff:mat(0xaeb9b8),skin:mat(0xb8ae92,{map:skinMap,roughness:.65}),shade:mat(0x5d5947),bruise:mat(0x514349),hair:mat(0x37342b),shorts:mat(0x4c4d43),tie:mat(0xffffff,{map:tieMap,roughness:.76,side:T.DoubleSide}),leather:mat(0x302b20),sock:mat(0x484b3c),button:mat(0x969d97),metal:mat(0x817763,{metalness:.5,roughness:.45}),slime:mat(0x6b713b,{roughness:.23})};
- // Shallow hands remain visible through the film; deeper limbs fade into the
- // murk. Apply absorption in world space so the waterline follows the lean.
- for(const material of Object.values(m)){
-  material.onBeforeCompile=shader=>{
-   shader.uniforms.acidLevel={value:acidLevel};shader.uniforms.acidReveal=poolUniforms.reveal;
-   shader.vertexShader='varying float acidY;\n'+shader.vertexShader.replace('#include <project_vertex>','#include <project_vertex>\nacidY=(modelMatrix*vec4(transformed,1.)).y;');
-   shader.fragmentShader='varying float acidY;uniform float acidLevel;uniform float acidReveal;\n'+shader.fragmentShader.replace('#include <tonemapping_fragment>',`
-    float depth=max(0.,acidLevel-acidY),wet=smoothstep(0.,.025,depth);
-    vec3 submerged=mix(gl_FragColor.rgb*vec3(.72,.84,.36),vec3(.014,.020,.006)*acidReveal,1.-exp(-depth*6.));
-    gl_FragColor.rgb=mix(gl_FragColor.rgb,submerged,wet);
-    #include <tonemapping_fragment>`);
-  };
-  material.customProgramCacheKey=()=> 'stomach-absorption-v1';
- }
+ const acid={value:stomach.acidLevel};
+ const absorb=m=>stomach.absorb(m);
+ const mat=(color,extra={})=>absorb(new T.MeshStandardMaterial({color,roughness:.67,...extra}));
+ // Head wounds, head-local: the lipless mouth, an eaten-through cheek, the
+ // empty right socket and the ruined nose.
+ const headWounds=[[0,-.035,-.13,.024,1],[-.034,-.099,-.112,.026,1],[0,-.101,-.118,.028,1],[.034,-.099,-.112,.026,1],[-.082,-.088,-.088,.036,1],[.05,.024,-.095,.026,1],[-.05,.024,-.095,.03,.8],[.095,-.1,-.08,.045,.68]];
+ const m={
+  shirt:digest(mat(0xd5d9d4,{map:stained,bumpMap:stained,bumpScale:.001}),{bias:-.05,cloth:true,holes:.86,acid}),
+  cuff:mat(0xaeb9b8),
+  skin:digest(mat(0xb8ae92,{roughness:.55}),{bias:.02,holes:.95,acid}),
+  face:digest(mat(0xb8ae92,{roughness:.55}),{bias:-.24,holes:.9,wounds:headWounds,acid}),
+  shade:mat(0x5d5947),bruise:mat(0x514349),hair:mat(0x37342b),
+  shorts:digest(mat(0x4c4d43),{bias:.05,cloth:true,holes:.84,acid}),
+  tie:mat(0xffffff,{map:tieMap,roughness:.76,side:T.DoubleSide}),leather:mat(0x302b20),sock:mat(0x484b3c),button:mat(0x969d97),metal:mat(0x817763,{metalness:.5,roughness:.45}),
+  slime:mat(0x8a8450,{roughness:.1,transparent:true,opacity:.55}),bone:mat(0xd9cca6,{roughness:.55}),tooth:mat(0xc9b889,{roughness:.4}),toothDark:mat(0x7d6a44,{roughness:.45}),gum:mat(0x5e1712,{roughness:.3}),
+  eye:mat(0xa9aa98,{roughness:.32}),iris:mat(0x6e7266,{roughness:.4,transparent:true,opacity:.5}),socket:mat(0x0c0302,{roughness:.95}),flesh:mat(0x5a0f0c,{roughness:.28})
+ };
 
- // Shoulder/back settle into the side wall, with the legs trailing into fluid.
- const guest=new T.Group();guest.name='gennaro';guest.position.set(1.66,-6.05,11.60);guest.scale.setScalar(1.40);guest.rotation.y=.62;root.add(guest);
+ // Slumped back and sideways into the wall, waist-deep, one arm hooked over a
+ // fold of the stomach lining, the other lost in the acid.
+ const guest=new T.Group();guest.name='gennaro';root.add(guest);
+ const c=stomach.center;guest.position.set(c.x+.95,stomach.acidLevel-.9,c.z-1.2);guest.scale.setScalar(1.35);guest.rotation.y=.6;
  sphere(guest,m.shorts,.20,[0,.55,.015],[1.05,.62,.85]);
- const body=new T.Group();body.position.set(0,.57,0);body.rotation.set(.22,0,-.20);guest.add(body);
+ const body=new T.Group();body.position.set(0,.57,0);body.rotation.set(.34,0,-.26);guest.add(body);
  mesh(body,cloth([[0,.18,.13],[.15,.19,.14],[.36,.23,.13],[.49,.21,.12],[.54,.12,.08]]),m.shirt);
  cylinder(body,m.skin,.062,.073,.14,[0,.56,0],[0,0,0]);
+ // Right arm (+x) hooked up over a fold, ending in a hand digested to bone;
+ // left arm hanging into the acid.
+ const arms={1:[[.198,.437,0],[.3,.26,-.14],[.36,.1,-.3],[.4,.02,-.44]],[-1]:[[-.198,.437,0],[-.3,.12,-.08],[-.36,-.14,-.12],[-.38,-.3,-.13]]};
  for(const s of [-1,1]){
-  const sag=s*.085;
-  box(body,m.shirt,[.09,.125,.026],[s*.064,.49,-.107],[0,s*.1,s*.36]);
-  sleeve(body,m.shirt,[[s*.198,.437,0],[s*.32,.15,-.10],[s*.40,-.10+sag,-.19],[s*.43,-.238+sag,-.22]]);
-  tube(body,m.cuff,[s*.429,-.205+sag,-.211],[s*.432,-.280+sag,-.234],.066);
-  sphere(body,m.button,.007,[s*.486,-.248+sag,-.24]);
-  sphere(body,m.skin,.059,[s*.43,-.31+sag,-.25],[.8,1.15,.65]);
-  for(let i=0;i<4;i++)strand(body,m.skin,[[s*.43+(i-1.5)*.019,-.33+sag,-.28],[s*.43+(i-1.5)*.019,-.39+sag,-.30],[s*.43+(i-1.5)*.018,-.41+sag,-.27]],.009);
-  sphere(body,m.skin,.017,[s*.389,-.335+sag,-.242],[1,1.6,1]);
-  // Frayed strips at the cuffs/hem catch the moving pool light.
-  for(let i=0;i<2;i++)box(body,m.cuff,[.01,.045+rand()*.02,.007],[s*(.405+i*.034),-.263+sag,-.24],[.2,0,s*.2]);
+  const path=arms[s];sleeve(body,m.shirt,path);const wrist=path[3];
+  tube(body,m.cuff,[wrist[0]-.01*s,wrist[1]+.02,wrist[2]],[wrist[0]+.01*s,wrist[1]-.05,wrist[2]-.02],.066);
+  if(s>0){
+   // Stripped hand: a stump of raw wrist, then metacarpals and finger bones
+   // draped over the fold, knuckles and all.
+   sphere(body,m.flesh,.045,[wrist[0]+.03,wrist[1]-.01,wrist[2]],[1.2,.8,.9]);
+   for(let i=0;i<5;i++){
+    const spread=(i-2)*.024,base=[wrist[0]+.05,wrist[1]-.01+spread*.4,wrist[2]+spread],k=[base[0]+.075,base[1]-.03,base[2]+spread*.6];
+    tube(body,m.bone,base,k,.006);sphere(body,m.bone,.009,k);
+    const tip1=[k[0]+.035,k[1]-.045,k[2]+spread*.2],tip2=[tip1[0]+.01,tip1[1]-.04,tip1[2]];
+    if(i){tube(body,m.bone,k,tip1,.0048);sphere(body,m.bone,.007,tip1);tube(body,m.bone,tip1,tip2,.004);}
+    else tube(body,m.bone,k,[k[0]+.01,k[1]-.05,k[2]-.03],.005);
+   }
+   // Rags of tendon still strung between the bones.
+   for(let i=0;i<3;i++)strand(body,m.flesh,[[wrist[0]+.04,wrist[1],wrist[2]+(i-1)*.02],[wrist[0]+.09,wrist[1]-.04,wrist[2]+(i-1)*.025],[wrist[0]+.1,wrist[1]-.09,wrist[2]+(i-1)*.02]],.0035);
+  }else{
+   // A swollen, sloughing hand, mostly under.
+   sphere(body,m.skin,.062,[wrist[0],wrist[1]-.07,wrist[2]-.02],[.85,1.2,.7]);
+   for(let i=0;i<4;i++)strand(body,m.skin,[[wrist[0]+(i-1.5)*.02,wrist[1]-.1,wrist[2]-.03],[wrist[0]+(i-1.5)*.021,wrist[1]-.17,wrist[2]-.05],[wrist[0]+(i-1.5)*.02,wrist[1]-.2,wrist[2]-.02]],.011);
+  }
+  // Frayed strips at the cuffs.
+  for(let i=0;i<3;i++)box(body,m.cuff,[.01,.05+rand()*.03,.007],[wrist[0]+(i-1)*.03*s,wrist[1]-.04,wrist[2]-.02],[.2,0,s*.3]);
   tube(guest,m.shorts,[s*.12,.59,0],[s*.19,.54,-.24],.112);
   tube(guest,m.skin,[s*.19,.54,-.24],[s*.23,.5,-.43],.083);
   sphere(guest,m.skin,.082,[s*.23,.5,-.43]);
   tube(guest,m.skin,[s*.23,.49,-.43],[s*.25,.18,-.49],.058);
   tube(guest,m.sock,[s*.25,.24,-.49],[s*.255,.055,-.55],.06);
   sphere(guest,m.leather,.11,[s*.255,.05,-.61],[.78,.5,1.55]);
-  for(let i=0;i<3;i++)tube(guest,m.shade,[s*.255-.034,.106,-.58-i*.024],[s*.255+.034,.106,-.58-i*.024],.003);
  }
  for(let i=0;i<5;i++)sphere(body,m.button,.007,[0,.11+i*.07,-.146],[1,1,.3]);
  box(body,m.leather,[.34,.04,.26],[0,.018,0]);box(body,m.metal,[.045,.029,.012],[.01,.018,-.142]);
@@ -113,102 +190,70 @@ export function createStomachGuest(scene){
  for(let i=0;i<tieUv.count;i++)tieUv.setXY(i,(tiePos.getX(i)+.05)/.1,(tiePos.getY(i)+.54)/.54);
  mesh(tie,tieGeo,m.tie).rotation.y=Math.PI;
 
- const head=new T.Group();head.position.set(.008,.68,-.055);head.rotation.set(.20,-.10,-.17);body.add(head);
- const faceGeo=new T.SphereGeometry(.155,48,40),p=faceGeo.attributes.position;
+ // The head lolls on his shoulder.
+ const head=new T.Group();head.position.set(.008,.68,-.055);head.rotation.set(.32,-.1,-.5);body.add(head);
+ const faceGeo=new T.SphereGeometry(.155,64,52),p=faceGeo.attributes.position;
  for(let i=0;i<p.count;i++){
   let x=p.getX(i)*.90,y=p.getY(i)*1.20,z=p.getZ(i)*.85;
   x*=1+.07*Math.exp(-Math.pow((y+.10)/.035,2));
   if(z<0){
-   const front=Math.pow(-z/Math.max(.001,Math.hypot(x,z)),4),nose=.067*Math.exp(-Math.pow(x/.025,2)-Math.pow((y+.03)/.06,2)),bridge=.012*Math.exp(-Math.pow(x/.021,2)-Math.pow((y-.026)/.075,2));
-   const cheek=.017*Math.exp(-Math.pow((Math.abs(x)-.078)/.028,2)-Math.pow((y+.045)/.035,2)),hollow=.024*Math.exp(-Math.pow((Math.abs(x)-.074)/.035,2)-Math.pow((y+.085)/.03,2)),socket=.015*Math.exp(-Math.pow((Math.abs(x)-.052)/.028,2)-Math.pow((y-.026)/.023,2));
+   const front=Math.pow(-z/Math.max(.001,Math.hypot(x,z)),4),nose=.018*Math.exp(-Math.pow(x/.022,2)-Math.pow((y+.02)/.045,2)),bridge=.012*Math.exp(-Math.pow(x/.021,2)-Math.pow((y-.026)/.075,2))+.016*Math.exp(-Math.pow((Math.abs(x)-.05)/.04,2)-Math.pow((y-.062)/.014,2));
+   const cheek=.02*Math.exp(-Math.pow((Math.abs(x)-.082)/.022,2)-Math.pow((y+.02)/.022,2)),hollow=.048*Math.exp(-Math.pow((Math.abs(x)-.07)/.035,2)-Math.pow((y+.08)/.035,2)),socket=.05*Math.exp(-Math.pow((Math.abs(x)-.05)/.026,2)-Math.pow((y-.024)/.022,2));
    const chin=.017*Math.exp(-Math.pow(x/.060,2)-Math.pow((y+.13)/.031,2)),furrow=.002*Math.sin(y*235)*Math.exp(-Math.pow((y-.104)/.039,2));
    z-=(nose+bridge+cheek+chin-hollow-socket+furrow)*front;
   }
   p.setXYZ(i,x,y,z);
  }
- faceGeo.computeVertexNormals();const exposed=exposeSkull(faceGeo);mesh(head,faceGeo,m.skin,[0,.075,0]);
+ faceGeo.computeVertexNormals();const exposed=exposeSkull(faceGeo);
+ const face=new T.Group();face.position.y=.075;head.add(face);
+ mesh(face,faceGeo,m.face);
  const boneMap=painted(c=>{c.fillStyle='#e4d7b6';c.fillRect(0,0,512,512);for(let i=0;i<900;i++){c.fillStyle=i%3?'#887b6030':'#e4dec32a';c.fillRect(rand()*512,rand()*512,1+rand()*4,1+rand()*4);}});
- mesh(head,exposed.skull,mat(0xffffff,{map:boneMap,bumpMap:boneMap,bumpScale:.0008,roughness:.73}),[0,.075,0]);
- const woundEdge=mat(0x51302a,{side:T.DoubleSide,roughness:.68});
- mesh(head,exposed.margin,woundEdge,[0,.075,0]);mesh(head,exposed.border,woundEdge,[0,.075,0]);
- // Short cranial sutures follow the inset bone, so the pale patch reads as
- // exposed skull rather than a different skin tone or a flat decal.
- const skullPoint=(x,y)=>{
-  let closest=Infinity,point;
-  for(let i=0;i<p.count;i++){if(p.getZ(i)>=0)continue;const d=(p.getX(i)-x)**2+(p.getY(i)-y)**2;if(d<closest){closest=d;point=[p.getX(i)*.968,p.getY(i)*.968+.075,p.getZ(i)*.968-.001];}}
-  return point;
- };
- const suture=mat(0x82765d,{roughness:.87});
- strand(head,suture,[[-.020,.161],[-.027,.149],[-.022,.139],[-.034,.129],[-.030,.119],[-.042,.108],[-.048,.093]].map(([x,y])=>skullPoint(x,y)),.0013);
- strand(head,suture,[[-.034,.129],[-.048,.134],[-.056,.128],[-.069,.131],[-.079,.125]].map(([x,y])=>skullPoint(x,y)),.0011);
+ mesh(face,exposed.skull,absorb(new T.MeshStandardMaterial({color:0xffffff,map:boneMap,bumpMap:boneMap,bumpScale:.0008,roughness:.73})));
+ const woundEdge=mat(0x51302a,{side:T.DoubleSide,roughness:.4});
+ mesh(face,exposed.margin,woundEdge);mesh(face,exposed.border,woundEdge);
+ // Inside the head: the dark cavity, and the teeth that show through the lipless
+ // mouth and the hole in the cheek.
+ sphere(face,m.socket,.13,[0,0,.01],[.8,1.05,.72]);
+ const teeth=(cx,cy,cz,count,span,up)=>{for(let i=0;i<count;i++){if(rand()<.14)continue;const a=(i/(count-1)-.5)*span,x=cx+Math.sin(a)*.068,z=cz+(1-Math.cos(a))*.068,h=.02+rand()*.012;box(face,rand()<.35?m.toothDark:m.tooth,[.011+rand()*.003,h,.01],[x,cy+(up?1:-1)*h*.45,z],[(rand()-.5)*.25,a,(rand()-.5)*.25]);}box(face,m.gum,[.1,.01,.03],[cx,cy+(up?.026:-.026),cz+.02]);};
+ teeth(0,-.093,-.104,10,1.5,true);teeth(0,-.109,-.101,10,1.4,false);
+ // One eye milky and bulging with rot; the other socket is empty.
+ sphere(face,m.eye,.023,[-.05,.022,-.088],[1,.9,.9]);sphere(face,m.iris,.011,[-.047,.02,-.108],[1,1,.35]);
+ sphere(face,m.socket,.026,[.05,.024,-.07],[1,1,.8]);
  for(const s of [-1,1]){
-  sphere(head,m.skin,.042,[s*.137,.065,.006],[.35,1,.7]);
-  sphere(head,m.bruise,.027,[s*.052,.097,-.123],[1,.38,.10]);
-  sphere(head,m.skin,.030,[s*.052,.105,-.127],[1,.43,.38]);
-  strand(head,m.shade,[[s*.025,.104,-.130],[s*.050,.098,-.139],[s*.079,.102,-.124]],.0025);
-  if(s>0)strand(head,m.hair,[[s*.020,.140,-.141],[s*.045,.155,-.128],[s*.083,.139,-.106]],.007);
-  sphere(head,m.shade,.007,[s*.014,.006,-.193],[.8,.5,.5]);
+  sphere(face,m.face,.042,[s*.137,-.01,.006],[.35,1,.7]);
  }
- // A close scalp surface around the temples/back, with a receding front.
+ // A close scalp, patchy where the hair has sloughed away.
  const hairGeo=new T.PlaneGeometry(1,1,36,10),hp=hairGeo.attributes.position,huv=hairGeo.attributes.uv;
- for(let i=0;i<hp.count;i++){const a=(huv.getX(i)-.5)*4.15,top=.52+Math.pow(Math.abs(a)/2.075,3)*.56,theta=T.MathUtils.lerp(top,1.84,huv.getY(i));hp.setXYZ(i,.141*Math.sin(theta)*Math.sin(a),.075+.188*Math.cos(theta),.134*Math.sin(theta)*Math.cos(a));}
- hairGeo.computeVertexNormals();mesh(head,hairGeo,new T.MeshStandardMaterial({color:0x302e24,roughness:.9,side:T.DoubleSide}));
- // Filtered wisps lie on the scalp; tiny geometric strands alias at phone size.
- const crownMap=painted(c=>{
-  for(let i=0;i<60;i++){const x=70+rand()*350;c.strokeStyle=`rgba(40,35,28,${.4+rand()*.4})`;c.lineWidth=2+rand()*4;c.beginPath();c.moveTo(x,500);c.bezierCurveTo(x+45,360,x+35,120,x+75,0);c.stroke();}
-  c.globalCompositeOperation='destination-in';const fade=c.createRadialGradient(256,250,100,256,250,285);fade.addColorStop(0,'#fff');fade.addColorStop(1,'#fff0');c.fillStyle=fade;c.fillRect(0,0,512,512);
- });
- const crownGeo=new T.PlaneGeometry(1,1,12,16),cp=crownGeo.attributes.position,cu=crownGeo.attributes.uv;
- for(let i=0;i<cp.count;i++){const x=(cu.getX(i)-.5)*.12,z=(cu.getY(i)-.5)*.16,y=.075+.188*Math.sqrt(Math.max(0,1-(x/.141)**2-(z/.134)**2));cp.setXYZ(i,x,y+.001,z);}
- crownGeo.computeVertexNormals();mesh(head,crownGeo,new T.MeshStandardMaterial({map:crownMap,transparent:true,depthWrite:false,side:T.DoubleSide,roughness:.94}));
- strand(head,m.shade,[[-.036,-.042,-.128],[0,-.039,-.147],[.037,-.042,-.128]],.003);
- strand(head,m.skin,[[-.034,-.046,-.125],[0,-.05,-.143],[.034,-.046,-.125]],.005);
- // A thin wet trail crosses the intact cheek beneath the exposed temple.
- strand(head,m.slime,[[.088,.136,-.107],[.10,.045,-.107],[.075,-.055,-.09],[.044,-.10,-.07]],.005);
- for(const group of [guest,body,head,tie])mergeStatic(group);
+ for(let i=0;i<hp.count;i++){const a=(huv.getX(i)-.5)*4.15,top=.52+Math.pow(Math.abs(a)/2.075,3)*.56,theta=T.MathUtils.lerp(top,1.84,huv.getY(i));hp.setXYZ(i,.141*Math.sin(theta)*Math.sin(a),.188*Math.cos(theta),.134*Math.sin(theta)*Math.cos(a));}
+ hairGeo.computeVertexNormals();mesh(face,hairGeo,digest(absorb(new T.MeshStandardMaterial({color:0x302e24,roughness:.9})),{bias:-.28,cloth:true,holes:.82,acid}));
+ // Slime threads from the ruined mouth down to the chest.
+ strand(face,m.slime,[[.02,-.12,-.11],[.03,-.2,-.12],[.05,-.3,-.09]],.0022);strand(face,m.slime,[[-.03,-.118,-.11],[-.045,-.23,-.1]],.0018);
+ for(const group of [guest,body,tie])mergeStatic(group);mergeStatic(face);
 
- const chamberMap=painted(c=>{c.fillStyle='#4f3027';c.fillRect(0,0,512,512);for(let i=0;i<100;i++){c.strokeStyle=i%3?'#6c493d50':'#20181180';c.lineWidth=3+rand()*12;c.beginPath();const x=rand()*512;c.moveTo(x,0);c.bezierCurveTo(x+80,180,x-80,340,x,512);c.stroke();}});
- // Close only the far end; a full sphere would cut across the throat walls.
- const chamberGeo=new T.SphereGeometry(1,40,24,0,Math.PI*2,0,Math.PI/2);chamberGeo.rotateX(Math.PI/2);
- const chamber=mesh(root,chamberGeo,mat(0x796146,{map:chamberMap,bumpMap:chamberMap,bumpScale:.08,side:T.BackSide,roughness:.38}),[-.088,-6.084,13]);chamber.scale.set(2.6,2.35,2.3);
- const poolMat=new T.ShaderMaterial({uniforms:poolUniforms,side:T.DoubleSide,transparent:true,depthWrite:false,vertexShader:`
-  uniform float time;varying vec2 coord;varying float ripple;
-  void main(){coord=uv;vec3 p=position;ripple=sin(p.x*8.+time*1.6)*cos(p.y*6.-time*.8);p.z+=ripple*.018;gl_Position=projectionMatrix*modelViewMatrix*vec4(p,1.);}
- `,fragmentShader:`
-  uniform float time;uniform float reveal;varying vec2 coord;varying float ripple;
-  float hash(vec2 p){return fract(sin(dot(p,vec2(127.1,311.7)))*43758.5453);}
-  float noise(vec2 p){vec2 i=floor(p),f=fract(p);f=f*f*(3.-2.*f);return mix(mix(hash(i),hash(i+vec2(1,0)),f.x),mix(hash(i+vec2(0,1)),hash(i+vec2(1,1)),f.x),f.y);}
-  void main(){vec2 p=(coord-.5)*2.;float r=length(p);vec2 drift=p*11.+vec2(sin(p.y*4.+time*.2),cos(p.x*3.-time*.16))*.6;
-   float film=noise(drift)*.65+noise(drift*2.7)*.35,glint=pow(max(0.,ripple),24.)*smoothstep(.5,.75,film);vec3 color=mix(vec3(.009,.017,.006),vec3(.053,.061,.020),film);
-   color+=vec3(.16,.15,.06)*glint*.28;color*=reveal*(1.-smoothstep(.5,1.05,r)*.72);gl_FragColor=vec4(color,.60+film*.12);
-   #include <tonemapping_fragment>
-   #include <colorspace_fragment>
-  }`});
- const pool=mesh(root,new T.CircleGeometry(2.75,64),poolMat,[0,acidLevel,11.8]);pool.rotation.x=-Math.PI/2;
- const bubbles=new T.InstancedMesh(new T.SphereGeometry(1,24,16),mat(0x8b8948,{roughness:.17,metalness:.12}),28);bubbles.frustumCulled=false;root.add(bubbles);
- const rings=new T.InstancedMesh(new T.TorusGeometry(1,.045,8,64),new T.MeshBasicMaterial({color:0x878d57,transparent:true,opacity:.12,depthWrite:false}),12);rings.frustumCulled=false;root.add(rings);
- const bubbleData=Array.from({length:28},()=>({x:(rand()-.5)*3.5,z:10.2+rand()*3.1,phase:rand(),radius:.025+rand()*.055})),dummy=new T.Object3D();
- const key=new T.PointLight(0xc5d0bc,0,7,2);key.position.set(.75,-3.65,9.9);root.add(key);
- const acidLight=new T.PointLight(0x899d58,0,5,2);acidLight.position.set(.15,-5.15,10.85);root.add(acidLight);
- const ambient=new T.AmbientLight(0x86866b,0);root.add(ambient);
+ // A skin of froth and fizz where he sits in the acid.
+ const fizz=new T.InstancedMesh(new T.SphereGeometry(1,10,6),absorb(new T.MeshStandardMaterial({color:0xb5b27a,roughness:.1,transparent:true,opacity:.8})),60);fizz.frustumCulled=false;root.add(fizz);
+ const fizzData=Array.from({length:60},()=>({a:rand()*6.283,r:.28+rand()*.35,phase:rand(),size:.008+rand()*.022}));
+ const dummy=new T.Object3D(),focus=new T.Vector3();
  let reveal=0;
- function reset(){root.visible=false;reveal=0;key.intensity=acidLight.intensity=ambient.intensity=0;poolUniforms.reveal.value=0;}
- function update(t,progress,reducedMotion){
-  // Light rises once as the camera clears the bend. No flashing or sudden cut.
-  reveal=T.MathUtils.smoothstep(progress,.60,.91)*(1-T.MathUtils.smoothstep(t,DEFEAT.acidAt,DEFEAT.black));
-  root.visible=reveal>0;if(!root.visible)return;
-  const clock=t-DEFEAT.slideAt,motion=reducedMotion?.25:1,swell=Math.sin(clock*2.1)*.016*motion;
-  key.intensity=8*reveal;acidLight.intensity=1.1*reveal;ambient.intensity=.12*reveal;
-  poolUniforms.time.value=clock;poolUniforms.reveal.value=reveal;
-  guest.position.y=-6.05+swell*.3;body.rotation.z=-.20+Math.sin(clock*1.7)*.004*motion;
-  head.rotation.z=-.17+Math.sin(clock*1.6-.5)*.028*motion;
+ function reset(){root.visible=false;reveal=0;}
+ function update(t,camera,reducedMotion){
+  reveal=T.MathUtils.smoothstep(t,DEFEAT.bellyAt-.8,DEFEAT.bellyAt+.35)*(1-T.MathUtils.smoothstep(t,DEFEAT.acidAt+.2,DEFEAT.black));
+  root.visible=reveal>0;
+  const clock=t-DEFEAT.slideAt,motion=reducedMotion?.25:1,churn=Math.sin(clock*1.7)*motion;
+  // Rolled by the churn; his head slowly lolls round toward the newcomer.
+  guest.position.y=stomach.acidLevel-.9+Math.sin(clock*2.1)*.02*motion;guest.rotation.z=churn*.02;
+  body.rotation.z=-.26+churn*.015;
+  const turn=T.MathUtils.smoothstep(t,DEFEAT.bellyAt,DEFEAT.plungeAt+.2)*motion;
+  head.rotation.set(.32-.12*turn+Math.sin(clock*1.3)*.02*motion,-.1+.35*turn,-.5+.28*turn+Math.sin(clock*1.6-.5)*.03*motion);
   tie.rotation.x=.18+Math.sin(clock*1.9)*.07*motion;
-  for(let i=0;i<bubbleData.length;i++){
-   const b=bubbleData[i],u=(clock*(reducedMotion?.14:.32)+b.phase)%1,size=b.radius*Math.sin(Math.PI*u);
-   dummy.position.set(b.x,-5.52+u*.10,b.z);dummy.rotation.set(0,0,0);dummy.scale.set(size,size*.6,size);dummy.updateMatrix();bubbles.setMatrixAt(i,dummy.matrix);
-   if(i<12){dummy.position.y=-5.472;dummy.rotation.x=Math.PI/2;dummy.scale.setScalar(b.radius*(1+u*4));dummy.scale.z*=1-u;dummy.updateMatrix();rings.setMatrixAt(i,dummy.matrix);}
-  }
-  bubbles.instanceMatrix.needsUpdate=true;rings.instanceMatrix.needsUpdate=true;
+  head.getWorldPosition(focus);
+  if(!root.visible)return;
+  for(let i=0;i<fizzData.length;i++){const f=fizzData[i],u=(clock*(reducedMotion?.3:1.2)+f.phase)%1,s=f.size*Math.sin(Math.PI*u);
+   dummy.position.set(guest.position.x+Math.cos(f.a)*f.r,stomach.acidLevel+.005,guest.position.z+Math.sin(f.a)*f.r*.8);dummy.scale.set(s,s*.7,s);dummy.updateMatrix();fizz.setMatrixAt(i,dummy.matrix);}
+  fizz.instanceMatrix.needsUpdate=true;
  }
- reset();return{root,guest,head,tie,pool,update,reset,get reveal(){return reveal;}};
+ // Froth gathers around him on the acid.
+ stomach.froth[3].set(guest.position.x,guest.position.z,1.1,1);
+ reset();update(DEFEAT.bellyAt,null,false);root.visible=false;
+ return{root,guest,head,tie,pool:stomach.pool,update,reset,get reveal(){return reveal;},get focus(){return focus;}};
 }

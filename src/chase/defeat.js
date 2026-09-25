@@ -1,5 +1,12 @@
 // One clock drives the collision, vehicle, camera, weapon and final bite.
-export const DEFEAT={ram:1.65,spinEnd:4.65,walkAt:5,lookAt:8.55,openAt:8.90,lungeAt:9.22,biteSound:9.10,contact:9.56,swallowAt:9.46,headLiftAt:10.20,slideAt:10.85,headLiftEnd:11.10,bellyAt:14.05,plungeAt:13.70,acidAt:15.00,black:15.60,duration:16.15};
+// The interior is brisk: a short hold in the mouth, 1.8 s down the esophagus, a
+// long look at the stomach, then face first into the acid.
+export const DEFEAT={ram:1.65,spinEnd:4.65,walkAt:5,lookAt:8.55,openAt:8.90,lungeAt:9.22,biteSound:9.10,contact:9.56,swallowAt:9.46,headLiftAt:9.98,slideAt:10.40,headLiftEnd:10.55,bellyAt:12.20,plungeAt:13.45,acidAt:14.30,black:14.85,duration:15.35};
+// Interior geometry shared by the scene and its tests: the esophagus runs from
+// the mouth (z -1.1) to the cardia (ESOPHAGUS), curving down with the neck;
+// the acid lies at ACID in the stomach beyond.
+export const INTERIOR={start:-1.1,esophagus:7.4,acid:-5.3,chamberZ:11.2};
+export const lumenCenter=z=>({x:.1*Math.sin(z*.45),y:-.045*z*z,z});
 const clamp=x=>Math.max(0,Math.min(1,x));
 const ease=(x,a,b)=>{const u=clamp((x-a)/(b-a));return u*u*(3-2*u);};
 const mix=(a,b,u)=>a+(b-a)*u;
@@ -23,7 +30,17 @@ export function swallowPose(t){
 export function stomachPlunge(t){
  const duration=DEFEAT.acidAt-DEFEAT.plungeAt,u=clamp((t-DEFEAT.plungeAt)/duration);
  const submerged=Math.max(0,t-DEFEAT.acidAt),drag=.20;
- return{travel:u*u+2*drag/duration*(1-Math.exp(-submerged/drag)),look:ease(t,DEFEAT.bellyAt-.03,DEFEAT.acidAt-.12),immersion:ease(t,DEFEAT.acidAt,DEFEAT.acidAt+.16)};
+ return{travel:u*u+2*drag/duration*(1-Math.exp(-submerged/drag)),look:ease(t,DEFEAT.acidAt-.55,DEFEAT.acidAt-.08),immersion:ease(t,DEFEAT.acidAt,DEFEAT.acidAt+.16),
+  // Out of the cardia: she drops into the chamber and slides down its wall.
+  drop:ease(t,DEFEAT.bellyAt-.15,DEFEAT.plungeAt+.1)};
+}
+/** Interior camera position (height and depth) from the defeat clock. */
+export function interiorPath(t){
+ const p=swallowPose(t),plunge=stomachPlunge(t),z=INTERIOR.start+(INTERIOR.esophagus-INTERIOR.start)*p.progress,c=lumenCenter(z);
+ // Beyond the cardia: a slow slide down the chamber wall toward the pool, then
+ // the fall into it (plunge.travel reaches 1 at the surface, then sinks on).
+ const exit=c.y,ledge=exit-1.25*plunge.drop,surface=INTERIOR.acid;
+ return{x:c.x+.62*plunge.drop,y:ledge+(surface-ledge)*plunge.travel,z:z+1.1*plunge.drop+1.3*plunge.travel};
 }
 export function defeatPose(t,start){
  const spin=ease(t,DEFEAT.ram,DEFEAT.spinEnd),after=Math.max(0,t-DEFEAT.ram);
