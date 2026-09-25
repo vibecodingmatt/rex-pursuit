@@ -67,6 +67,8 @@ Inspect before/after captures for animation and shader work. Meaningful checks i
 
 `freeze=true` stops simulation while continuing rendering, making it useful for exact cinematic captures and custom camera comparisons. It is **not** a pause test: verify Pause through the UI or keyboard and check AudioContext suspension as well. Start with a real click/tap to unlock sound.
 
+For settled menu captures, wait for `#boot` to become hidden and the title reveal to finish. If changing conditions after freezing, step `weather.update(0,0,camera,{ground:true})` too: `setConditions(...,true)` updates the values/lights but rain visibility is applied during update. A capture-only HUD filter must preserve `#scene-viewport`, the parent of the canvas.
+
 A reproducible loss can be triggered after starting: transition to `pursuit`, set distance to 19 and `nextDebris=Infinity`, let movement settle briefly, then set Jeep health to 1 and set phase `bite`, phaseTime `.77`. Existing `verify-defeat.cjs` demonstrates all loss causes. Avoid setting `state.result='lost'` by itself: that bypasses event setup needed for the actual cinematic.
 
 Listen for both `pageerror` and browser console errors. Shader compilation failures can appear only in the console and leave a page that still responds to input. Screenshots alone cannot prove successful compilation.

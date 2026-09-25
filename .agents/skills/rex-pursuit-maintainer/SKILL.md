@@ -24,6 +24,7 @@ Read its `AGENTS.md` and `docs/HANDOFF.md`, then inspect current source and Git 
 | Hide finish, mouth interior, teeth, cornea | `src/chase/rex-skin.js` (composed via `damage.js`) |
 | Combat/creature particles, flock | `src/chase/effects.js`, `birds.js` |
 | Compies, lizards, insects, brachiosaur; track clutter | `src/chase/critters.js`, `insects.js`, `brachio.js`; clutter in `environment.js`, `foliage.js` |
+| Brachiosaur shape and baked High/Low meshes | `scripts/build-brachio.mjs`, `public/models/brachio.bin`, `public/models/brachio-low.bin` |
 | Rules, pressure, damage totals, objectives, deadline | `src/chase/combat.js`, `src/chase/targets.js` |
 | Rig orchestration and layered poses | `src/chase/creature.js` |
 | Walking/running, plants, swing arcs, IK | `src/chase/locomotion.js` |
@@ -45,6 +46,7 @@ Paths abbreviated within a row share the first file's directory.
 ## Select the relevant workflow
 
 - For rig, cinematic, material, sound, or mobile changes, read [animation-and-rendering.md](references/animation-and-rendering.md). It records the causes of prior regressions and the invariants behind their fixes.
+- For brachiosaur anatomy, use the accepted silhouette and loft-authoring notes in that reference's [Living jungle](references/animation-and-rendering.md#living-jungle-critters-insects-brachiosaur) section. Rebuild both mesh tiers and inspect neutral studio views as well as the game.
 - Before browser checks or publishing, read [verification-and-release.md](references/verification-and-release.md). Select the focused checks that cover the changed behavior, plus the release gate when shipping.
 - For art provenance, controls, exact current game rules and audio-editing workflow, use the checkout's `README.md` and source constants. Ordinary runtime tuning does not require Blender export or new image generation.
 

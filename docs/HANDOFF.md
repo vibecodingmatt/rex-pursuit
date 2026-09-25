@@ -1,27 +1,28 @@
 # Rex: Pursuit handoff
 
-Checkpoint: 2026-09-23. The foot articulation below was published at the user's request after the full release gate. It follows the visual overhaul (HDR pipeline, rebuilt rainforest, hide/mouth finish, effects, quality tiers and front-end polish), published earlier the same day after its release gate (test:logic, npm test, build, test:release, test:pages) passed. That in turn follows `540d171` (varied branch hazards and stomach plunge reveal).
+Release checkpoint: 2026-09-24. The user accepted the brachiosaur sculpt in `f1309d6` and authorized publishing the latest code. This release includes all living-jungle work since `8d9fa60`: critters, insects, track clutter, the browsing/calling brachiosaur, coherent plant wind, the Day option and foliage glare fixes. The earlier dated sections below are historical checkpoints; use the current source and [roadmap progress log](ROADMAP.md#progress-log) for their final status.
 
-## Brachiosaurus silhouette revision (2026-09-24, local only)
+## Accepted brachiosaurus silhouette (2026-09-24 release)
 
-The user rejected the proportions in `74eb43c` and supplied the same reference again. This pass revises the existing SDF mesh and its two baked assets; the user's visual verdict is still pending. Review it at `http://127.0.0.1:5188/art/review/brachio-astra/review.html` while the source server runs. The ignored review folder contains the original mesh/material, matching before/after captures, clay views, the reference comparison, and repeatable capture/geometry/game checks.
+The user approved `f1309d6` after rejecting the proportions in `74eb43c`. This pass revises the existing SDF mesh and its two baked assets. Review it at `http://127.0.0.1:5188/art/review/brachio-astra/review.html` while the source server runs. The ignored review folder contains the original mesh/material, matching before/after captures, clay views, the reference comparison, and repeatable capture/geometry/game checks.
 
 - **Shape:** a compact ribcage that stays deep through the hips, reduced projecting chest, higher shoulder mass, a fuller forward-curving neck, a compact skull without the separate horn-like crest, continuous supporting limbs instead of spherical knees, and a much shorter tail that leaves the hips low, rises gently and dips at the tip. The far forefoot rests back and the far hindfoot forward. Crown height is 14.6 m, withers approximately 6.6 m, belly 2.4 m; longitudinal extent is 14.45 m. These describe this sculpt, not anatomical measurements from the reference.
-- **Authoring:** `scripts/build-brachio.mjs` adds `uprightLoft()` for independently controlling neck/leg depth, width and centreline. The upper leg centres turn inward so their caps stay buried in the ribcage. Both loft helpers include cap distance inside as well as outside the end plane; otherwise blended fields acquire a discontinuity and a ledge at the cap. Keep checking clay views: skin and jungle lighting conceal these defects.
-- **Material seams:** region ids are categorical but interpolate in the fragment shader. A torso-to-leg triangle crosses id 5 and previously painted a pale **claw** outline around the shoulder. Horn shading is now restricted to foot height. The spare fourth `aux` byte now carries a continuous limb influence for wrinkle/mud blending. Binary strides are unchanged. Rebuild both models alongside this shader change.
+- **Authoring and material lessons:** the project skill's [Living jungle reference](../.agents/skills/rex-pursuit-maintainer/references/animation-and-rendering.md#living-jungle-critters-insects-brachiosaur) explains the upright lofts, buried caps, continuous cap distances, interpolated region-id bug and new `aux.w` limb mask. Keep those details there and rebuild both models with the shader.
 - **Budgets:** High 41,750 vertices / 83,496 triangles / 1.42 MB; Low 14,236 / 28,468 / 0.48 MB. Both are one connected mesh with finite coordinates and grounded feet. Approximately 24% smaller than the previous assets; no added draw calls or animation layers.
-- **Verification:** `build`, `test:smoke`, `test:release`; neutral skin/clay views from reference, side, front and rear angles; head close-ups; Low comparisons; desktop and emulated-phone menu/encounter captures. The existing call runs once, opens the jaw, returns to idle, and moves the head at most 0.031 m per 60 Hz step relative to the animal. No page/shader/load errors. Nothing has been pushed.
+- **Sculpt verification:** `build`, `test:smoke`, `test:release`; neutral skin/clay views from reference, side, front and rear angles; head close-ups; Low comparisons; desktop and emulated-phone menu/encounter captures. The existing call runs once, opens the jaw, returns to idle, and moves the head at most 0.031 m per 60 Hz step relative to the animal. No page/shader/load errors.
 
-Earlier skill notes claiming the previous sculpt already matched the reference are superseded by this entry. In particular, do not stretch the tail back to z=-11.9 or turn the full upper neck into a thin conical spire.
+The skill now describes the accepted sculpt. Do not restore the rejected long, high tail or thin conical upper neck from older roadmap entries.
 
-## Recorded world audio, ducking, splash fall-back, lens shapes (2026-09-24, local only)
+Release checks passed: `test:logic`, `build`, `test:release`, `test:pages` against the isolated local Pages subpath, `test:treeline`, `test:cinematic` and `test:build`. The sculpt's focused smoke/geometry/call checks passed in the preceding session. The repo and installed maintainer skills are synchronized; frontmatter and relative links were validated (PowerShell fallback because Python is unavailable here).
+
+## Recorded world audio, ducking, splash fall-back, lens shapes (2026-09-24, shipped in 770ec45)
 
 - **Every world sound is now a recording** (the user approved the sound-search top picks). The recordings are in `public/audio/sfx/` and credited in the README; they are fetched when `ChaseAudio` is constructed (during the loading screen) and decoded by `loadSfx()` on start. `gun()` plays one real shot per round: onsets are detected in both gun recordings (256 slices, 0.08–0.15 s). The burst recording's final decay is scheduled 0.12 s after every shot and cancelled by the next one, so it rings out only when firing stops. `hit(kind, distance)` plays flesh, dirt/ricochet or wood, delayed by distance/343. Recorded replacements: reload, branch snap, grenade explosion, crash, and birds on every canopy flush. Engine, jungle and wind are crossfaded loops; the engine's pitch follows speed. `groundImpact` is the explosion slowed and low-passed into a thud. Still synthesized by design: UI cues, the debris warning, and the swallow/acid/digest interior.
 - **Mix:** everything except the Rex (and the distant dinosaur calls, UI and interior) runs through a `world` bus. It ducks under her voice by jaw/energy, down to about −10 dB for a full roar, with a 0.05 s attack and 0.4 s release. Roar, growl, bite and pain are louder. The user reported the roars were drowned out.
 - **Splash fall-back:** the crown rises and holds, and its rim is consumed top-down. At the apex about 30 rim drops fly outward and fall. Sheet fragments shrink into drops. Every mud clod, every rim drop and 45% of the other drops leave a landing ring at their analytic landing point and time, riding the road afterwards.
 - **Lens drops:** lobed, stretched and tilted outlines; heavier at the bottom; 30% are two fused beads; running beads taper above and leave a wet trail; dark rims and a small glint.
 
-## Storm refinements (2026-09-24, local only, not pushed)
+## Storm refinements (2026-09-24, shipped in 770ec45)
 
 The user asked for three things. **Storm is now the only condition offered**: the Conditions picker is hidden, the game starts in Storm, and Clear remains in code, reachable through `rexChase.setConditions('clear', true)`; `verify-motion.cjs` uses it to keep checking dry footfall dust. **Wet footfalls splash instead of raising dust**, and **lens drops splat and fade** instead of sitting still.
 
@@ -30,7 +31,7 @@ The user asked for three things. **Storm is now the only condition offered**: th
 - Dust and grit scale with dryness (`1 - WET`), so Clear is unchanged.
 - Lens (`post.js`): each cell hosts a stream of impacts. Each lands at a fresh spot with fine spatter, then shrinks and fades over several seconds; about 16% are heavy beads that run down the glass.
 
-## Storm conditions (2026-09-24, local only, not pushed)
+## Storm conditions (2026-09-24, shipped in 770ec45)
 
 Drop 1 of [the upgrade roadmap](ROADMAP.md). Menu and Pause have a **Conditions: Clear | Storm** picker stored in `localStorage` (`rex-pursuit-conditions`). Clear must stay visually and behaviourally identical; gameplay rules do not change in the storm.
 
