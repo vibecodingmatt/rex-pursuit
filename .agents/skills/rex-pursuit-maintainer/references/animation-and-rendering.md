@@ -35,7 +35,13 @@ Footstep dust and sounds consume footfall events, not a separate sine clock. Kee
 
 ## Two different endings
 
-**Rex dies / player wins:** `death-motion.js` captures the current stride, stops gait, buckles the supporting leg, falls, partly rolls and slides. Damped spine, neck, limbs and tail responses prevent the board-stiff fall the user disliked. Skinned contact samples constrain ground penetration. Victory waits for this roughly 5.2-second sequence. This is authored motion with damping and contact constraints, not a full ragdoll solver.
+**Rex dies / player wins:** she goes down face first and skids (September 2026; the user rejected the old sideways roll with locked legs). `death-motion.js` is a small physics rig at a fixed 240 Hz in the ground's frame (the road moves under the Jeep's frame at `roadSpeed`), so every frame rate gives the same fall:
+
+- **Torso:** a planar rigid body (travel, height, pitch; authored yaw drift and settle roll) with contacts at the lowest belly/chest/pubis vertices of each half-metre slice. Legs are buckling struts at the planted feet; their claw friction trips her nose-down. **Throat and jaw strut contacts** (softer, ploughing) are essential: without them the torso pitched past the chest contact and somersaulted to 73°. Friction saturates at 1.6 g of total load (soil yields), otherwise the belly slam stops her dead; per-point caps are wrong because the keel rests on one point. μ is .48 dry, .3 wet.
+- **Neck and tail:** mass chains with inextensible links, **bending as spring forces** with equal and opposite reactions (positional bend constraints are rigid against gravity at 240 Hz; one-sided springs pump energy into travelling waves), joint limits measured from each joint's rest bend (absolute limits fight the S-shaped neck), a limp droop on the neck, ground radii from the skin, Coulomb friction and a 16 m/s speed cap (limit projections otherwise catapult the tail when the pelvis stops).
+- **Feet:** each ball of the foot is a physics point with claw friction, kept within 0.88 of leg length of the hip and below it (no swing over the back), dragged inelastically; the IK solves the legs to them, and the metatarsus folds flat, then swivels to trail.
+- Impacts (`body-impact` with `part`: chin, chest, hips, tail) and per-frame `contacts` feed `skid.js` (furrows, bow wave, surges, mound, mud coat); an `exhale` event fires once she is still. Everything sleeps at 4.3 s, so the pose is exactly still well before the 5.2 s completion. The victory camera tracks and pushes in on the fall (`victoryPose().watch`, `lean`) before the pullback.
+- Custom ground decals need a `normal` attribute: a missing one reads as zero, lights as NaN and blooms into black-cored white blocks.
 
 **Player loses:** one `DEFEAT` clock drives the Rex, detached gun, vehicle, camera, overlays, audio cues and interior. Every loss route uses this sequence and locks first person and shooting. Avoid independent timers or arbitrary camera delays.
 
@@ -47,11 +53,12 @@ Footstep dust and sounds consume footfall events, not a separate sine clock. Kee
 | Closed-jaw look at the player | 8.55 s |
 | Brief gape / head-back windup / lunge | 8.90 / 9.22 s |
 | Interior begins blending / contact | 9.46 / 9.56 s |
-| Still mouth beat, then swallowing head lift | lift begins 10.20 s |
-| Descent and muffled swallowing audio start | 10.85 s |
-| Head lift completes | 11.10 s |
-| End of 3.2-second descent | 14.05 s |
-| Full black / retry screen | 14.85 / 15.40 s |
+| Short mouth hold, then swallowing head lift | lift begins 9.98 s |
+| Esophagus descent and muffled swallowing audio start | 10.40 s |
+| Head lift completes | 10.55 s |
+| Out of the cardia into the stomach (1.8 s descent) | 12.20 s |
+| Plunge starts / face first into the acid | 13.45 / 14.30 s |
+| Full black / retry screen | 14.85 / 15.35 s |
 
 The wide gape lasts less than half a second. The external camera stays at the seat during the windup so following the head does not cancel the visible head-back motion. It then aligns between skinned lip landmarks. A brief red contact flash clears to reveal the interior.
 
@@ -59,7 +66,11 @@ The wide gape lasts less than half a second. The external camera stays at the se
 
 ## Interior rendering
 
-`swallow.js` builds a curved, folded tube with a traveling contraction and a wider dark chamber. Keep the effect the user approved while adjusting its motion.
+`swallow.js` (esophagus, strands, lens composite), `stomach.js` (chamber, acid, debris, lights) and `stomach-guest.js` (Gennaro) share GLSL through `tissue.js`; `interiorPath()` in `defeat.js` is the camera path for the scene and its tests. The user asked (September 2026) for a shorter, more anatomical, deliberately graphic interior: an endoscope-like collapsed esophagus with converging mucosal folds, peristaltic squeezes, vessels, transmitted daylight and snapping mucus; a churning, ulcerated stomach with a frothing acid pool and half-digested prey; a digested Gennaro (layered digestion shader, lipless grin, milky eye, bone hand); and a face-first plunge with lens corrosion.
+
+- Keep the lens film (mucus, blood) low-frequency and subtle. High-frequency film refraction posterized the whole frame and turned strands into zigzags; long blood lanes read as red curtains.
+- Standard materials inside use `stomach.absorb()` (acid drowning) and `digest()`; any new onBeforeCompile must chain the previous one and its cache key.
+- Judge the guest's face at game distance (~1.6 m, `art/review/fall/face.cjs`); frontal light flattens it into a mask, so the key light rides above and beside the eye.
 
 - Capture the aperture's projected origin before the lips pass behind the camera. Reprojecting those points later flips the opening under the tongue.
 - Tube geometry extends behind the interior camera so the entrance rim cannot expose black gaps.

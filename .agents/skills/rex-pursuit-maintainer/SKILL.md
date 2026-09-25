@@ -5,7 +5,7 @@ description: "Maintain, diagnose, visually verify, or publish the Rex: Pursuit T
 
 # Rex: Pursuit maintainer
 
-Use the existing game and rig as the starting point. The user values believable, continuous motion and movie-like scale, and has already accepted the current throat interior, flexible death fall, Jeep, and creature. Follow the requested change rather than rebuilding those systems.
+Use the existing game and rig as the starting point. The user values believable, continuous motion and movie-like scale, and has accepted the Jeep and creature. At the user's request (September 2026) the victory fall is now a face-first physics fall with ground effects, and the swallow interior is a shorter, deliberately graphic esophagus/stomach sequence; tune those rather than reverting them. Follow the requested change rather than rebuilding those systems.
 
 ## Locate and orient
 
@@ -29,9 +29,11 @@ Read its `AGENTS.md` and `docs/HANDOFF.md`, then inspect current source and Git 
 | Rig orchestration and layered poses | `src/chase/creature.js` |
 | Walking/running, plants, swing arcs, IK | `src/chase/locomotion.js` |
 | Foot roll, toe peel, curl and spread | `src/chase/foot-motion.js` (driven by `locomotion.js`) |
-| Rex victory fall and settling | `src/chase/death-motion.js` |
+| Rex victory fall and settling (physics rig) | `src/chase/death-motion.js` |
+| Fall ground effects: furrows, bow wave, mound, mud coat | `src/chase/skid.js` (via `effects.js`, `mud.js`; coat in `rex-skin.js`) |
 | Player defeat, Jeep spin, approach, bite/swallow timing | `src/chase/defeat.js`, camera/cues in `src/chase.js`, pose in `creature.js` |
-| Throat geometry, interior camera, composite | `src/chase/swallow.js` |
+| Throat geometry, interior camera, composite | `src/chase/swallow.js` (path in `defeat.js`, shared GLSL in `tissue.js`) |
+| Stomach, acid, debris; digested guest | `src/chase/stomach.js`, `stomach-guest.js` |
 | Persistent wounds and skin roughness | `src/chase/damage.js`, skin setup in `creature.js` |
 | Shared tongue finish and eye focus | `src/creature-materials.js`, `src/chase/gaze.js` |
 | Opening, jungle feint, branches, cover | `src/chase/opening.js`, `ambush.js`, `debris.js`, `environment.js` |

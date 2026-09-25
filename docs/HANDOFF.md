@@ -1,5 +1,15 @@
 # Rex: Pursuit handoff
 
+## Face-first victory fall, graphic swallow, daytime butterflies (2026-09-25 release)
+
+The user asked for the Rex to fall face first and skid instead of rolling sideways with rigid legs, with dirt, mud and weather effects; for butterflies only by day in clear weather; and for a shorter, more realistic and deliberately graphic swallow (esophagus, stomach, a semi-digested Gennaro, acid). They authorized publishing these changes.
+
+- **Fall** (`death-motion.js`): a 240 Hz physics rig (rigid torso on buckling legs, neck/tail mass chains, physics feet solved by IK). Impacts carry a `part`; per-frame `contacts` feed the new `skid.js` (furrows, bow wave, surges, mound, mud coat on the hide, exhale) and `audio.skid`. The victory camera tracks and pushes in on the fall. Details and the failure modes met while building it are in the rendering reference's [Two different endings](../.agents/skills/rex-pursuit-maintainer/references/animation-and-rendering.md#two-different-endings).
+- **Swallow**: new timeline (hold 0.84 s, esophagus 1.8 s, stomach, acid at 14.3 s, results at 15.35 s), `stomach.js`, `tissue.js`, reworked `swallow.js` and `stomach-guest.js`; see [Interior rendering](../.agents/skills/rex-pursuit-maintainer/references/animation-and-rendering.md#interior-rendering).
+- **Butterflies** (`insects.js`): activity is zero in rain or dusk; moths and dragonflies unchanged.
+- Review tools (ignored): `art/review/fall/film.cjs` (fall filmstrips, clean side/front/top views), `gut.cjs` (swallow filmstrips), `face.cjs` (guest close-ups), `sim.cjs` / `legs.cjs` / `neck.cjs` / `sink.cjs` (numeric fall probes).
+- Verification: `test:motion` and `test:defeat` were updated for the new behavior and timeline; the full release gate ran before publishing.
+
 Release checkpoint: 2026-09-24. The user accepted the brachiosaur sculpt in `f1309d6` and authorized publishing the latest code. This release includes all living-jungle work since `8d9fa60`: critters, insects, track clutter, the browsing/calling brachiosaur, coherent plant wind, the Day option and foliage glare fixes. The earlier dated sections below are historical checkpoints; use the current source and [roadmap progress log](ROADMAP.md#progress-log) for their final status.
 
 ## Accepted brachiosaurus silhouette (2026-09-24 release)
