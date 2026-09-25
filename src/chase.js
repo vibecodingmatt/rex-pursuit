@@ -85,7 +85,9 @@ weather=createWeather(scene,{renderer,sky,makeEnvironment:createEnvironmentMap,r
 weather.onThunder=(delay,near)=>audio.thunder(delay,near);
 night=createNight(scene,{jeep,weather,renderer});
 // Living jungle: compies and lizards that flee the chase, insects, a passing brachiosaur.
-const critters=createCritters(scene,{jungle}),insects=createInsects(scene,{night}),brachio=createBrachio(scene,{jungle});critters.onScatter=p=>audio.chirp(p);brachio.onCall=p=>audio.brachio(p);
+const critters=createCritters(scene,{jungle}),insects=createInsects(scene,{night}),brachio=createBrachio(scene,{jungle});critters.onScatter=p=>audio.chirp(p);critters.onKill=p=>audio.squeal(p);brachio.onCall=p=>audio.brachio(p);
+// Dropping back onto her forefeet from a rear-up: dust, a ground-shaking thud, and everything small bolts.
+brachio.onStomp=feet=>{for(const p of feet){effects.bodyImpact(p,1.7);critters.alarm(p,24);}audio.groundImpact(1.2,feet[0]);const d=Math.hypot(feet[0].x,feet[0].z);shake=Math.max(shake,.55*T.MathUtils.clamp(1-(d-12)/60,0,1));};
 function setConditions(kind,instant=mode==='paused'){weather.set(kind,{instant});weather.apply({sun,hemi,rim,fill,post});night.update(0,{camera,rex,ground:jungleRoot.visible});document.querySelectorAll('[data-conditions]').forEach(b=>b.setAttribute('aria-pressed',String(b.dataset.conditions===weather.kind)));document.body.dataset.conditions=weather.kind;updateLightButton();}
 // The picker offers Day, Storm (the default for a first visit), Night and Night + Storm.
 const OFFERED=['clear','storm','night','night-storm'];
@@ -133,8 +135,8 @@ $('#start').onclick=start;$('#restart').onclick=start;
 const sharing=setupSharing({button:$('#share-game'),copyButton:$('#copy-game-link'),status:$('#share-status'),fallback:$('#share-fallback'),input:$('#share-link'),getState:()=>state});
 // World point under the reticle: Rex proxy, else the ground, else far down range.
 const groundPlane=new T.Plane(new T.Vector3(0,1,0),0);
-function aimPoint(out){if(rex?.aimHit(raycaster.ray,out))return out;if(raycaster.ray.intersectPlane(groundPlane,out)&&out.distanceTo(raycaster.ray.origin)<90)return out;return raycaster.ray.at(80,out);}
-function getHit(){scene.updateMatrixWorld(true);raycaster.setFromCamera(pointer,camera);raycaster.far=170;return rex.actor.visible?raycaster.intersectObjects(rex.meshes,false)[0]:undefined;}
+function aimPoint(out){if(!state.concealed&&rex?.aimHit(raycaster.ray,out))return out;if(raycaster.ray.intersectPlane(groundPlane,out)&&out.distanceTo(raycaster.ray.origin)<90)return out;return raycaster.ray.at(80,out);}
+function getHit(){scene.updateMatrixWorld(true);raycaster.setFromCamera(pointer,camera);raycaster.far=170;return rex.actor.visible&&!state.concealed?raycaster.intersectObjects(rex.meshes,false)[0]:undefined;}
 function weaponHit(hit,explosive){const rest=rex.damage.add(hit,explosive),head=rest?rest.z>4.75:false;state.hit(head,explosive);rex.hit();effects.burst(hit.point,true,explosive);showHit(explosive?'EXPLOSIVE HIT':'HIT');}
 function showHit(label,color='#eee8c9'){
  hitTime=.18;hud.hit.style.left=hud.hitLabel.style.left=hud.reticle.style.left;hud.hit.style.top=hud.reticle.style.top;hud.hitLabel.style.top=`${(-pointer.y*.5+.5)*innerHeight+28}px`;hud.hitLabel.textContent=label;hud.hit.style.color=color;
@@ -143,24 +145,44 @@ function targetHit(index,explosive=false){
  if(index<0||!state.hitTarget(index,explosive))return;
  showHit('TARGET HIT','#ffe2a0');
 }
+// Wildlife in the line of fire: the nearest compy, or the brachiosaur, closer than `far`.
+// A compy's hit sphere never drops below about 12 px (18 on touch) around its body.
+function wildlifeHit(far){
+ const px=innerHeight/(2*Math.tan(T.MathUtils.degToRad(camera.fov/2))),compy=critters.hit(raycaster.ray,far,(matchMedia('(pointer:coarse)').matches?18:12)/px),giant=brachio.hit(raycaster.ray);
+ if(giant&&giant.distance<Math.min(far,compy?.distance??Infinity))return{...giant,kind:'brachio'};
+ return compy?{...compy,kind:'compy'}:null;
+}
+function wildlifeStrike(b,explosive=false){
+ const dir=raycaster.ray.direction;
+ if(b.kind==='compy'){critters.kill(b.critter,dir,explosive?2.4:1);effects.critter(b.point,dir);showHit('COMPY DOWN','#f3c89a');}
+ else{if(!explosive)effects.burst(b.point,true);brachio.startle();showHit('');}
+}
 function debrisHit(hit,explosive=false){if(!state.hitDebris(hit.id,explosive))return;effects.burst(hit.point,false,explosive);showHit(state.debris.status==='cleared'?'DEBRIS CLEARED':'DEBRIS HIT','#ffb38e');}
 function shoot(){
  if(mode!=='playing'||!state.fire())return false;
- const hit=getHit(),threat=debris.hit(raycaster.ray,hit?.distance),target=threat?-1:targets?.hit(raycaster.ray,state)??-1,origin=jeep.muzzle.getWorldPosition(new T.Vector3());
- const end=threat?threat.point:hit?hit.point:target>=0?targets.targets[target].world:aimPoint(new T.Vector3());
+ const rexHit=getHit(),threat=debris.hit(raycaster.ray,rexHit?.distance),target=threat?-1:targets?.hit(raycaster.ray,state)??-1,origin=jeep.muzzle.getWorldPosition(new T.Vector3());
+ // Debris and numbered targets keep priority; otherwise a compy or the brachiosaur nearer than the Rex takes the round.
+ const beast=threat||target>=0?null:wildlifeHit(rexHit?.distance??170),hit=beast?null:rexHit;
+ const end=threat?threat.point:hit?hit.point:target>=0?targets.targets[target].world:beast?beast.point:aimPoint(new T.Vector3());
  effects.trace(origin,end);jeep.shoot();audio.gun();gunKick=.035;critters.alarm(end,end.y<.3?4:2.5);
- const water=!threat&&!hit&&target<0&&end.y<.05&&ford.depth(end)>.03;
- {const dist=end.distanceTo(origin);if(threat)audio.hit('wood',dist,end);else if(hit||target>=0)audio.hit('flesh',dist,end);else if(water)audio.hit('water',dist,end);else if(end.y<.05)audio.hit('dirt',dist,end);}
+ const water=!threat&&!hit&&!beast&&target<0&&end.y<.05&&ford.depth(end)>.03;
+ {const dist=end.distanceTo(origin);if(threat)audio.hit('wood',dist,end);else if(hit||target>=0||beast)audio.hit('flesh',dist,end);else if(water)audio.hit('water',dist,end);else if(end.y<.05)audio.hit('dirt',dist,end);}
  if(threat)debrisHit(threat);else if(hit)weaponHit(hit,false);else if(target>=0){state.hit(false);effects.burst(end,true);}
+ else if(beast)wildlifeStrike(beast);
  else if(water)ford.impact(end);
  else if(end.y<.05)effects.burst(end,false);
- targetHit(target);return !!threat||!!hit||target>=0;
+ targetHit(target);return !!threat||!!hit||target>=0||!!beast;
 }
 function grenade(){
  if(mode!=='playing'||!state.launch())return false;
- const hit=getHit(),threat=debris.hit(raycaster.ray,hit?.distance),target=threat?-1:targets?.hit(raycaster.ray,state)??-1,origin=jeep.muzzle.getWorldPosition(new T.Vector3()),point=threat?threat.point:hit?hit.point:target>=0?targets.targets[target].world:raycaster.ray.at(40,new T.Vector3());
- effects.trace(origin,point);if(threat)debrisHit(threat,true);else if(hit)weaponHit(hit,true);else{effects.burst(point,false,true);if(point.y<.8&&ford.impact(point,true))audio.splash('blast',point);if(target>=0)state.hit(false,true);}
- targetHit(target,true);audio.impact(true);critters.alarm(point,16);shake=.2;return !!threat||!!hit||target>=0;
+ const rexHit=getHit(),threat=debris.hit(raycaster.ray,rexHit?.distance),target=threat?-1:targets?.hit(raycaster.ray,state)??-1,origin=jeep.muzzle.getWorldPosition(new T.Vector3());
+ const beast=threat||target>=0?null:wildlifeHit(rexHit?.distance??170),hit=beast?null:rexHit;
+ // A round aimed at the road bursts on it, not 40 m down the line of sight below the surface.
+ const road=raycaster.ray.intersectPlane(groundPlane,new T.Vector3()),open=road&&road.distanceTo(raycaster.ray.origin)<40?road:raycaster.ray.at(40,new T.Vector3());
+ const point=threat?threat.point:hit?hit.point:target>=0?targets.targets[target].world:beast?beast.point:open;
+ effects.trace(origin,point);if(threat)debrisHit(threat,true);else if(hit)weaponHit(hit,true);else{effects.burst(point,false,true);if(beast)wildlifeStrike(beast,true);if(point.y<.8&&ford.impact(point,true))audio.splash('blast',point);if(target>=0)state.hit(false,true);}
+ if(critters.blast(point,5.5)&&!beast)showHit('COMPY DOWN','#f3c89a');
+ targetHit(target,true);audio.impact(true);critters.alarm(point,16);shake=.2;return !!threat||!!hit||target>=0||!!beast;
 }
 function updateHud(){
  const health=state.health/RULES.health;hud.boss.style.transform=hud.trail.style.transform=`scaleX(${health})`;hud.percent.textContent=`${Math.ceil(health*100)}%`;
@@ -176,7 +198,6 @@ function updateHud(){
  touchHud.reloadStatus.textContent=state.reload?`${state.reload.toFixed(1)}s`:state.ammo===RULES.magazine?'FULL':'READY';
  touchHud.reload.setAttribute('aria-disabled',String(!!state.reload||state.ammo===RULES.magazine||!!state.result));
  touchHud.grenadeStatus.textContent=state.grenade?`${Math.ceil(state.grenade)}s`:'READY';touchHud.grenade.setAttribute('aria-disabled',String(state.grenade>0||state.weaponsLocked||!!state.result));
- if(state.phase==='flank'&&state.weaponsLocked&&!state.reload)hud.weapon.textContent='WATCH THE TREES';
  hud.distance.textContent=`${Math.max(0,Math.round(state.distance-7))} m · ${state.phase==='charge'?'CLOSING FAST':'IN PURSUIT'}`;hud.grenade.textContent=state.grenade?`${Math.ceil(state.grenade)}s`:'READY';
  const o=state.objective,challenge=state.phase==='challenge'&&o?.status==='active'&&!state.result;
  document.body.dataset.cinematic=state.result==='lost'?'defeat':state.result==='won'?'victory':state.phase==='intro'?'intro':state.phase==='flank'?'flank':challenge?'challenge':'';
@@ -189,7 +210,7 @@ function updateHud(){
  if(state.phase==='flank'){
   const t=state.phaseTime;
   title=t<2.35?'SHE’S BREAKING OFF':t<5.6?'DID WE LOSE HER?':t<AMBUSH.crashAt?'':'SHE’S RIGHT BEHIND US!';
-  tip=t>=2.35&&t<5.6?'RELOAD · WATCH THE TREES':t>=AMBUSH.fireAt?'OPEN FIRE!':'';
+  tip=t>=2.35&&t<5.6?(t<3.1?'RELOAD · WATCH THE TREES':'SHOOT THE COMPIES · WATCH THE TREES'):t>=AMBUSH.fireAt?'OPEN FIRE!':'';
  }
  if(state.phase==='intro'){const t=state.phaseTime,launch=state.introDuration-3.2;title=t<1.25?'SOMETHING IN THE TREES':t<RULES.roarAt?'HOLD ON':t<launch?'DON’T. MOVE.':'GO! GO! GO!';tip=t<launch?'':'90 SECONDS TO STOP HER';}
  if(state.phase==='warning'){title='TARGETS INCOMING';tip='SHOOT THE NUMBERED WEAK POINTS · GET READY';}
@@ -204,7 +225,7 @@ function updateHud(){
 }
 function handleEvents(){for(const event of state.drainEvents()){
  if(event==='flank')audio.stopCalls();
- if(event==='contact-lost')audio.stopCalls();
+ if(event==='contact-lost'){audio.stopCalls();critters.stream(1,{count:6,delay:.35,over:1.3});critters.stream(1,{count:7,delay:2,over:1.6});}
  if(event==='ambush-rustle')audio.woodBreak(.35);
  if(event==='ambush-crash'){critters.alarm(new T.Vector3(4,0,9),25);effects.bodyImpact(new T.Vector3(4,.04,9),1.5);audio.woodBreak();audio.groundImpact(.95);audio.roar();shake=.85;audio.birds();birds.scatter(new T.Vector3(9,13,16),{spread:10,count:14});}
  if(event==='jungle-crash'){effects.bodyImpact(new T.Vector3(-5.5,.04,16),1.3);audio.impact();audio.groundImpact(.85);shake=.35;}

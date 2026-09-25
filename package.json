@@ -28,6 +28,7 @@
                     "test:cinematic": "node scripts/test-ambush.mjs && node scripts/verify-cinematic.cjs",
                     "test:treeline": "node scripts/verify-treeline.cjs",
                     "test:ford": "node scripts/verify-ford.cjs",
+                    "test:wildlife": "node scripts/verify-wildlife.cjs",
                     "test:defeat": "node scripts/test-defeat.mjs && node scripts/verify-defeat-gait.cjs && node scripts/verify-defeat.cjs",
                     "test:vision": "node scripts/test-defeat.mjs && node scripts/verify-defeat-vision.cjs",
                     "test:victory": "node scripts/test-victory.mjs && node scripts/verify-victory.cjs",

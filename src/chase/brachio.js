@@ -14,6 +14,11 @@ import {WET} from './weather-state.js';
 // the jaw; the fragment shader adds the skin: pebbly scales and folds as a bump
 // (triplanar in the rest pose, so it sticks to the skin), countershading, mottling,
 // mud on the legs and a wet sheen in rain.
+//
+// Shot, she rears up on her hind legs as in the film: she trumpets, pitches up about
+// her hips with the hind feet planted and the tail lowered as a prop, the forelegs
+// hanging and the neck reaching up, holds, then drops back onto her forefeet with a
+// thud that shakes the ground (`onStomp`).
 
 let seed=31337;const rnd=()=>{seed=(1664525*seed+1013904223)>>>0;return seed/4294967296;};
 const range=(a,b)=>a+rnd()*(b-a);
@@ -41,17 +46,53 @@ function skinMaps(){
 }
 
 // ------------------------------------------------------------------- shader --
+// Rearing pivots in the rest pose (only y and z matter): the hip sockets, the forelegs'
+// swing point just above the belly line, and the wrists. Shared by the shader and the CPU pose.
+const HIP=[0,4.35,-1.6],SHOULDER=[0,3.4,2],WRIST=[0,1.4,1.95];
+// Rear-up timeline (seconds) and pose gains. peak is the body pitch in radians (43 degrees);
+// the neck joints counter-pitch by neck[j] x pitch, the tail base by tail x pitch.
+const REAR={peak:.75,flinch:.3,rise:1.7,hold:1.4,fall:.85,neck:[-.7,-.45,-.3,-.1,-.08],tail:-.55,swing:.5,fold:.5};
+REAR.duration=REAR.flinch+REAR.rise+REAR.hold+REAR.fall;
+/** Body pitch t seconds after the shot: a start, an eased rise, a hold, then a fall that
+ *  speeds up like a drop, landing at full speed on the forefeet. */
+export function rearAngle(t){
+ const {peak,flinch,rise,hold,fall}=REAR,up=flinch+rise,top=up+hold;
+ if(t<0)return 0;
+ if(t<flinch)return peak*.04*Math.sin(t/flinch*Math.PI/2);
+ if(t<up)return peak*(.04+.96*T.MathUtils.smoothstep(t,flinch,up));
+ if(t<top)return peak*(1+.025*Math.sin((t-up)/hold*Math.PI));
+ const u=Math.min(1,(t-top)/fall);return peak*(1-u*u);
+}
+const v3=a=>`vec3(${a.map(x=>x.toFixed(3)).join(',')})`;
 const CHAIN=`
  uniform vec4 uNeck[5];uniform vec3 uNeckRot[5];uniform vec4 uTail[4];uniform vec3 uTailRot[4];uniform vec3 uJawHinge;uniform float uJaw,uBreath;
+ // Rearing: x body pitch about the hips, y foreleg swing back, z wrist fold.
+ uniform vec3 uRear;
  // Pitch (x, up positive) then yaw (y).
  mat3 rotPY(vec3 a){float cp=cos(a.x),sp=sin(a.x),cy=cos(a.y),sy=sin(a.y);return mat3(cy,0.,-sy,0.,1.,0.,sy,0.,cy)*mat3(1.,0.,0.,0.,cp,-sp,0.,sp,cp);}
  // Joint chains, distal joint first about rest-pose pivots: each joint's turn blends
  // in over +-0.45 m of spine so the neck curves rather than kinks.
- void brachioPose(inout vec3 p,inout vec3 n,float s,float region){
+ void brachioPose(inout vec3 p,inout vec3 n,float s,float region,float limb){
+  vec3 rest=p;
   if(abs(region-3.)<.5){float c=cos(uJaw),si=sin(uJaw);vec3 q=p-uJawHinge;q.yz=vec2(c*q.y-si*q.z,si*q.y+c*q.z);p=uJawHinge+q;n.yz=vec2(c*n.y-si*n.z,si*n.y+c*n.z);}
   if(region<.5){p.x*=1.+uBreath*.012;p.y=4.3+(p.y-4.3)*(1.+uBreath*.006);}
   for(int j=4;j>=0;j--){float w=smoothstep(uNeck[j].w-.45,uNeck[j].w+.45,s);if(w>.001){mat3 R=rotPY(uNeckRot[j]*w);p=uNeck[j].xyz+R*(p-uNeck[j].xyz);n=R*n;}}
   for(int j=3;j>=0;j--){float w=1.-smoothstep(uTail[j].w-.45,uTail[j].w+.45,s);if(w>.001){mat3 R=rotPY(uTailRot[j]*w);p=uTail[j].xyz+R*(p-uTail[j].xyz);n=R*n;}}
+  if(uRear.x>0.){
+   // Hind legs stay planted. The weight fades out up the thighs and into the belly, and
+   // widens front to back with height, so the groin bends over metres rather than
+   // tearing at the limb seam. Near the ground the fore/hind split stays sharp (the far
+   // hind foot stands forward of the others).
+   float wz=.4+1.2*smoothstep(1.8,3.4,rest.y),hindSide=smoothstep(.8+wz,.8-wz,rest.z);
+   float planted=(1.-smoothstep(1.2,4.4,rest.y))*hindSide*smoothstep(-3.4,-2.7,rest.z);
+   // The baked limb influence falls to about half around the claws, so the feet count by height too.
+   float fore=max(limb,1.-smoothstep(1.7,2.5,rest.y))*(1.-hindSide);
+   if(fore>.001){
+    mat3 R=rotPY(vec3(-uRear.z*fore*smoothstep(${(WRIST[1]+.45).toFixed(2)},${(WRIST[1]-.45).toFixed(2)},rest.y),0.,0.));p=${v3(WRIST)}+R*(p-${v3(WRIST)});n=R*n;
+    R=rotPY(vec3(-uRear.y*fore,0.,0.));p=${v3(SHOULDER)}+R*(p-${v3(SHOULDER)});n=R*n;
+   }
+   mat3 R=rotPY(vec3(uRear.x*(1.-planted),0.,0.));p=${v3(HIP)}+R*(p-${v3(HIP)});n=R*n;
+  }
  }`;
 
 function brachioMaterial(uniforms,skin){
@@ -61,7 +102,7 @@ function brachioMaterial(uniforms,skin){
    attribute vec4 aux;attribute float spine;varying vec3 vRest;varying vec3 vRestN;varying vec4 vAux;varying float vSpine;${CHAIN}`)
    .replace('#include <beginnormal_vertex>',`#include <beginnormal_vertex>
     vec3 posedP=position;vRest=position;vRestN=objectNormal;vAux=aux;vSpine=spine*.001;
-    brachioPose(posedP,objectNormal,vSpine,floor(aux.z*255.+.5));`)
+    brachioPose(posedP,objectNormal,vSpine,floor(aux.z*255.+.5),aux.w);`)
    .replace('#include <begin_vertex>','#include <begin_vertex>\ntransformed=posedP;');
   s.fragmentShader=s.fragmentShader.replace('#include <common>',`#include <common>
    uniform sampler2D tSkin;uniform float uWet;uniform vec2 uFold;uniform vec3 uEye[2];uniform float uEyeR;uniform vec3 uNostril[2];uniform float uNostrilR;varying vec3 vRest;varying vec3 vRestN;varying vec4 vAux;varying float vSpine;
@@ -124,13 +165,13 @@ function brachioMaterial(uniforms,skin){
     // Baked occlusion shades the ambient under the belly, between the legs and in folds.
     reflectedLight.indirectDiffuse*=mix(.35,1.,vAux.x);reflectedLight.indirectSpecular*=mix(.2,1.,vAux.x);`);
  };
- m.customProgramCacheKey=()=> 'rex-brachio-v3';
+ m.customProgramCacheKey=()=> 'rex-brachio-v4';
  // Her shadow follows the posed neck and tail.
  const depth=new T.MeshDepthMaterial({depthPacking:T.RGBADepthPacking});
  depth.onBeforeCompile=s=>{Object.assign(s.uniforms,uniforms);
   s.vertexShader=s.vertexShader.replace('#include <common>',`#include <common>\nattribute vec4 aux;attribute float spine;${CHAIN}`)
-   .replace('#include <begin_vertex>','#include <begin_vertex>\n{vec3 n=vec3(0.,1.,0.);brachioPose(transformed,n,spine*.001,floor(aux.z*255.+.5));}');};
- depth.customProgramCacheKey=()=> 'rex-brachio-depth-v2';
+   .replace('#include <begin_vertex>','#include <begin_vertex>\n{vec3 n=vec3(0.,1.,0.);brachioPose(transformed,n,spine*.001,floor(aux.z*255.+.5),aux.w);}');};
+ depth.customProgramCacheKey=()=> 'rex-brachio-depth-v3';
  return{material:m,depth};
 }
 
@@ -146,19 +187,19 @@ function parse(buffer){
 }
 
 export function createBrachio(scene,{jungle}){
- const uniforms={uNeck:{value:[0,1,2,3,4].map(()=>new T.Vector4())},uNeckRot:{value:[0,1,2,3,4].map(()=>new T.Vector3())},uTail:{value:[0,1,2,3].map(()=>new T.Vector4())},uTailRot:{value:[0,1,2,3].map(()=>new T.Vector3())},uJawHinge:{value:new T.Vector3()},uJaw:{value:0},uBreath:{value:0}};
+ const uniforms={uNeck:{value:[0,1,2,3,4].map(()=>new T.Vector4())},uNeckRot:{value:[0,1,2,3,4].map(()=>new T.Vector3())},uTail:{value:[0,1,2,3].map(()=>new T.Vector4())},uTailRot:{value:[0,1,2,3].map(()=>new T.Vector3())},uJawHinge:{value:new T.Vector3()},uJaw:{value:0},uBreath:{value:0},uRear:{value:new T.Vector3()}};
  uniforms.uFold={value:new T.Vector2()};uniforms.uEye={value:[new T.Vector3(),new T.Vector3()]};uniforms.uEyeR={value:.1};uniforms.uNostril={value:[new T.Vector3(),new T.Vector3()]};uniforms.uNostrilR={value:.07};const {material,depth}=brachioMaterial(uniforms,skinMaps());
  const mesh=new T.Mesh(new T.BufferGeometry(),material);mesh.customDepthMaterial=depth;mesh.receiveShadow=true;mesh.castShadow=true;mesh.visible=false;mesh.name='Brachiosaur';scene.add(mesh);
- let header=null,on=false,travel=0,next=0,clock=0,lift=0,called=false,pending=null,wanted=null,api;
+ let header=null,on=false,travel=0,next=0,clock=0,lift=0,called=false,pending=null,wanted=null,rear=-1,stomped=true,proxies=[],api;
  function load(file){if(file===wanted)return;wanted=file;
   fetch('./models/'+file).then(r=>{if(!r.ok)throw Error(file+' '+r.status);return r.arrayBuffer();}).then(buf=>{
   if(file!==wanted)return;const parsed=parse(buf);header=parsed.header;mesh.geometry.dispose();mesh.geometry=parsed.geometry;
   header.neck.forEach((j,i)=>uniforms.uNeck.value[i].set(...j.p,j.s));header.tail.forEach((j,i)=>uniforms.uTail.value[i].set(...j.p,j.s));uniforms.uJawHinge.value.set(...header.jaw.hinge);uniforms.uFold.value.set(header.neck[0].s-2,header.neck[2].s);header.eyes.centres.forEach((c,i)=>uniforms.uEye.value[i].set(...c));uniforms.uEyeR.value=header.eyes.radius;header.nostrils.centres.forEach((c,i)=>uniforms.uNostril.value[i].set(...c));uniforms.uNostrilR.value=header.nostrils.radius;
-  if(pending){place(...pending);pending=null;}
+  buildProxies();if(pending){place(...pending);pending=null;}
  }).catch(e=>console.warn('Brachiosaur unavailable:',e.message));}
  // The tier picks the model (setQuality runs right after creation); without one, the full model.
  queueMicrotask(()=>{if(!wanted)load('brachio.bin');});
- function place(x,z,yaw){if(!header){pending=[x,z,yaw];return;}on=true;called=false;lift=0;mesh.position.set(x,jungle.groundAt(x,z),z);mesh.rotation.y=yaw;mesh.scale.setScalar(range(.95,1.05));}
+ function place(x,z,yaw){if(!header){pending=[x,z,yaw];return;}on=true;called=false;lift=0;rear=-1;stomped=true;mesh.position.set(x,jungle.groundAt(x,z),z);mesh.rotation.y=yaw;mesh.scale.setScalar(range(.95,1.05));}
  function pose(){
   const t=clock,browse=1-lift;
   // A sauropod browses slowly: the neck holds nearly still (about 5 degrees of drift in
@@ -172,25 +213,51 @@ export function createBrachio(scene,{jungle}){
   R[0].set(nod+call*.04,drift,0);R[1].set(nod*.8+call*.04,drift,0);R[2].set(call*.05,drift*.8,0);R[3].set(call*.06,drift*.8,0);
   R[4].set((Math.sin(t*.37)*.045-.03)*browse+call*.16,Math.sin(t*.23+.4)*.07*browse,0);
   uniforms.uTailRot.value.forEach((r,i)=>r.set(0,Math.sin(t*.27-i*.15)*(.012+i*.006),0));
+  // Rearing: the neck counter-pitches forward so it reaches up rather than leaning back,
+  // with a slow nod as she strips the canopy at the top; the tail comes down as a prop.
+  const th=rearAngle(rear),top=th/REAR.peak;
+  REAR.neck.forEach((k,j)=>R[j].x+=k*th);R[4].x+=Math.sin(Math.max(0,rear)*2.2)*.07*top*top;
+  uniforms.uTailRot.value[0].x+=REAR.tail*th;uniforms.uRear.value.set(th,REAR.swing*th,REAR.fold*th);
   uniforms.uJaw.value=lift>0?.3*Math.sin(Math.min(1,u*2.4)*Math.PI):Math.max(0,Math.sin(t*1.6))*.02*browse;
   uniforms.uBreath.value=Math.sin(t*1.05)*.5;
  }
  // A point on the head, posed on the CPU with the same neck chain as the shader (for her call).
  const v=new T.Vector3(),pivot=new T.Vector3(),q=new T.Quaternion(),e=new T.Euler(0,0,0,'YXZ');
- function headRest(){
-  v.set(...(header?.head||[0,13.45,7.6]));
-  for(let j=4;j>=0;j--){const J=uniforms.uNeck.value[j],r=uniforms.uNeckRot.value[j];e.set(-r.x,r.y,0);q.setFromEuler(e);v.sub(pivot.set(J.x,J.y,J.z)).applyQuaternion(q).add(pivot);}
-  return v;
+ function headRest(){return posePoint(v.set(...(header?.head||[0,13.45,7.6])),Infinity,'neck');}
+ const ss=T.MathUtils.smoothstep;
+ function turnAbout(p,J,r,w){e.set(-r.x*w,r.y*w,0);q.setFromEuler(e);p.sub(pivot.set(J.x,J.y,J.z)).applyQuaternion(q).add(pivot);}
+ function pitchAbout(p,[,py,pz],a){const c=Math.cos(a),si=Math.sin(a),y=p.y-py,z=p.z-pz;p.y=py+c*y+si*z;p.z=pz-si*y+c*z;}
+ /** CPU copy of the shader pose for a rest-space point on the neck, tail, body or a leg. */
+ function posePoint(p,s,kind){
+  if(kind==='neck')for(let j=4;j>=0;j--){const J=uniforms.uNeck.value[j],w=ss(s,J.w-.45,J.w+.45);if(w>.001)turnAbout(p,J,uniforms.uNeckRot.value[j],w);}
+  if(kind==='tail')for(let j=3;j>=0;j--){const J=uniforms.uTail.value[j],w=1-ss(s,J.w-.45,J.w+.45);if(w>.001)turnAbout(p,J,uniforms.uTailRot.value[j],w);}
+  const r=uniforms.uRear.value;
+  if(r.x>0){if(kind==='fore'){if(p.y<WRIST[1])pitchAbout(p,WRIST,-r.z);pitchAbout(p,SHOULDER,-r.y);}if(kind!=='hind')pitchAbout(p,HIP,r.x);}
+  return p;
  }
+ // Hit volumes: capsules (as chains of points with radii) along the tail, body, neck and legs.
+ function buildProxies(){
+  const N=header.neck,Tl=header.tail,pt=(p,r,s,kind)=>({rest:new T.Vector3(...p),r,s,kind});
+  proxies=[
+   [pt([0,2.75,-6.9],.15,0,'tail'),pt(Tl[3].p,.3,Tl[3].s,'tail'),pt(Tl[2].p,.4,Tl[2].s,'tail'),pt(Tl[1].p,.5,Tl[1].s,'tail'),pt(Tl[0].p,.75,Tl[0].s,'tail')],
+   [pt([0,3.9,-3],1.2,0,'body'),pt([0,4.4,-1.4],1.9,0,'body'),pt([0,4.6,.6],1.9,0,'body'),pt([0,4.8,2.3],1.3,0,'body')],
+   [pt([0,5.4,2.7],1.1,N[0].s-1.8,'neck'),...N.map((j,i)=>pt(j.p,[.95,.75,.6,.5,.45][i],j.s,'neck')),pt(header.head,.42,header.spineLength,'neck')],
+   ...[-1,1].map(x=>[pt([x*1.1,.25,2.05],.42,0,'fore'),pt([x*1.1,1.4,2],.4,0,'fore'),pt([x*1.1,3,2.1],.55,0,'fore')]),
+   ...[-1,1].map(x=>[pt([x*1.12,.25,-1.35],.5,0,'hind'),pt([x*1.12,3.4,-1.6],.7,0,'hind')]),
+  ];
+ }
+ const local=new T.Ray(),inverse=new T.Matrix4(),pa=new T.Vector3(),pb=new T.Vector3(),pc=new T.Vector3(),oc=new T.Vector3();
+ /** Distance along a (unit) ray to a sphere's surface, 0 if the origin is inside, -1 for a miss. */
+ function sphereT(ray,c,r){oc.subVectors(c,ray.origin);const t=oc.dot(ray.direction),d2=oc.lengthSq()-t*t;if(d2>r*r)return -1;const h=Math.sqrt(r*r-d2);return t-h>=0?t-h:t+h>=0?0:-1;}
  api={
-  mesh,onCall:null,uniforms,
+  mesh,onCall:null,onStomp:null,uniforms,
   /** Captures can hold a pose set by hand in uniforms. */
   hold:false,
   get active(){return on;},get ready(){return !!header;},
   /** Place her by the road (x, z in the Jeep frame), side-on with her head toward the track. */
   show(x=-12,z=20,yaw){const side=Math.sign(x)||1;place(x,z,yaw??-side*Math.PI/2+range(-.35,.35));},
   setQuality(t){mesh.castShadow=!!t.detail;load(t.detail?'brachio.bin':'brachio-low.bin');},
-  reset({menu=false}={}){on=false;pending=null;mesh.visible=false;travel=0;next=range(320,480);
+  reset({menu=false}={}){on=false;pending=null;mesh.visible=false;travel=0;next=range(320,480);rear=-1;stomped=true;
    // The menu's slow drift gives a long look: she browses over the road beyond the Rex.
    if(menu)api.show(-9.5,40,Math.PI/2-.1);},
   update(dt,{speed=0,visible=true}={}){
@@ -200,10 +267,29 @@ export function createBrachio(scene,{jungle}){
    mesh.position.z+=speed*dt;mesh.position.y=jungle.groundAt(mesh.position.x,mesh.position.z);
    // She calls as the chase comes level with her; the menu (silent until Start) only shows her browsing.
    if(!called&&speed>4&&mesh.position.z>12&&mesh.position.z<60){called=true;lift=1;api.onCall?.(api.headPosition());}
+   if(rear>=0){rear+=dt;if(!stomped&&rear>=REAR.duration){stomped=true;api.onStomp?.(api.forefeet());}if(rear>=REAR.duration+.5)rear=-1;}
    lift=Math.max(0,lift-dt*.3);if(!api.hold)pose();
    if(mesh.position.z>170)on=false;
   },
-  headPosition(){mesh.updateMatrixWorld();return headRest().applyMatrix4(mesh.matrixWorld);}
+  headPosition(){mesh.updateMatrixWorld();return headRest().applyMatrix4(mesh.matrixWorld);},
+  /** Where her forefeet meet the ground, in world space. */
+  forefeet(){mesh.updateMatrixWorld();return [-1,1].map(x=>mesh.localToWorld(new T.Vector3(x*1.1,0,2.1)));},
+  get rearing(){return rear>=0;},
+  /** Shot: she trumpets and rears up, unless she is already up. Returns whether she started. */
+  startle(){if(!on||!header||rear>=0)return false;rear=0;stomped=false;called=true;lift=1;api.onCall?.(api.headPosition());return true;},
+  /** Review stills: hold the rear at time t (seconds since the shot). */
+  rearAt(t){rear=t;stomped=true;pose();},
+  /** The nearest point where a world-space ray strikes her, or null. */
+  hit(ray){
+   if(!on||!mesh.visible||!header)return null;
+   mesh.updateMatrixWorld();local.copy(ray).applyMatrix4(inverse.copy(mesh.matrixWorld).invert());let best=Infinity;
+   for(const chain of proxies)chain.forEach((p,i)=>{posePoint(pb.copy(p.rest),p.s,p.kind);
+    if(i){const prev=chain[i-1].r,steps=Math.max(1,Math.ceil(pa.distanceTo(pb)/(Math.min(prev,p.r)*.8)));
+     for(let k=0;k<=steps;k++){const t=sphereT(local,pc.lerpVectors(pa,pb,k/steps),prev+(p.r-prev)*k/steps);if(t>=0&&t<best)best=t;}}
+    pa.copy(pb);});
+   if(best===Infinity)return null;
+   const point=local.at(best,new T.Vector3()).applyMatrix4(mesh.matrixWorld);return{point,distance:point.distanceTo(ray.origin)};
+  }
  };
  api.reset({menu:true});return api;
 }

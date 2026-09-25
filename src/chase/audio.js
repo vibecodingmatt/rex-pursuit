@@ -171,6 +171,8 @@ export class ChaseAudio {
  birds(){this.sample('birds-takeoff',{volume:.5,rate:.95+Math.random()*.1,pan:(Math.random()-.5)*.8,wet:.2});}
  /** Alarm chirp where a compy pack breaks: a raptor call pitched up to their size. */
  chirp(at){this.play(Math.random()<.5?14:12,.07,2.1+Math.random()*.35,{vocal:false,at,wet:.12});}
+ /** A shot compy's squeal: the same call pitched higher and cut short by its speed. */
+ squeal(at){if(!this.context||this.context.currentTime-(this.lastSqueal||0)<.08)return;this.lastSqueal=this.context.currentTime;this.play(Math.random()<.5?14:12,.1,2.8+Math.random()*.5,{vocal:false,at,wet:.1});}
  /** The passing brachiosaur's trumpet, placed at her head. */
  brachio(at){this.play(Math.random()<.5?30:31,.32,.92+Math.random()*.08,{vocal:false,at,wet:.45});}
  stopVoice(){if(this.voice){try{this.voice.source.stop();}catch{}}this.voice=null;}
