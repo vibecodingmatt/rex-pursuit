@@ -34,6 +34,10 @@ Read `package.json` and the selected script before running it. There is no need 
 | --- | --- |
 | Core combat, timers, objectives, deadline | `npm run test:logic`, `npm run test:arcade` |
 | Main game shooting, damage, restart | `npm test` |
+| Containment Breach: waves, trap, weapons, leap/board attacks, Rex/gate finale, pause/restart and touch | `npm run test:breach`; rules alone: `node scripts/test-breach.mjs` (also in `test:logic`) |
+| Safari rules, mode picker, scoring, results, remembered records and mobile flow | `npm run test:safari` |
+| Shared Safari gait/frill, Breach leap pose, hit transforms and continuous deaths at both tiers | `npm run test:safari-motion` (source server only) |
+| Full creature catalogue, frill presets, selection races and short-menu scrolling | `npm run test:creature-lab` |
 | Walk/run cadence, foot planting, roar locomotion | `npm run test:gait` |
 | Knee continuity, footstep dust, Rex death fall | `npm run test:motion` |
 | River ford, spray, wet ground, the Rex's mud and soak | `npm run test:ford` |
@@ -67,6 +71,8 @@ Inspect before/after captures for animation and shader work. Meaningful checks i
 
 `window.rexChase` exposes `rex`, scene, camera, renderer, state, Jeep, audio, effects, swallow, view, start, snapshot and a `freeze` setter for local verification. `window.rexStudy` exposes the preserved lab separately. Wait for `rexChase.rex` before accessing the model.
 
+`window.breach` is the separate compound harness; wait for `breach.ready`. Its `round`, `director`, `step`, `aimAt` and `snapshot` are described in [containment-breach.md](containment-breach.md). `window.creatureLab` belongs to the full catalogue; wait for `active` and use `select(name)` for another model. Do not mix these page-specific globals.
+
 `freeze=true` stops simulation while continuing rendering, making it useful for exact cinematic captures and custom camera comparisons. It is **not** a pause test: verify Pause through the UI or keyboard and check AudioContext suspension as well. Start with a real click/tap to unlock sound.
 
 For settled menu captures, wait for `#boot` to become hidden and the title reveal to finish. If changing conditions after freezing, step `weather.update(0,0,camera,{ground:true})` too: `setConditions(...,true)` updates the values/lights but rain visibility is applied during update. A capture-only HUD filter must preserve `#scene-viewport`, the parent of the canvas.
@@ -94,7 +100,7 @@ npm run test:pages
 Remove-Item Env:TEST_URL
 ```
 
-`test:pages` verifies the game, lab, sound library, all 34 published WAVs, camera/pause, phone layout and social image. Audio requests are checked sequentially so parallel fetch contention is not misdiagnosed as missing files. CI itself runs logic/build/release validation, not the local Chrome suite; do not claim CI covered browser behavior.
+`test:pages` verifies Pursuit, the Breach entry/start/pause flow, both labs, the sound library, all 34 published WAVs, camera/pause, phone layout and social image. It does not replace Breach's full win/loss check. Audio requests are checked sequentially so parallel fetch contention is not misdiagnosed as missing files. CI itself runs logic/build/release validation (including Breach rules), not the local Chrome suite; do not claim CI covered browser behavior.
 
 No game build or browser regression run is needed solely for prose/skill edits. Validate Markdown links, skill frontmatter and referenced paths instead. If those changes are pushed, still observe the triggered CI result.
 
@@ -102,4 +108,4 @@ No game build or browser regression run is needed solely for prose/skill edits. 
 
 The hero is artist-authored fan-concept art, not a film production mesh. Keep the existing attribution and provenance in README, credits, and GLB metadata. Runtime tuning does not need asset re-export. `art:export` writes an intermediate model through the local authoring server; `art/finish_rex.py` uses Blender to overwrite the hero and editable master. Use that pipeline only for deliberate asset changes with the local source files available.
 
-The three Vite entries are chase, model lab and sound library. Share metadata is static in `index.html`: Open Graph, X card, canonical URL and VideoGame JSON-LD. `public/social/rex-pursuit-v1.jpg` is 1200x630. When changing artwork, regenerate deliberately and update both metadata image URLs to a new versioned filename; social caches may retain old images. Do not rebuild social art for an unrelated code fix.
+The five Vite entries are chase, Containment Breach, the original model lab, the full creature catalogue and the sound library. The local catalogue shortcut is stripped from the production menu by `data-dev-only`, but the page itself is built; the Containment link is public. Share metadata is static in `index.html`: Open Graph, X card, canonical URL and VideoGame JSON-LD. The current `public/social/rex-pursuit-v4.jpg` is 1200x630; source metadata and README take precedence over this checkpoint. When changing artwork, regenerate deliberately and update both metadata image URLs to a new versioned filename; social caches may retain old images. Do not rebuild social art for an unrelated code fix.

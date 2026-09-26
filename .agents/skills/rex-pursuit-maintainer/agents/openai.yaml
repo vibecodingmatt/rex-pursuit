@@ -1,4 +1,4 @@
 interface:
   display_name: "Rex: Pursuit Maintainer"
-  short_description: "Maintain, verify and publish the Rex chase game"
+  short_description: "Maintain Rex Pursuit, Safari and Containment Breach"
   default_prompt: "Use $rex-pursuit-maintainer to continue work on Rex: Pursuit using its handoff and focused verification checks."

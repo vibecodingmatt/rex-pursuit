@@ -1,6 +1,6 @@
 ---
 name: rex-pursuit-maintainer
-description: "Maintain, diagnose, visually verify, or publish the Rex: Pursuit Three.js game in games-playground/rex-encounter, including Rex animation, cinematic defeat, skin materials, mobile controls, audio and GitHub Pages. Use for this game rather than Dino Defense, War Survival, or Approach Orlando."
+description: "Maintain, diagnose, visually verify, or publish the Rex: Pursuit Three.js game in games-playground/rex-encounter, including Pursuit, Safari Run, Containment Breach, the creature catalogue, mobile controls and GitHub Pages. Use for this game rather than Dino Defense, War Survival, or Approach Orlando."
 ---
 
 # Rex: Pursuit maintainer
@@ -18,6 +18,7 @@ Read its `AGENTS.md` and `docs/HANDOFF.md`, then inspect current source and Git 
 | Task | Main files relative to the checkout |
 | --- | --- |
 | Game entry, camera, frame clock, pause, event/audio cues | `index.html`, `src/chase.js`, `src/chase.css`, `src/chase-premium.css` |
+| Containment Breach: compound holdout, raptor leap/board attacks, electrical trap, Rex charge and gate escape | `breach.html`, `src/breach/main.js`, `rules.js`, `director.js`, `world.js`, `style.css`; read the [Breach reference](references/containment-breach.md) |
 | HDR post pipeline, quality tiers, dynamic resolution | `src/chase/post.js`, `graphics.js`, quality wiring in `src/chase.js` |
 | Sky, environment light, fog, canopy dapple/shafts | `src/chase/atmosphere.js` |
 | Rainforest plants, wind shader, ground | `src/chase/foliage.js`, `environment.js` |
@@ -45,6 +46,7 @@ Read its `AGENTS.md` and `docs/HANDOFF.md`, then inspect current source and Git 
 | Touch and keyboard/mouse integration | `src/chase/pointer-controls.js`, `src/chase.js`, `src/chase.css` |
 | Sound roles, envelopes and playback | `src/chase/audio.js`, `audio-catalog.js`, `public/audio/catalog.json` |
 | Preserved original creature study | `model-lab.html`, `src/main.js`, `src/prepare-model.js` |
+| TEST ONLY catalogue of all 20 creature appearances, High/Low review, random/manual frill, fitted model views | `creature-lab.html`, `src/creature-lab.js`, `src/creature-lab.css`; `src/chase/safari-motion.js` for shared gait/frill |
 | Hero asset and release | `public/models/rex-hero.glb`, `vite.config.js`, `.github/workflows/pages.yml` |
 
 Paths abbreviated within a row share the first file's directory.
@@ -52,6 +54,7 @@ Paths abbreviated within a row share the first file's directory.
 ## Select the relevant workflow
 
 - For rig, cinematic, material, sound, or mobile changes, read [animation-and-rendering.md](references/animation-and-rendering.md). It records the causes of prior regressions and the invariants behind their fixes.
+- For Containment Breach gameplay, its compound, or reuse of its attacker states, read [containment-breach.md](references/containment-breach.md). Pursuit/Safari keep separate rules. River Escape is described in `docs/ROADMAP.md` but remains future work; the existing river ford is only a short crossing.
 - For brachiosaur anatomy, use the accepted silhouette and loft-authoring notes in that reference's [Living jungle](references/animation-and-rendering.md#living-jungle-critters-insects-brachiosaur) section. Rebuild both mesh tiers and inspect neutral studio views as well as the game.
 - Before browser checks or publishing, read [verification-and-release.md](references/verification-and-release.md). Select the focused checks that cover the changed behavior, plus the release gate when shipping.
 - For art provenance, controls, exact current game rules and audio-editing workflow, use the checkout's `README.md` and source constants. Ordinary runtime tuning does not require Blender export or new image generation.
