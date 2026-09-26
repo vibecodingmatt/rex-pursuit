@@ -110,7 +110,7 @@ function flyerMaterial(key,shoulder){
 }
 
 // --------------------------------------------------------------------- system --
-export function createFlyers(scene,{jungle}){
+export function createFlyers(scene,{jungle,camera=null}){
  // Per species: body and wing hit spheres (m, before scale), how far the wing spheres sit
  // out when spread, the dead body's resting clearance, and the flap rate in Hz.
  const species={
@@ -133,28 +133,44 @@ export function createFlyers(scene,{jungle}){
  const free=k=>{const c=k.pool.find(c=>!c.on);if(c)c.hp=1;return c;};
  function huntSpawn(name,side){
   if(name==='dimorphodon'){
-   const c=perch(side*4.8,range(3.3,5),range(18,28),-side,0);
-   if(c&&rnd()<.7){launch(c);c.v.z=-8;c.p.x=side*6;c.p.y=4.5;}
-   return c;
+   // Only ever on a real trunk: a free roost on a visible edge tree in front of the gun, preferring
+   // this side. Most take off from it a moment later. With no roost in reach one flies in across
+   // the road from behind the understory instead.
+   const r=freeRoost(side)||freeRoost(-side);
+   if(r){const c=perch(r.x,r.y,r.z,r.nx,r.nz,r.chunk);if(c&&rnd()<.7)flush(c,range(.5,1.4));return c;}
+   const c=free(D);if(!c)return null;
+   Object.assign(c,{on:true,state:'fly',phase:rnd(),amp:1,fold:0,dead:0,scale:range(1.5,1.8),fade:1,t:1,flushAt:-1,flick:0,grounded:false,landed:false,age:0,home:null,wobble:rnd()*TAU});
+   c.p.set(side*17,range(6,8),range(20,30));c.v.set(-side*5.5,.5,range(-2,0));c.n.set(-side,0,0);c.tint.setRGB(1,1,1);orient(c,0);return c;
   }
   const k=ALL.find(k=>k.name===name),c=k&&free(k);if(!c)return null;
   const giant=name==='quetzalcoatlus';
   Object.assign(c,{on:true,state:'glide',hp:SPECIES[name].hp,phase:rnd(),amp:.12,fold:0,dead:0,scale:range(.95,1.05),fade:1,t:0,flap:range(.4,1),wobble:rnd()*TAU,bank:0,grounded:false,landed:false,age:0});
-  c.p.set(side*range(1,3),giant?9:range(6,8.5),giant?58:range(42,54));c.v.set(-side*.3,0,giant?-23:-16);c.tint.setRGB(1,1,1);orient(c,0);api.onCall?.(c.p);return c;
+  // Out of the haze down the road corridor, as in the chase, not materialising in open sky.
+  c.p.set(side*range(1,3),giant?9:range(6,8.5),giant?92:range(72,82));c.v.set(-side*.3,0,giant?-23:-16);c.tint.setRGB(1,1,1);orient(c,0);api.onCall?.(c.p);return c;
  }
  function strike(c,dir,power=1,damage=1){if(!c?.on||c.state==='dead')return false;c.hp=(c.hp??1)-damage;if(c.hp>0){c.flap=-.7;c.bank+=(rnd()<.5?-1:1)*.55;c.v.y-=.8;return false;}return kill(c,dir,power);}
 
  /** A Dimorphodon clinging to a trunk at (x,y,z), belly to the bark, back to the road (n points out). */
- function perch(x0,y0,z0,nx,nz){
+ function perch(x0,y0,z0,nx,nz,chunk=null){
   const c=free(D);if(!c)return null;
   Object.assign(c,{on:true,state:'perch',phase:rnd(),amp:0,fold:.55,dead:0,scale:range(1.5,1.8),fade:1,t:range(0,4),flushAt:-1,flick:0,grounded:false,landed:false,age:0});
   c.n.set(nx,0,nz).normalize();c.p.set(x0,y0,z0).addScaledVector(c.n,.06*c.scale);c.v.set(0,0,0);
+  // Tied to its tree: if the chunk wraps round, resets or gives its slot to the river ford, the tree
+  // it clings to is gone and so is it (see step).
+  c.home=chunk?{chunk,roosts:chunk.roosts,dz:c.p.z-chunk.group.position.z}:null;
   // Head up the trunk, back to the road.
   z.set(0,1,0);y.copy(c.n);x.crossVectors(y,z).normalize();c.q.setFromRotationMatrix(m4.makeBasis(x,y,z));
   c.tint.setRGB(range(.85,1.15),range(.85,1.1),range(.8,1.05));return c;
  }
  function populate(chunk,chance){for(const tree of chunk.roosts||[])if(rnd()<chance){const a=Math.floor(rnd()*3),b=(a+1+Math.floor(rnd()*2))%3;
-  for(const r of rnd()<.35?[tree[a],tree[b]]:[tree[a]])perch(r.x,r.y,r.z+chunk.group.position.z,r.nx,r.nz);}}
+  for(const r of rnd()<.35?[tree[a],tree[b]]:[tree[a]])perch(r.x,r.y,r.z+chunk.group.position.z,r.nx,r.nz,chunk);}}
+ /** A free roost (scene position and outward normal) on a visible edge tree on `side`, 14-40 m back from the gun. */
+ function freeRoost(side){let best=null,score=Infinity;
+  for(const chunk of jungle.chunks){const cz=chunk.group.position.z;if(cz<-20||cz>70)continue;
+   for(const tree of chunk.roosts||[])for(const r of tree){const z=r.z+cz;if(z<14||z>40||Math.sign(r.x)!==side)continue;
+    if(D.pool.some(o=>o.on&&o.state==='perch'&&Math.hypot(o.p.x-r.x,o.p.y-r.y,o.p.z-z)<1.5))continue;
+    const sc=Math.abs(z-24)+rnd()*8;if(sc<score){score=sc;best={x:r.x,y:r.y,z,nx:r.nx,nz:r.nz,chunk};}}}
+  return best;}
  /** Take off from the trunk: out over the road, then across and up. */
  function flush(c,delay=0){if(c.state==='perch'&&c.flushAt<0)c.flushAt=now+delay;}
  function launch(c){
@@ -189,6 +205,7 @@ export function createFlyers(scene,{jungle}){
   c.t+=dt;
   if(c.state==='perch'){
    c.p.z+=speed*dt;
+   const h=c.home;if(h&&(h.chunk.roosts!==h.roosts||Math.abs(c.p.z-h.chunk.group.position.z-h.dz)>.5)){c.on=false;return;}
    // Now and then a wing flicks open and shut.
    c.t>6&&(c.t=0,c.flick=.45);c.flick=Math.max(0,c.flick-dt);const f=c.flick>0?Math.sin(c.flick/.45*Math.PI):0;
    // Perched with the wings half open against the bark (mantled), which also reads from the road.

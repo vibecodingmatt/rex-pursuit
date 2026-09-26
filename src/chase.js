@@ -45,6 +45,8 @@ scene.environment=createEnvironmentMap(renderer);scene.environmentIntensity=.38;
 // fill from the Jeep side, warm earth bounce from below.
 const hemi=new T.HemisphereLight(0xa9bf9a,0x463a26,.6);scene.add(hemi);
 const sun=new T.DirectionalLight(0xffd9a6,4.1);scene.add(sun,sun.target);sun.castShadow=true;sun.shadow.normalBias=.04;sun.shadow.bias=-.00025;
+// Keep the rim the second directional light (the sun sorts first as the only shadow caster):
+// foliage leaves it out by that slot (plant() in foliage.js), since it has no shadows.
 const rim=new T.DirectionalLight(0xc4d4e4,.6);rim.position.set(-6,10,34);scene.add(rim);
 const fill=new T.DirectionalLight(0xdce3d4,.62);fill.position.set(7,6,-12);scene.add(fill);
 const sky=createSky(scene),canopy=createCanopy(scene,sun);
@@ -91,7 +93,7 @@ weather.onThunder=(delay,near)=>audio.thunder(delay,near);
 night=createNight(scene,{jeep,weather,renderer});
 // Living jungle: compies, lizards and Gallimimus herds that flee the chase, pterosaurs in the
 // trees and the sky, insects, a passing brachiosaur. All but the insects can be shot.
-const critters=createCritters(scene,{jungle}),flyers=createFlyers(scene,{jungle}),insects=createInsects(scene,{night}),brachio=createBrachio(scene,{jungle});
+const critters=createCritters(scene,{jungle,camera}),flyers=createFlyers(scene,{jungle,camera}),insects=createInsects(scene,{night}),brachio=createBrachio(scene,{jungle});
 const safariDirector=createSafariDirector({critters,flyers,birds,vector:new T.Vector3()});
 const safariFx=createSafariFx($('#safari-fx'),camera);
 // The picked mode is remembered, and the title screen follows it: the Rex (and the brachiosaur) for

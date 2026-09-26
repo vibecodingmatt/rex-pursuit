@@ -182,7 +182,7 @@ function critterMaterial(lizard,detail=false){
 }
 
 // --------------------------------------------------------------------- system --
-export function createCritters(scene,{jungle}){
+export function createCritters(scene,{jungle,camera=null}){
  // Per species: body centre height and hit radius (model units, before scale), the hull the
  // dead body rests on, fall gravity, whether it is heavy (keeps its momentum when shot and
  // skids), running lean, stride (m per gait cycle: a + b x speed), full-stride speed,
@@ -231,12 +231,26 @@ export function createCritters(scene,{jungle}){
  const ALIAS={ghostRaptor:'raptor',goldenCompy:'compy'},SIZE={compy:1.5,goldenCompy:1.35,lizard:2.4,gallimimus:5.5,raptor:3.8,ghostRaptor:4.1,dilophosaurus:5.2,parasaurolophus:7.5,pachycephalosaurus:4.6,triceratops:7.8,stegosaurus:8.5},
   RUN={compy:6,goldenCompy:11.5,lizard:4.3,gallimimus:9.8,raptor:10.3,ghostRaptor:13.5,dilophosaurus:8.8,parasaurolophus:8.4,pachycephalosaurus:9.2,triceratops:7.4,stegosaurus:6.4};
 
- function free(k){const c=k.pool.find(c=>!c.on);if(c){c.hp=1;c.species=k.name;c.swerveMax=null;c.base=0;c.flinch=0;}return c;}
+ function free(k){const c=k.pool.find(c=>!c.on);if(c){c.hp=1;c.species=k.name;c.swerveMax=null;c.base=0;c.flinch=0;c.crossTime=null;}return c;}
+ // What the camera can see (last rendered frame): an animal breaks cover out of view and leaves the same way.
+ const frustum=new T.Frustum(),viewProj=new T.Matrix4(),bounds=new T.Sphere();let lastSpeed=0;
+ const reach=k=>k.hull.reduce((r,h)=>Math.max(r,h.length()),.2);
+ function inView(k,x,y,z,scale){if(!camera)return false;viewProj.multiplyMatrices(camera.projectionMatrix,camera.matrixWorldInverse);frustum.setFromProjectionMatrix(viewProj);
+  bounds.center.set(x,y+k.centre*scale,z);bounds.radius=reach(k)*scale;return frustum.intersectsSphere(bounds);}
  function huntSpawn(name,side,z){
-  const k=ALL.find(k=>k.name===(ALIAS[name]||name)),c=k&&free(k);if(!c)return null;const run=RUN[name];
+  const k=ALL.find(k=>k.name===(ALIAS[name]||name)),c=k&&free(k);if(!c)return null;const run=RUN[name],scale=SIZE[name]*range(.94,1.06);
+  // It breaks cover rather than appearing on the open verge: it starts out of the camera's view or
+  // behind the concealing understory belt (|x| 15 and beyond; the big ones stand taller than it, so
+  // deeper), already running. Its start along the road allows for how far the road (or its own slant
+  // toward the Jeep, on the slow title road) carries it during the extra run-in, so it still reaches the
+  // track about where the director asked; its crossing is timed to match.
+  const verge=side*(k.quad?9:7.5),cover=k.quad?19:16.5,lateral=run*(k.quad?.7:.78),drift=lastSpeed-run*(k.quad?.71:.63);
+  let x=verge;for(let i=0;i<14&&Math.abs(x)<cover&&inView(k,x,0,z-(Math.abs(x-verge)/lateral)*drift,scale);i++)x+=side*1.5;
+  if(!camera)x=side*cover;
+  z=Math.min(40,Math.max(8,z-Math.abs(x-verge)/lateral*drift));
   // Big animals slant harder toward the Jeep, so they hold their distance while they cross.
-  Object.assign(c,{on:true,species:name,hp:SPECIES[name].hp,state:'flee',timer:0,run,base:run,cover:13,startle:0,dir:-side,jink:.3,swerve:0,swerveMax:name==='goldenCompy'?.8:null,scale:SIZE[name]*range(.94,1.06),fade:1,pack:-3,alarmAt:-1,peck:0,peckTime:0,phase:rnd(),yaw:Math.atan2(-side,-.8),roll:0,onRock:false,hop:0,verge:true,cross:false,stopAt:0,goal:-side*(k.quad?14:12),away:k.quad?-3.4:-2.7,curl:0,stride:1,flinch:0});
-  c.p.set(side*(k.quad?9:7.5),0,z);c.v.set(-side*run*.78,0,-run*.63);c.tint.setRGB(1,1,1);
+  Object.assign(c,{on:true,species:name,hp:SPECIES[name].hp,state:'flee',timer:0,run,base:run,cover:13,startle:0,dir:-side,jink:.3,swerve:0,swerveMax:name==='goldenCompy'?.8:null,scale,fade:1,pack:-3,alarmAt:-1,peck:0,peckTime:0,phase:rnd(),yaw:Math.atan2(-side,-.8),roll:0,onRock:false,hop:0,verge:true,cross:false,stopAt:0,goal:-side*(k.quad?14:12),away:k.quad?-3.4:-2.7,curl:0,stride:1,flinch:0});
+  c.p.set(x,0,z);c.v.set(-side*run*.78,0,-run*.63);c.tint.setRGB(1,1,1);c.crossTime=Math.abs(x-c.goal)/lateral+2;
   if(name==='ghostRaptor')c.tint.setRGB(2.8,3.6,4.5);
   if(name==='goldenCompy')c.tint.setRGB(4.2,3.1,.9);
   if(api.onCall)api.onCall(c.p,name);else(k===C||k===L?api.onScatter:api.onHerd)?.(c.p);return c;
@@ -373,8 +387,9 @@ export function createCritters(scene,{jungle}){
    c.want.set(ax/l*c.run,0,az/l*c.run);
    // A crosser is done once it reaches the far verge; others once they are clear of the track.
    const clear=c.goal!==null?(c.p.x-c.goal)*c.dir>=0:Math.abs(c.p.x)>(c.stopAt||c.cover);
-   if(c.state==='flee'&&(clear||c.timer>(c.goal!==null?k.heavy?7:4.5:k===L?1.6:3.2))){c.state=c.stopAt?'wary':'hide';c.timer=0;c.stopAt=0;}
-   if(c.state==='hide'){c.fade-=dt*5;if(c.fade<=0){c.on=false;return;}}
+   if(c.state==='flee'&&(clear||c.timer>(c.goal!==null?c.crossTime??(k.heavy?7:4.5):k===L?1.6:3.2))){c.state=c.stopAt?'wary':'hide';c.timer=0;c.stopAt=0;}
+   // A crosser runs on into the forest until the camera loses it; nothing shrinks away in plain view.
+   if(c.state==='hide'&&!(c.goal!==null&&Math.abs(c.p.x)<24&&c.timer<6&&inView(k,c.p.x,c.p.y,c.p.z,c.scale))){c.fade-=dt*5;if(c.fade<=0){c.on=false;return;}}
   }
   // ---- move: quick acceleration toward the wanted ground velocity; the road carries it
   const accel=c.state==='idle'?6:c.state==='wary'?14:k.accel;
@@ -462,6 +477,7 @@ export function createCritters(scene,{jungle}){
    * @param rex {x,z} of her body in the Jeep frame, or null
    */
   update(dt,{speed=0,rex=null,visible=true,spawn=true,herds=false}={}){
+   lastSpeed=speed;
    now+=dt;for(const k of ALL){k.visible=visible;k.mesh.visible=visible&&k.mesh.count>0;}
    if(!visible||dt<=0){alarms.length=0;return;}
    if(spawn){

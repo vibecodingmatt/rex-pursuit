@@ -4,7 +4,7 @@ import {mergeGeometries,mergeVertices} from 'three/addons/utils/BufferGeometryUt
 // wind/translucency shader. Everything is deterministic from its seed, built
 // once at load, and instanced by the scenery.
 
-import {WET,WIND_GUST,NIGHT} from './weather-state.js';
+import {WET,WIND_GUST} from './weather-state.js';
 import {AO_MASK} from './post.js';
 export const WIND={value:0};
 // Share of each chunk's grass capacity the quality tier draws, 0..1.
@@ -98,11 +98,15 @@ export function dustTexture(){
 }
 
 // ------------------------------------------------------ shared plant shader --
+// Leaves light themselves without the rim light (directional light 1; see plant()).
+const RIM_LOOKUP='getDirectionalLightInfo( directionalLight, directLight );';
+if(!T.ShaderChunk.lights_fragment_begin.includes(RIM_LOOKUP))throw Error('three changed lights_fragment_begin: leaves would take the rim light again');
+const LEAF_LIGHTS=T.ShaderChunk.lights_fragment_begin.replace(RIM_LOOKUP,RIM_LOOKUP+'\n\t\t#if UNROLLED_LOOP_INDEX == 1\n\t\tdirectLight.color = vec3( 0.0 );\n\t\t#endif');
 /** Compose wind sway, leaf flutter and back-lit translucency onto a standard material. */
 export function plant(material,{sway=.2,flutter=0,height=10,translucency=0,moss=0,volume=false,key}){
  const grass=key==='grass';
  material.onBeforeCompile=s=>{
-  s.uniforms.uWindTime=WIND;s.uniforms.uWet=WET;s.uniforms.uNight=NIGHT;s.uniforms.uWindGust=WIND_GUST;s.uniforms.uAoMask=AO_MASK;s.uniforms.uGrassDensity=GRASS_DENSITY;
+  s.uniforms.uWindTime=WIND;s.uniforms.uWet=WET;s.uniforms.uWindGust=WIND_GUST;s.uniforms.uAoMask=AO_MASK;s.uniforms.uGrassDensity=GRASS_DENSITY;
   s.vertexShader=s.vertexShader.replace('#include <common>',`#include <common>\nuniform float uWindTime,uWindGust,uGrassDensity;varying vec3 vPlantWorld;varying vec3 vPlantUp;varying float vFade;${grass?'attribute float tuftRank;':'attribute vec4 plant;'}`)
    .replace('#include <begin_vertex>',`#include <begin_vertex>
     {
@@ -144,7 +148,7 @@ export function plant(material,{sway=.2,flutter=0,height=10,translucency=0,moss=
     // Everything within reach of either switch sinks fully into the fog first; a
     // screen-door dither here would sit permanently on the far verge.
     vFade=smoothstep(-82.,-62.,vPlantWorld.z)*(1.-smoothstep(112.,136.,vPlantWorld.z));`);
-  s.fragmentShader=s.fragmentShader.replace('#include <common>','#include <common>\nuniform float uWet,uAoMask,uNight;varying vec3 vPlantWorld;varying vec3 vPlantUp;varying float vFade;')
+  s.fragmentShader=s.fragmentShader.replace('#include <common>','#include <common>\nuniform float uWet,uAoMask;varying vec3 vPlantWorld;varying vec3 vPlantUp;varying float vFade;')
    .replace('#include <roughnessmap_fragment>',`#include <roughnessmap_fragment>\nroughnessFactor*=1.-uWet*${translucency?'.15':'.45'};`)
    .replace('#include <color_fragment>',`#include <color_fragment>
     diffuseColor.rgb*=1.-uWet*${translucency?'.12':'.32'};
@@ -166,19 +170,19 @@ export function plant(material,{sway=.2,flutter=0,height=10,translucency=0,moss=
      vec3 toEye=normalize(vViewPosition);float nv=dot(normal,toEye);
      if(nv<.2)normal=normalize(normal+toEye*(.2-nv));
     }`:''}`)
+   // The rim light (directional light 1: the sun, the only shadow caster, sorts first)
+   // outlines the animals and has no shadow map, so it lit every leaf in the forest
+   // alike, even deep under the canopy: grey-white by day and a flat frost by night,
+   // even at a quarter strength. Leaves leave it out entirely; moonlight reaches them
+   // through the moon's shadowed key light instead.
+   .replace('#include <lights_fragment_begin>',translucency?LEAF_LIGHTS:'#include <lights_fragment_begin>')
    .replace('#include <lights_fragment_end>',`#include <lights_fragment_end>
     ${translucency?`
     // Leaves lying flat on the ground (fallen fronds, torn limbs) are seen edge-on,
     // where the leaf finish mirrors the bright sky and reads as snow. Litter is dull
     // and lets no light through.
     float litter=(1.-smoothstep(.12,.4,vPlantWorld.y))*smoothstep(.55,.85,abs(normalize(cross(dFdx(vPlantWorld),dFdy(vPlantWorld))).y));
-    reflectedLight.directSpecular*=.45*(1.-.85*litter);reflectedLight.indirectSpecular*=mix(.35,.42,uWet)*(1.-.85*litter);
-    // The rim light (the moon, at night) has no shadow map, so it lit every leaf in
-    // the forest alike, even under the canopy, and turned the foliage a flat frost.
-    // Leaves keep a quarter of it at night: dark masses with moonlit edges.
-    #if NUM_DIR_LIGHTS>1
-     reflectedLight.directDiffuse=max(vec3(0.),reflectedLight.directDiffuse-directionalLights[1].color*max(dot(normal,directionalLights[1].direction),0.)*BRDF_Lambert(diffuseColor.rgb)*.75*uNight);
-    #endif`:''}
+    reflectedLight.directSpecular*=.45*(1.-.85*litter);reflectedLight.indirectSpecular*=mix(.35,.42,uWet)*(1.-.85*litter);`:''}
     ${translucency?`#if NUM_DIR_LIGHTS>0
     {
      vec3 L=directionalLights[0].direction;vec3 toFrag=normalize(-vViewPosition);
@@ -190,7 +194,7 @@ export function plant(material,{sway=.2,flutter=0,height=10,translucency=0,moss=
    // Leaves and grass tag themselves in the occlusion mask (see post.js).
    .replace('#include <dithering_fragment>',`#include <dithering_fragment>\n${translucency?'gl_FragColor.a=mix(gl_FragColor.a,.3,uAoMask);':''}`);
  };
- material.customProgramCacheKey=()=>`rex-plant-${key}-v5`;
+ material.customProgramCacheKey=()=>`rex-plant-${key}-v6`;
  return material;
 }
 
