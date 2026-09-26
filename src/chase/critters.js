@@ -143,7 +143,8 @@ const GAIT=lizard=>`
 // bump is analytic (the cell gradients, turned into view space), so it stays smooth per pixel.
 const SKIN={value:1};
 const SKIN_GLSL=`
- uniform float uSkin;varying vec3 vHide;varying vec3 vSkin;varying vec3 vAX;varying vec3 vAY;varying vec3 vAZ;
+ uniform float uSkin;uniform vec4 uEye0;uniform vec4 uEye1;uniform vec3 uEyeAxis0;uniform vec3 uEyeAxis1;uniform vec3 uIris;uniform float uSlit;
+ varying vec3 vHide;varying vec3 vSkin;varying vec3 vAX;varying vec3 vAY;varying vec3 vAZ;
  vec3 cellHash(vec3 p){p=fract(p*vec3(.1031,.103,.0973));p+=dot(p,p.yxz+33.33);return fract((p.xxy+p.yzz)*p.zyx);}
  float dsmooth(float a,float b,float x){float t=clamp((x-a)/(b-a),0.,1.);return 6.*t*(1.-t)/(b-a);}
  // Nearest and second-nearest feature distances and the nearest cell's random value; g1, g2 point to those features.
@@ -152,6 +153,7 @@ const SKIN_GLSL=`
   d1=sqrt(d1);d2=sqrt(d2);g1/=max(d1,1e-4);g2/=max(d2,1e-4);return vec3(d1,d2,id);}`;
 function critterMaterial(lizard,detail=false){
  const m=new T.MeshStandardMaterial({vertexColors:true,roughness:lizard?.55:.7});
+ if(detail)m.userData.eyes={uEye0:{value:new T.Vector4()},uEye1:{value:new T.Vector4()},uEyeAxis0:{value:new T.Vector3(-1,0,0)},uEyeAxis1:{value:new T.Vector3(1,0,0)},uIris:{value:new T.Color(.3,.2,.06)},uSlit:{value:0}};
  const vertex=s=>{s.vertexShader=s.vertexShader.replace('#include <common>','#include <common>\nattribute vec4 rig;attribute vec3 pivot;attribute vec4 aPose;'+(detail?'\nattribute vec4 aBody;'+SAFARI_GAIT_GLSL:''))
   .replace('#include <begin_vertex>','#include <begin_vertex>'+(detail?'\n{vec3 n=normal;safariPose(transformed,n);}':GAIT(lizard)));
   if(detail)s.vertexShader=s.vertexShader.replace('#include <beginnormal_vertex>','#include <beginnormal_vertex>\n{vec3 p=position;safariPose(p,objectNormal);}');};
@@ -159,17 +161,36 @@ function critterMaterial(lizard,detail=false){
   if(detail){
    // hide: fine-scale amount; gloss: eyes, horn and beak (+) or large scales (-). Both come with the bake.
    s.uniforms.uSkin=SKIN;
+   Object.assign(s.uniforms,m.userData.eyes);
    s.vertexShader=s.vertexShader.replace('#include <common>','#include <common>\nattribute float hide;attribute float gloss;varying vec3 vHide;varying vec3 vSkin;varying vec3 vAX;varying vec3 vAY;varying vec3 vAZ;')
     .replace('#include <begin_vertex>','#include <begin_vertex>\nvHide=position;vSkin=vec3(hide,max(gloss,0.),max(-gloss,0.));{mat3 toView=mat3(modelViewMatrix);\n#ifdef USE_INSTANCING\ntoView=toView*mat3(instanceMatrix);\n#endif\nvAX=normalize(toView[0]);vAY=normalize(toView[1]);vAZ=normalize(toView[2]);}\n');
    s.fragmentShader=s.fragmentShader.replace('#include <common>','#include <common>'+SKIN_GLSL);
    // Raised scales between fine seams, and large low plates; both fade out before they would shimmer.
    s.fragmentShader=s.fragmentShader.replace('#include <color_fragment>',`#include <color_fragment>
-    float groove=0.;vec3 skinG=vec3(0.);
+    float groove=0.,pigment=1.;vec3 skinG=vec3(0.);
     if(uSkin>.5){
-     float px=length(fwidth(vHide)),fine=vSkin.x*(1.-smoothstep(.22,.55,px*170.)),tub=vSkin.z*(1.-smoothstep(.3,.7,px*52.));vec3 g1,g2;
-     if(fine>.01){vec3 c=cells(vHide*170.,g1,g2);float e=c.y-c.x;skinG+=fine*(.65+.35*c.z)*.22*dsmooth(0.,.3,e)*(g1-g2);groove+=fine*(1.-smoothstep(0.,.14,e));}
-     if(tub>.01){vec3 c=cells(vHide*52.+11.,g1,g2);float e=c.y-c.x;skinG+=tub*(.6+.4*c.z)*.14*(.7*dsmooth(0.,.2,e)*(g1-g2)+.3*dsmooth(0.,.6,c.x)*g1);groove+=tub*(1.-smoothstep(0.,.08,e))*.9;}
-     diffuseColor.rgb*=1.-groove*.18;
+     float px=length(fwidth(vHide)),fine=vSkin.x*(1.-smoothstep(.22,.55,px*310.)),tub=vSkin.z*(1.-smoothstep(.3,.7,px*115.));vec3 g1,g2;
+     if(fine>.01){vec3 c=cells(vHide*310.,g1,g2);float e=c.y-c.x;skinG+=fine*(.65+.35*c.z)*.085*dsmooth(0.,.3,e)*(g1-g2);groove+=fine*(1.-smoothstep(0.,.12,e));pigment*=1.+fine*(c.z-.5)*.24;}
+     if(tub>.01){vec3 c=cells(vHide*115.+11.,g1,g2);float e=c.y-c.x;skinG+=tub*(.6+.4*c.z)*.075*(.7*dsmooth(0.,.2,e)*(g1-g2)+.3*dsmooth(0.,.6,c.x)*g1);groove+=tub*(1.-smoothstep(0.,.08,e))*.8;}
+     // Fine compression lines complement the broad folds in the sculpt. All
+     // coordinates are model-local and bounded, including on mobile GPUs.
+     float neck=smoothstep(.29,.38,vHide.y)*(1.-smoothstep(.46,.53,vHide.y))*smoothstep(.1,.18,vHide.z)*(1.-smoothstep(.25,.3,vHide.z));
+     float folds=neck*vSkin.x*(1.-smoothstep(.18,.5,px*210.));
+     skinG+=vec3(0.,1.,.3)*cos(vHide.y*420.+vHide.z*124.)*folds*.12;
+     diffuseColor.rgb*=(1.-groove*.12)*pigment;
+    }
+    // Analytic iris detail stays crisp at close range instead of baking a
+    // blocky pupil into a handful of eye vertices. Shared by both mesh tiers.
+    if(vSkin.y>.82&&uEye0.w>0.){
+     bool left=vHide.x<0.;vec4 eye=left?uEye0:uEye1;vec3 axis=left?uEyeAxis0:uEyeAxis1;
+     vec3 en=normalize(vHide-eye.xyz),up=normalize(vec3(0.,1.,0.)-axis*axis.y),across=normalize(cross(axis,up));
+     vec2 uv=vec2(dot(en,across),dot(en,up));float rad=length(uv),angle=atan(uv.y,uv.x);
+     float fibers=.85+.1*sin(angle*73.+rad*29.)+.05*sin(angle*137.-rad*47.);
+     vec3 iris=uIris*fibers*mix(.55,1.,smoothstep(.2,.48,rad));
+     float pupil=uSlit>.5?(1.-smoothstep(.065,.1,abs(uv.x)))*(1.-smoothstep(.47,.57,abs(uv.y))):1.-smoothstep(.25,.29,rad);
+     iris=mix(iris,vec3(.003,.004,.002),pupil);
+     iris=mix(iris,vec3(.022,.019,.013),smoothstep(.66,.81,rad));
+     diffuseColor.rgb=mix(diffuseColor.rgb,iris,smoothstep(.82,.98,vSkin.y));
     }`);
    s.fragmentShader=s.fragmentShader.replace('#include <roughnessmap_fragment>',`#include <roughnessmap_fragment>
     roughnessFactor=mix(clamp(roughnessFactor+groove*.1,.3,.95),.1,vSkin.y);`);
@@ -179,7 +200,7 @@ function critterMaterial(lizard,detail=false){
   }
   // Rain darkens the hide a little and gives it a wet sheen.
   s.fragmentShader=s.fragmentShader.replace('#include <common>','#include <common>\nuniform float uWet;').replace('#include <color_fragment>','#include <color_fragment>\ndiffuseColor.rgb*=1.-uWet*.25;').replace('#include <roughnessmap_fragment>','#include <roughnessmap_fragment>\nroughnessFactor*=1.-uWet*.5;');};
- m.customProgramCacheKey=()=>`rex-critter-${lizard?'lizard':'compy'}-${detail}-v6`;
+ m.customProgramCacheKey=()=>`rex-critter-${lizard?'lizard':'compy'}-${detail}-v8`;
  // Shadows step with the legs too.
  const depth=new T.MeshDepthMaterial({depthPacking:T.RGBADepthPacking});depth.onBeforeCompile=vertex;depth.customProgramCacheKey=()=>`rex-critter-depth-${lizard?'lizard':'compy'}-${detail}-v5`;
  return{material:m,depth};
@@ -226,12 +247,16 @@ export function createCritters(scene,{jungle,camera=null}){
  let travel=0,nextPack=40,nextHerd=300,packId=0,density=1,now=0,chunkZ=[],api;
  const tally={kills:0};
  let modelTier='high',models=null,modelError=null;
+ function setEyes(k,sp){const u=k.material.userData.eyes;if(!u||!sp?.eyes)return;
+  sp.eyes.forEach((eye,i)=>{u[`uEye${i}`].value.set(...eye.c,eye.r);u[`uEyeAxis${i}`].value.fromArray(eye.axis);});
+  u.uIris.value.setRGB(...sp.iris);u.uSlit.value=sp.slit?1:0;
+ }
  // The Gallimimus keeps its chase tuning (centre, hull, hit sphere) and only takes the baked sculpt's shape.
  function selectModels(){if(!models)return;for(const name of Object.keys(BAKED)){const k=kinds[name];k.mesh.geometry=models[name][modelTier];k.geometry=k.mesh.geometry;}
   if(models.gallimimus){G.mesh.geometry=models.gallimimus[modelTier];G.geometry=G.mesh.geometry;}}
  const modelLoad=loadSafariModels().then(loaded=>{models=loaded.models;for(const name of Object.keys(BAKED)){const k=kinds[name],sp=loaded.species[name];k.geometry.dispose();for(const g of Object.values(models[name])){g.setAttribute('aPose',k.pose);g.setAttribute('aBody',k.body);}
-   k.centre=sp.centre;k.hull=hull(sp.hull);k.spheres=sp.spheres.map(([x,y,z,r])=>({p:new T.Vector3(x,y,z),r}));k.hitR=sp.spheres[0][3];}
-   if(models.gallimimus){for(const g of Object.values(models.gallimimus)){g.setAttribute('aPose',G.pose);g.setAttribute('aBody',G.body);}G.geometry.dispose();const d=critterMaterial(false,true);G.material=G.mesh.material=d.material;G.depth=G.mesh.customDepthMaterial=d.depth;}
+   k.centre=sp.centre;k.hull=hull(sp.hull);k.spheres=sp.spheres.map(([x,y,z,r])=>({p:new T.Vector3(x,y,z),r}));k.hitR=sp.spheres[0][3];setEyes(k,sp);}
+   if(models.gallimimus){for(const g of Object.values(models.gallimimus)){g.setAttribute('aPose',G.pose);g.setAttribute('aBody',G.body);}G.geometry.dispose();const d=critterMaterial(false,true);G.material=G.mesh.material=d.material;G.depth=G.mesh.customDepthMaterial=d.depth;setEyes(G,loaded.species.gallimimus);}
    selectModels();}).catch(e=>{modelError=e;});
  // Safari names that share a kind: the ghost raptor and the golden compy are rare colourings.
  const ALIAS={ghostRaptor:'raptor',goldenCompy:'compy'},SIZE={compy:1.5,goldenCompy:1.35,lizard:2.4,gallimimus:5.5,raptor:3.8,ghostRaptor:4.1,dilophosaurus:5.2,parasaurolophus:7.5,pachycephalosaurus:4.6,triceratops:7.8,stegosaurus:8.5},

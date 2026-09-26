@@ -156,20 +156,45 @@ const fbm=(x,y,z)=>vnoise(x,y,z)*.55+vnoise(x*2.13+5.2,y*2.13,z*2.13)*.3+vnoise(
 // swings about, its side and lead: +1 hind, -1 fore); arm joints use the same
 // metadata with `arm:true`. The rig follows it. Carves
 // subtract (sockets, nostrils, grooves) after every group is joined.
-const HEADISH=new Set(['head','jaw','beak','horn','frill','epoc','eye','crest','dome','knob','neck','brow','ossicle']);
+const HEADISH=new Set(['head','jaw','beak','horn','frill','displayFrill','epoc','eye','lid','crest','dome','knob','neck','brow','ossicle']);
 const KERATIN=new Set(['horn','beak','hoof','claw','nail','spike']);
 function sculpt(){
  const groups=[],carves=[];
- const add=(region,prims,blend=.016,internal=.008,leg=null)=>{groups.push({region,prims,blend,internal,leg});};
+ const add=(region,prims,blend=.016,internal=.008,leg=null)=>{
+  groups.push({region,prims,blend,internal,leg});
+  if(region==='eye'){
+   // A fleshy elliptical lid occludes the globe's upper/lower edges. Both
+   // globe and lid are added AFTER carving, so sockets cannot eat them away.
+   const lids=prims.map(p=>{const [cx,cy,cz,r]=p.bound,s=Math.sign(cx),xx=cx+s*r*.64;
+    return {bound:[cx,cy,cz,r*1.4],d(x,y,z){const radial=Math.hypot((y-cy)/.64,(z-cz)/.89)-r;return Math.hypot(x-xx,radial*.75)-r*.24;}};});
+   groups.push({region:'lid',prims:lids,blend:0,internal:0,leg:null});
+  }
+ };
  const carve=(region,prims,k=.005)=>{carves.push({region,prims,k});};
  const field=(x,y,z,region=false)=>{
-  let d=1e6,closest=1e6,which='body',own=null,limb=1e6,body=1e6,leg=null,legD=1e6;
+  let d=1e6,closest=1e6,which='body',own=null,limb=1e6,body=1e6,leg=null,legD=1e6,eyeD=1e6,lidD=1e6;
   for(const g of groups){let gd=1e6;for(const p of g.prims){const [bx,by,bz,br]=p.bound;if(len(x-bx,y-by,z-bz)-br>Math.max(gd,d)+g.blend+g.internal+.02)continue;gd=smin(gd,p.d(x,y,z),g.internal);}
+   // Socket cutters belong to the skull, never to the globe inside it.
+   if(g.region==='eye'){eyeD=Math.min(eyeD,gd);continue;}
+   if(g.region==='lid'){lidD=Math.min(lidD,gd);continue;}
    if(gd<closest){closest=gd;which=g.region;own=g.leg;}if(g.leg){limb=Math.min(limb,gd);if(!g.leg.arm&&gd<legD){legD=gd;leg=g.leg;}}else body=Math.min(body,gd);d=smin(d,gd,g.blend);
   }
   let hole=null;
   for(const c of carves){let cd=1e6;for(const p of c.prims){const [bx,by,bz,br]=p.bound;if(len(x-bx,y-by,z-bz)-br>c.k+.012)continue;cd=Math.min(cd,p.d(x,y,z));}
    if(cd<1e5){d=smax(d,-cd,c.k);if(cd<.004)hole=c.region;}}
+  // Broad sculpted folds remain visible on the silhouette and on the Low mesh.
+  // Keep their wavelength above the meshing grid; pores live in the shader.
+  if(which==='neck')d+=.00028*Math.sin(y*205+z*62)*smooth(.29,.37,y)*(1-smooth(.5,.56,y));
+  if(which==='leg'){
+   const knee=Math.exp(-(((y-.195)/.045)**2)),ankle=Math.exp(-(((y-.065)/.028)**2));
+   d+=.00022*Math.sin(y*235+z*35)*(knee+ankle*.55);
+  }
+  if(which==='body'&&z>-.24&&z<.14){
+   const side=smooth(.025,.065,Math.abs(x))*(1-smooth(.39,.43,y));
+   d+=.0003*Math.sin(z*135+y*38)*side*smooth(.21,.26,y)*(1-smooth(.33,.39,y));
+  }
+  if(eyeD<d){d=eyeD;which='eye';own=null;hole=null;}
+  if(lidD<d){d=lidD;which='lid';own=null;hole=null;}
   d=Math.max(d,-y);return region?{which,own,leg,hole,limb:smooth(-.025,.025,body-limb)}:d;
  };
  return {add,carve,field};
@@ -181,21 +206,36 @@ function runnerLegs(add,{hipX=.06,heavy=false,claw=false,slim=1}){
   const leg={pivot:[side*hipX,.31,-.025],side,lead:1},t=v=>v*slim;
   add('leg',[uprightLoft([
    [.005,.064,.016,.012,side*.06],[.034,.028,.016,.011,side*.06],
-   [.079,-.04,t(.02),t(.012),side*.063],[.13,-.015,t(.017),t(.013),side*.065],
-   [.203,.065,t(.03),t(heavy?.036:.027),side*.073],[.267,.025,t(.06),t(heavy?.047:.033),side*.075],
-   [.332,-.031,.067,heavy?.056:.036,side*(heavy?.09:.064)],[.387,-.047,.04,.025,side*(heavy?.057:.04)]
+   [.079,claw?-.025:-.04,t(.02),t(.012),side*.063],[.13,claw?.006:-.015,t(.017),t(.013),side*.065],
+   [.203,.065,t(.03),t(heavy?.036:claw?.034:.027),side*.073],[.267,.025,t(.06),t(heavy?.047:claw?.047:.033),side*.075],
+   [.332,-.031,.067,heavy?.056:claw?.045:.036,side*(heavy?.09:.064)],[.387,-.047,.04,.025,side*(heavy?.057:.04)]
   ])],.022,0,leg);
-  const tips=[-1,0,1].map(sp=>[side*.06+sp*.012,.009,.092-Math.abs(sp)*.01]);
-  add('toes',[-1,0,1].map((sp,i)=>roundCone([side*.06,.013,.05],tips[i],.008,.004)),.006,.003,leg);
+  const spreads=claw?[0,side]:[-1,0,1],tips=spreads.map(sp=>[side*.06+sp*.018,.009,.103-Math.abs(sp)*.017]);
+  add('toes',spreads.map((sp,i)=>roundCone([side*.06+sp*.008,.013,.04],tips[i],.009,.0048)),.005,.002,leg);
   add('claw',tips.map(([x,y,z])=>roundCone([x,y+.002,z-.004],[x,.002,z+.011],.0042,.0012)),.003,.002,leg);
-  if(claw)add('claw',[roundCone([side*.047,.042,.041],[side*.045,.056,.074],.007,.004),roundCone([side*.045,.056,.074],[side*.045,.04,.09],.004,.001)],.003,.003,leg);
+  if(claw){
+   add('toes',chain([[[side*.047,.023,.034],.008],[[side*.041,.052,.046],.008],[[side*.039,.063,.059],.006]]),.004,.003,leg);
+   add('claw',chain([[[side*.039,.063,.059],.007],[[side*.038,.069,.079],.006],[[side*.037,.059,.095],.004],[[side*.037,.034,.098],.0009]]),.002,.001,leg);
+  }
  }
 }
-function runnerArms(add,{shoulder=[.048,.357,.103],elbow=[.08,.292,.145],hand=[.09,.29,.235],r=[.015,.01],fingers=3,hoof=false}){
+function runnerArms(add,{shoulder=[.048,.357,.103],elbow=[.08,.292,.145],hand=[.09,.29,.235],r=[.015,.01],fingers=3,hoof=false,grasp=false}){
  for(const side of [-1,1]){
   const s=p=>[side*p[0],p[1],p[2]],arm={pivot:s(shoulder),side,lead:1,arm:true};
   add('arm',[roundCone(s(shoulder),s(elbow),r[0],r[1]),roundCone(s(elbow),s(hand),r[1],r[1]*.62)],.009,.006,arm);
   if(hoof){add('nail',[ellipsoid(s([hand[0],hand[1]-.008,hand[2]+.006]),[r[1]*.75,r[1]*.9,r[1]*.8])],.004,.002,arm);continue;}
+  if(grasp){
+   // Long separate metacarpals with inward-facing palms and hooked unguals.
+   add('arm',[ellipsoid(s([hand[0],hand[1]-.007,hand[2]+.003]),[.008,.017,.013],{pitch:-.3})],.005,.003,arm);
+   for(let finger=0;finger<3;finger++){
+    const dz=(finger-1)*.016,L=[.038,.056,.046][finger],bx=hand[0]+.003*finger;
+    const root=s([bx,hand[1]-.009,hand[2]+dz]),joint=s([bx+.009,hand[1]-L*.64,hand[2]+dz+.012]),tip=s([bx+.003,hand[1]-L,hand[2]+dz+.012]);
+    // Low must keep a continuous digit, not disconnected islands at the tips.
+    add('finger',chain([[root,Math.max(.0058,VOX*.72)],[joint,Math.max(.0048,VOX*.65)],[tip,Math.max(.0036,VOX*.68)]]),.003,.002,arm);
+    add('nail',chain([[tip,Math.max(.0048,VOX*.7)],[s([bx-.009,hand[1]-L-.009,hand[2]+dz+.006]),Math.max(.0034,VOX*.6)],[s([bx-.022,hand[1]-L-.005,hand[2]+dz-.001]),.0009]]),.002,.001,arm);
+   }
+   continue;
+  }
   const spreads=fingers===3?[-1,0,1]:[-1,1];
   for(const spread of spreads){const tip=[side*hand[0]+spread*.006,hand[1]-.016,hand[2]+.024];
    add('finger',[roundCone(s(hand),tip,.004,.0022)],.003,.002,arm);
@@ -206,14 +246,14 @@ function runnerArms(add,{shoulder=[.048,.357,.103],elbow=[.08,.292,.145],hand=[.
 function pillarLegs(add,{hind,fore}){
  for(const side of [-1,1])for(const L of [hind,fore]){
   const leg={pivot:[side*L.pivot[0],L.pivot[1],L.pivot[2]],side,lead:L===hind?1:-1};
-  add('leg',[uprightLoft(L.keys.map(([y,z,d,w,x])=>[y,z,d,w,side*x])),ellipsoid([side*L.muscle[0][0],L.muscle[0][1],L.muscle[0][2]],L.muscle[1])],.03,.02,leg);
+  const end=L.keys.at(-1),keys=[...L.keys,[end[0]+.024,end[1],.024,.009,end[4]*.25]];
+  add('leg',[uprightLoft(keys.map(([y,z,d,w,x])=>[y,z,d,w,side*x])),ellipsoid([side*L.muscle[0][0],L.muscle[0][1],L.muscle[0][2]],L.muscle[1])],.03,.02,leg);
   const [fx,fz]=[L.keys[0][4],L.keys[0][1]],toes=L.toes;
   add('toes',[ellipsoid([side*fx,.013,fz],[L.keys[0][3]*1.02,.016,L.keys[0][2]*1.02]),...toes.map(sp=>roundCone([side*fx+side*sp*L.spread*.5,.016,fz],[side*(fx+sp*L.spread)+side*L.splay,.01,fz+L.reach*(1-Math.abs(sp)*.18)],L.toeR,L.toeR*.8))],.012,.004,leg);
   add('hoof',toes.map(sp=>ellipsoid([side*(fx+sp*L.spread)+side*L.splay,.008,fz+L.reach*(1-Math.abs(sp)*.18)+.003],[L.toeR*1.05,L.toeR*.85,L.toeR*.9])),.004,.002,leg);
  }
 }
 
-const RUNNER_BODY=[[-.8,.325,.322,.001],[-.63,.338,.31,.009],[-.42,.352,.299,.021],[-.24,.397,.263,.046],[-.09,.425,.238,.073],[.055,.416,.25,.068],[.15,.388,.29,.046],[.2,.353,.321,.014]];
 /** A theropod skull in its own frame: skull and jaw lofts, brow ridge, eye in a carved socket,
  *  antorbital hollow and nostril. `snout` stretches the face; `kink` drops the premaxilla (Dilophosaurus). */
 function theropodSkull(add,carve,H,{snout=1,kink=0,brow=1}={}){
@@ -221,8 +261,8 @@ function theropodSkull(add,carve,H,{snout=1,kink=0,brow=1}={}){
  add('head',H.all([loft([[-.06,.028,-.02,.026],[-.035,.04,-.028,.034],[-.005,.042,-.026,.033],[S(.03),.034,-.022,.026],[S(.065),.026,-.019,.02],[S(.095),.019,-.016-kink*.4,.016],[S(.112),.015,-.014-kink,.014],[S(.13),.004,-.01-kink*.8,.009]]),
   ...both(s=>ellipsoid([s*.0235,.028+.002*brow,.002],[.0085,.005*brow,.021],{pitch:-.06}))]),.008,.008);
  add('jaw',H.all([loft([[-.05,-.008,-.04,.027],[-.02,-.014,-.044,.028],[S(.02),-.016,-.036,.022],[S(.06),-.016,-.028,.017],[S(.1),-.013-kink*.3,-.021-kink*.3,.012],[S(.125),-.01,-.016,.008]])]),.006,.006);
- const eye=[.026,.02,.0];
- add('eye',H.all(both(s=>sphere([s*eye[0],eye[1],eye[2]],.0074))),.002,.001);
+ const eye=[.025,.02,.0];
+ add('eye',H.all(both(s=>sphere([s*eye[0],eye[1],eye[2]],.0085))),0,0);
  carve('socket',H.all(both(s=>ellipsoid([s*.034,.021,.001],[.0095,.0085,.012]))),.004);
  carve('fenestra',H.all(both(s=>ellipsoid([s*.026,.009,S(.05)],[.0075,.009,.019*snout]))),.005);
  carve('nostril',H.all(both(s=>ellipsoid([s*.0105,.004-kink*.4,S(.121)],[.0035,.003,.0055]))),.002);
@@ -233,6 +273,26 @@ function theropodNeck(add,headY,thick=1){
   [.315,.095,.04*thick,.03*thick],[.35,.133,.052*thick,.044*thick],
   [.39,.176,.044*thick,.033*thick],[headY-.008,.217,.031*thick,.026*thick],[headY+.028,.262,.036*thick,.028*thick]
  ])],.02,0);
+}
+/** JP-style raptor: deep temporal box, low orbital boss, a squared premaxilla,
+ * a defined jaw hinge and a nearly level muzzle. No conical/duck-billed tip. */
+function raptorSkull(add,carve,H){
+ add('head',H.all([loft([
+  [-.079,.021,-.021,.023],[-.056,.052,-.031,.038],[-.02,.058,-.033,.042],
+  [.018,.047,-.024,.035],[.049,.038,-.02,.028],[.092,.034,-.021,.025],
+  [.129,.03,-.024,.025],[.15,.019,-.023,.024],[.16,.002,-.022,.017]]),
+  ...both(s=>ellipsoid([s*.026,.041,-.018],[.012,.006,.028],{pitch:.08})),
+  ...both(s=>ellipsoid([s*.028,-.022,-.042],[.015,.024,.035]))]),.006,.007);
+ add('jaw',H.all([loft([[-.064,-.016,-.057,.031],[-.028,-.023,-.06,.032],[.018,-.022,-.052,.027],[.07,-.018,-.044,.023],[.13,-.021,-.042,.023],[.156,-.019,-.034,.016]])]),.004,.004);
+ const eye=[.032,.031,-.021];
+ carve('socket',H.all(both(s=>ellipsoid([s*.043,.032,-.019],[.012,.012,.016]))),.0025);
+ add('eye',H.all(both(s=>sphere([s*eye[0],eye[1],eye[2]],.0101))),0,0);
+ carve('fenestra',H.all(both(s=>ellipsoid([s*.034,.014,.039],[.007,.012,.026]))),.004);
+ carve('nostril',H.all(both(s=>ellipsoid([s*.025,.013,.131],[.0042,.004,.008],{pitch:.15}))),.002);
+ // Incised closed mouth and the crease below the heavy cheek, not painted teeth.
+ const mouth=z=>-.026+.004*smooth(.11,.16,z)-.005*Math.exp(-(((z+.005)/.025)**2));
+ carve('lip',H.all(both(s=>chain([[-.037,.031],[.0,.029],[.05,.0245],[.1,.023],[.145,.021]].map(([z,x])=>[[s*x,mouth(z),z],.0018])))),.0006);
+ return {eye,mouth,front:.162};
 }
 /** Eye descriptions for the paint: centre (model space), radius and outward axis, both sides. */
 const eyesOf=(H,[x,y,z],r,fwd=.25)=>both(s=>{const c=H.toWorld([s*x,y,z]),o=H.toWorld([s*(x+1),y,z+fwd]),a=[o[0]-c[0],o[1]-c[1],o[2]-c[2]],l=len(...a);return {c,r,axis:a.map(v=>v/l)};});
@@ -245,63 +305,70 @@ function toothPaint(mouth,front,{teeth=[.6,.55,.44],lip=.55,pitch=260}={}){
 }
 
 const SPECIES={
- // Velociraptor (film scale): slim, long low snout under a heavy brow, the sickle claw held up off the ground.
+ // Jurassic Park raptor silhouette. The ghost variant deliberately shares this anatomy.
  raptor(){
-  const {add,carve,field}=sculpt(),headY=.422,headZ=.31,H=placer({o:[0,headY,headZ],pitch:.05});
-  add('body',[loft(RUNNER_BODY)],0,0);theropodNeck(add,headY);
-  const skull=theropodSkull(add,carve,H,{brow:1.2,snout:.94});
-  runnerLegs(add,{claw:true});runnerArms(add,{hand:[.086,.282,.232],r:[.016,.011]});
-  return {field,H,eyes:eyesOf(H,skull.eye,.0074),headY,headZ,biped:true,neckBase:[0,.34,.1],neckY:[.32,.41],tail:[-.18,-.76],tailPivot:[0,.33,-.15],centre:.33,
-   bounds:[[-.2,-.012,-.85],[.2,.6,.47]],
-   paint:{back:[.15,.1,.055],belly:[.44,.37,.26],bands:[60,.55],mottle:.22,iris:[.42,.24,.03],slit:true,scale:.6,tub:.15},
-   decorate:toothPaint(skull.mouth,skull.front),
-   spheres:[[0,.35,.02,.078],[0,.33,-.12,.07],[0,.43,.31,.05],[0,.33,-.36,.042],[0,.16,0,.06]]};
+  const {add,carve,field}=sculpt(),headY=.487,headZ=.272,H=placer({o:[0,headY,headZ],pitch:.055});
+  add('body',[loft([[-.86,.354,.35,.001],[-.72,.371,.355,.007],[-.53,.371,.34,.017],[-.35,.37,.317,.028],[-.2,.399,.274,.051],[-.08,.408,.243,.071],[.045,.4,.233,.063],[.137,.381,.28,.041],[.18,.356,.314,.021]])],0,0);
+  add('neck',[uprightLoft([[.325,.103,.04,.033],[.369,.139,.05,.042],[.409,.159,.047,.035],[.45,.18,.043,.034],[.48,.216,.043,.037],[.503,.238,.036,.03]])],.019,0);
+  // Shoulder blade, chest and caudofemoral muscles interrupt the old smooth barrel.
+  add('body',both(s=>[ellipsoid([s*.048,.354,.098],[.021,.044,.064],{pitch:-.38}),ellipsoid([s*.052,.318,-.12],[.027,.055,.094],{pitch:-.22})]),.014,.01);
+  const skull=raptorSkull(add,carve,H);
+  runnerLegs(add,{claw:true});runnerArms(add,{shoulder:[.052,.365,.108],elbow:[.08,.3,.127],hand:[.088,.26,.205],r:[.02,.013],grasp:true});
+  return {field,H,eyes:eyesOf(H,skull.eye,.0101,.35),headY,headZ,biped:true,neckBase:[0,.34,.1],neckY:[.34,.47],tail:[-.18,-.83],tailPivot:[0,.33,-.15],centre:.33,
+   bounds:[[-.2,-.012,-.89],[.2,.6,.48]],
+   paint:{back:[.105,.074,.046],belly:[.34,.29,.215],bands:[43,.38],mottle:.43,iris:[.42,.37,.13],slit:true,scale:.72,tub:.06},
+   decorate:(L,col)=>{const [x,y,z]=L;if(z>-.04&&z<skull.front&&Math.abs(y-skull.mouth(z))<.002)return [.025,.019,.013];return col;},
+   spheres:[[0,.33,.02,.078],[0,.33,-.12,.07],[0,.495,.315,.083],[0,.42,.185,.045],[0,.35,-.36,.042],[0,.16,0,.06]]};
  },
- // Dilophosaurus: a longer, kinked snout under two thin parallel crests running from the nostrils back over the eyes.
+ // The film's small, broad-faced spitter, with paired swept crests and a pleated neck fan.
  dilophosaurus(){
-  const {add,carve,field}=sculpt(),headY=.47,headZ=.31,H=placer({o:[0,headY,headZ],pitch:.06});
-  add('body',[loft(RUNNER_BODY)],0,0);theropodNeck(add,headY,1.02);
-  const skull=theropodSkull(add,carve,H,{snout:1.18,kink:.007});
+  const {add,carve,field}=sculpt(),headY=.455,headZ=.29,H=placer({o:[0,headY,headZ],pitch:.04,scale:1.16});
+  add('body',[loft([[-.72,.324,.32,.001],[-.55,.347,.313,.012],[-.34,.37,.287,.031],[-.18,.408,.243,.057],[-.045,.421,.234,.077],[.075,.41,.256,.066],[.166,.379,.299,.04],[.2,.355,.328,.019]])],0,0);theropodNeck(add,headY,1.12);
+  const skull=theropodSkull(add,carve,H,{snout:.88,kink:.011,brow:1.1});
   // Each crest is a thin half-disc standing on the skull roof, splayed a little outward, tallest over the eyes.
-  const crests=both(s=>{const C=placer({o:H.toWorld([s*.012,.034,-.014]),pitch:.2+.06,roll:Math.PI/2-s*.13});
-   return C.wrap(sheet(ellipse2(0,.072,.05,.08),(x)=>.0044-.0012*clamp01(x/.05),()=>0,[0,.072,.095],.0018));});
+  const crests=both(s=>{const C=placer({o:H.toWorld([s*.016,.029,-.013]),pitch:.06,roll:Math.PI/2-s*.1});
+   return C.wrap(sheet(ellipse2(.021,.023,.043,.069),()=>.0036,()=>0,[.021,.023,.09],.0015));});
   add('crest',crests,.006,.002);
-  runnerLegs(add,{});runnerArms(add,{hand:[.088,.285,.232]});
-  return {field,H,eyes:eyesOf(H,skull.eye,.0074),headY,headZ,biped:true,neckBase:[0,.34,.1],neckY:[.32,.41],tail:[-.18,-.76],tailPivot:[0,.33,-.15],centre:.33,
-   bounds:[[-.2,-.012,-.85],[.2,.6,.5]],
-   paint:{back:[.07,.11,.07],belly:[.42,.38,.25],bands:[58,.45],spots:true,mottle:.25,crest:[.5,.14,.035],crestTip:[.62,.46,.1],iris:[.38,.22,.03],slit:true,scale:.6,tub:.12},
+  const F=placer({o:[0,.441,.226],pitch:-Math.PI/2}),fan={A:.167,B:.129};
+  const edge=(x,z)=>{const a=Math.atan2(z/fan.B,x/fan.A),ripple=.004*(.5+.5*Math.cos(a*22));
+   return Math.max(ellipse2(0,0,fan.A,fan.B)(x,z)+ripple,(z>.032?.023-Math.abs(x):-1));};
+  add('displayFrill',[F.wrap(sheet(edge,()=>.0034,(x,z)=>.024*(1-Math.hypot(x/fan.A,z/fan.B))+.003*Math.cos(Math.atan2(z,x)*22),[0,0,.19],.001))],.006,.002);
+  runnerLegs(add,{});runnerArms(add,{shoulder:[.053,.359,.106],elbow:[.079,.292,.137],hand:[.082,.249,.207],r:[.017,.011],grasp:true});
+  return {field,H,F,fan,eyes:eyesOf(H,skull.eye,.0085*1.16),headY,headZ,biped:true,neckBase:[0,.34,.1],neckY:[.32,.42],tail:[-.18,-.7],tailPivot:[0,.33,-.15],centre:.33,
+   bounds:[[-.21,-.012,-.76],[.21,.64,.48]],
+   paint:{back:[.047,.079,.047],belly:[.32,.315,.19],bands:[47,.48],spots:true,mottle:.4,crest:[.26,.19,.055],crestTip:[.44,.39,.17],iris:[.36,.28,.06],slit:true,scale:.68,tub:.09},
    decorate:toothPaint(skull.mouth,skull.front),
-   spheres:[[0,.35,.02,.078],[0,.33,-.12,.07],[0,.47,.32,.055],[0,.4,.2,.035],[0,.33,-.36,.042],[0,.16,0,.06]]};
+   spheres:[[0,.35,.02,.078],[0,.33,-.12,.07],[0,.47,.32,.055],[-.09,.45,.23,.084],[.09,.45,.23,.084],[0,.33,-.36,.042],[0,.16,0,.06]]};
  },
  // Parasaurolophus: heavy-hipped, deep-tailed, a broad duck bill and the long tube crest swept back from the skull.
  parasaurolophus(){
-  const {add,carve,field}=sculpt(),headY=.485,headZ=.285,H=placer({o:[0,headY,headZ],pitch:.3});
+  const {add,carve,field}=sculpt(),headY=.538,headZ=.26,H=placer({o:[0,headY,headZ],pitch:.1,scale:1.13});
   add('body',[loft([[-.8,.32,.312,.002],[-.65,.35,.302,.011],[-.43,.378,.27,.025],[-.27,.428,.222,.058],[-.13,.462,.197,.104],[.01,.458,.207,.116],[.12,.418,.247,.088],[.2,.37,.293,.034]])],0,0);
-  add('neck',[uprightLoft([[.315,.098,.052,.042],[.35,.135,.062,.054],[.39,.172,.053,.042],[.43,.203,.045,.035],[.47,.232,.04,.031],[.505,.258,.037,.03]])],.02,0);
+  add('neck',[uprightLoft([[.315,.098,.052,.042],[.36,.135,.065,.056],[.413,.171,.058,.046],[.46,.188,.046,.036],[.51,.213,.044,.034],[.555,.236,.039,.031]])],.022,0);
   add('head',H.all([loft([[-.05,.026,-.022,.027],[-.02,.034,-.028,.032],[.015,.031,-.026,.028],[.05,.02,-.02,.021],[.08,.01,-.016,.018],[.105,.003,-.013,.021],[.122,-.002,-.011,.02]]),
    ...both(s=>ellipsoid([s*.02,-.012,.002],[.014,.02,.03]))]),.009,.008);
   add('jaw',H.all([loft([[-.04,-.012,-.045,.026],[.0,-.018,-.048,.026],[.045,-.018,-.038,.019],[.085,-.014,-.027,.016],[.115,-.013,-.022,.018]])]),.006,.006);
   add('beak',H.all([ellipsoid([0,-.004,.121],[.023,.0085,.019]),ellipsoid([0,-.02,.114],[.019,.007,.016])]),.005,.004);
-  add('crest',H.all(chain([[[0,.018,.065],.011],[[0,.042,.012],.0155],[[0,.063,-.055],.0165],[[0,.077,-.13],.0152],[[0,.079,-.19],.0125],[[0,.074,-.222],.008]],{squeeze:.82})),.012,.006);
-  const eye=[.026,.017,.008];add('eye',H.all(both(s=>sphere([s*eye[0],eye[1],eye[2]],.0072))),.002,.001);
+  add('crest',H.all(chain([[[0,.018,.065],.012],[[0,.046,.006],.018],[[0,.079,-.06],.019],[[0,.088,-.14],.0175],[[0,.075,-.215],.0145],[[0,.055,-.25],.008]],{squeeze:.84})),.012,.007);
+  const eye=[.024,.017,.008];add('eye',H.all(both(s=>sphere([s*eye[0],eye[1],eye[2]],.0082))),0,0);
   carve('socket',H.all(both(s=>ellipsoid([s*.033,.018,.009],[.0095,.0085,.011]))),.004);
   carve('nostril',H.all(both(s=>ellipsoid([s*.0175,.004,.096],[.0045,.0038,.014]))),.003);
   runnerLegs(add,{hipX:.084,heavy:true});runnerArms(add,{shoulder:[.063,.357,.103],elbow:[.092,.268,.14],hand:[.084,.196,.19],r:[.021,.014],hoof:true});
-  return {field,H,eyes:eyesOf(H,eye,.0072),headY,headZ,biped:true,neckBase:[0,.34,.1],neckY:[.32,.41],tail:[-.18,-.76],tailPivot:[0,.33,-.15],centre:.34,
-   bounds:[[-.2,-.012,-.85],[.2,.67,.46]],
-   paint:{back:[.13,.095,.05],belly:[.4,.33,.21],bands:[50,.3],mottle:.2,crest:[.3,.1,.045],crestTip:[.12,.06,.035],beak:[.2,.17,.12],iris:[.14,.08,.02],scale:.55,tub:.2},
+  return {field,H,eyes:eyesOf(H,eye,.0082*1.13),headY,headZ,biped:true,neckBase:[0,.34,.1],neckY:[.33,.51],tail:[-.18,-.76],tailPivot:[0,.33,-.15],centre:.34,
+   bounds:[[-.2,-.012,-.85],[.2,.77,.46]],
+   paint:{back:[.265,.153,.058],belly:[.47,.405,.285],bands:[50,.12],mottle:.4,crest:[.11,.057,.033],crestTip:[.035,.025,.019],beak:[.078,.064,.046],iris:[.15,.085,.025],scale:.62,tub:.14},
    decorate:(L,col)=>{const [x,y,z]=L;if(z>.02&&z<.11&&Math.abs(x)>.012&&Math.abs(y+.0185+.004*smooth(.06,.11,z))<.0016)return [.03,.022,.015];return col;},
-   spheres:[[0,.34,.0,.11],[0,.34,-.16,.09],[0,.5,.29,.055],[0,.53,.21,.035],[0,.34,-.4,.05],[0,.16,0,.07]]};
+   spheres:[[0,.34,.0,.11],[0,.34,-.16,.09],[0,.54,.29,.062],[0,.48,.21,.048],[0,.34,-.4,.05],[0,.16,0,.07]]};
  },
  // Pachycephalosaurus: a massive bone dome over a short face, ringed behind with a shelf of knobs and spikes.
  pachycephalosaurus(){
-  const {add,carve,field}=sculpt(),headY=.415,headZ=.265,H=placer({o:[0,headY,headZ],pitch:.15,scale:1.1});
+  const {add,carve,field}=sculpt(),headY=.472,headZ=.25,H=placer({o:[0,headY,headZ],pitch:.12,scale:1.23});
   add('body',[loft([[-.78,.325,.318,.001],[-.62,.34,.306,.012],[-.42,.356,.29,.028],[-.24,.407,.25,.058],[-.09,.44,.22,.09],[.05,.43,.23,.085],[.15,.398,.272,.053],[.2,.36,.31,.017]])],0,0);
-  add('neck',[uprightLoft([[.315,.1,.042,.034],[.35,.14,.054,.048],[.385,.18,.048,.038],[headY-.012,.214,.037,.031],[headY+.022,.246,.038,.032]])],.02,0);
+  add('neck',[uprightLoft([[.315,.1,.043,.035],[.365,.14,.056,.05],[.41,.175,.052,.042],[headY-.012,.202,.04,.035],[headY+.022,.233,.038,.034]])],.023,0);
   add('head',H.all([loft([[-.045,.028,-.022,.03],[-.015,.036,-.03,.035],[.015,.032,-.03,.031],[.04,.02,-.027,.023],[.06,.008,-.023,.015],[.076,-.004,-.019,.009]])]),.008,.008);
   add('jaw',H.all([loft([[-.035,-.02,-.05,.027],[.0,-.026,-.054,.027],[.035,-.026,-.045,.02],[.066,-.022,-.033,.011]])]),.006,.006);
   add('beak',H.all([ellipsoid([0,-.013,.077],[.0072,.0115,.0085])]),.004,.003);
-  add('dome',H.all([ellipsoid([0,.05,-.008],[.041,.045,.051]),ellipsoid([0,.032,.022],[.031,.03,.035],{pitch:.25})]),.012,.012);
+  add('dome',H.all([ellipsoid([0,.045,-.009],[.04,.031,.044]),ellipsoid([0,.031,.021],[.03,.021,.029],{pitch:.25})]),.01,.01);
   add('head',H.all([ellipsoid([0,.019,-.04],[.045,.019,.032])]),.01,.01);
   // Knobs: a ring of short spikes round the back and sides of the squamosal shelf, rows on the cheeks and nose.
   const knobs=[];for(let i=0;i<13;i++){const a=-1.45+i*2.9/12,sx=Math.sin(a),cz=Math.cos(a),bx=sx*.045,by=.014+Math.abs(sx)*.004,bz=-.046-cz*.026,L=.011+.004*Math.cos(a*3);
@@ -309,15 +376,15 @@ const SPECIES={
   for(const s of [-1,1]){for(let i=0;i<3;i++)knobs.push(sphere([s*(.031-.004*i),-.008-.006*i,.004+.012*i],.0045));
    for(let i=0;i<3;i++)knobs.push(sphere([s*.007,[.0155,.0095,.003][i],.048+.01*i],.0038));}
   add('knob',H.all(knobs),.005,.002);
-  const eye=[.028,.016,.02];add('eye',H.all(both(s=>sphere([s*eye[0],eye[1],eye[2]],.0068))),.002,.001);
+  const eye=[.026,.016,.02];add('eye',H.all(both(s=>sphere([s*eye[0],eye[1],eye[2]],.0078))),0,0);
   carve('socket',H.all(both(s=>ellipsoid([s*.035,.017,.021],[.009,.008,.011]))),.004);
   carve('nostril',H.all(both(s=>ellipsoid([s*.0085,.001,.068],[.0032,.003,.005]))),.002);
   runnerLegs(add,{hipX:.07,heavy:true});runnerArms(add,{shoulder:[.052,.35,.1],elbow:[.078,.29,.132],hand:[.08,.268,.2],r:[.015,.01]});
-  return {field,H,eyes:eyesOf(H,eye,.0068*1.1),headY,headZ,biped:true,neckBase:[0,.34,.1],neckY:[.33,.4],tail:[-.18,-.76],tailPivot:[0,.33,-.15],centre:.33,
-   bounds:[[-.2,-.012,-.83],[.2,.58,.42]],
-   paint:{back:[.18,.115,.06],belly:[.46,.38,.26],bands:[44,.45],mottle:.25,dome:[.5,.43,.32],knob:[.46,.4,.3],beak:[.06,.05,.04],iris:[.12,.07,.02],scale:.6,tub:.2},
+  return {field,H,eyes:eyesOf(H,eye,.0078*1.23),headY,headZ,biped:true,neckBase:[0,.34,.1],neckY:[.33,.45],tail:[-.18,-.76],tailPivot:[0,.33,-.15],centre:.33,
+   bounds:[[-.2,-.012,-.83],[.2,.62,.42]],
+   paint:{back:[.075,.115,.118],belly:[.39,.36,.27],bands:[44,.24],mottle:.4,dome:[.49,.415,.3],knob:[.27,.225,.16],beak:[.063,.052,.038],iris:[.21,.12,.04],scale:.64,tub:.12},
    decorate:(L,col)=>{const [x,y,z]=L;if(z>-.01&&z<.07&&Math.abs(x)>.01&&Math.abs(y+.027)<.0014)return col.map(v=>v*.35);return col;},
-   spheres:[[0,.34,.02,.085],[0,.33,-.13,.075],[0,.45,.26,.055],[0,.33,-.37,.045],[0,.16,0,.065]]};
+   spheres:[[0,.34,.02,.085],[0,.33,-.13,.075],[0,.51,.25,.071],[0,.42,.19,.045],[0,.33,-.37,.045],[0,.16,0,.065]]};
  },
  // Triceratops: barrel body on four pillar legs; a deep, narrow face ending in a hooked beak, a short
  // nose horn, two long brow horns, cheek spikes and a broad solid frill scalloped with epoccipitals.
@@ -325,26 +392,28 @@ const SPECIES={
   const {add,carve,field}=sculpt();
   add('body',[loft([[-.64,.184,.17,.003],[-.54,.214,.176,.016],[-.42,.262,.184,.036],[-.3,.332,.176,.07],[-.19,.374,.156,.1],[-.08,.382,.128,.12],[.04,.366,.122,.124],[.14,.334,.138,.11],[.21,.302,.168,.086],[.27,.286,.2,.06]])],0,0);
   add('neck',[roundCone([0,.25,.22],[0,.262,.3],.066,.052,{squeeze:.92}),ellipsoid([0,.2,.27],[.052,.046,.06])],.03,.02);
-  // The head's frame sits at the neck joint; the skull axis dips 24 degrees, nose down.
-  const H=placer({o:[0,.262,.29],pitch:.42});
+  // Broad Winston-style facial mass; the shorter rostrum sits under the nasal boss.
+  const H=placer({o:[0,.262,.29],pitch:.29,scale:1.08});
   add('head',H.all([
-   ellipsoid([0,.036,.042],[.05,.052,.068]),
-   loft([[.0,.062,-.042,.052],[.06,.078,-.05,.055],[.11,.07,-.05,.045],[.155,.056,-.047,.032],[.192,.036,-.042,.022],[.222,.01,-.038,.015],[.238,-.012,-.035,.011]]),
-   ...both(s=>ellipsoid([s*.044,-.016,.048],[.026,.04,.04]))]),.012,.012);
+   ellipsoid([0,.036,.042],[.062,.055,.066]),
+   loft([[.0,.062,-.042,.062],[.06,.078,-.052,.065],[.11,.071,-.052,.055],[.151,.052,-.049,.04],[.18,.027,-.044,.029],[.207,.003,-.04,.019],[.222,-.013,-.035,.014]]),
+   ...both(s=>ellipsoid([s*.05,-.018,.051],[.032,.043,.042]))]),.014,.012);
   add('jaw',H.all([loft([[.0,-.022,-.068,.044],[.055,-.036,-.09,.044],[.115,-.04,-.084,.035],[.175,-.04,-.07,.024],[.222,-.038,-.056,.013]])]),.008,.008);
   // Hooked upper beak (rostral) over a pointed lower beak (predentary).
-  add('beak',H.all([roundCone([0,.004,.222],[0,-.042,.254],.016,.0035,{squeeze:.62}),roundCone([0,-.046,.214],[0,-.054,.244],.012,.0035,{squeeze:.7})]),.006,.004);
+  add('beak',H.all([
+   loft([[.176,.015,-.041,.025],[.204,.02,-.054,.025],[.227,-.006,-.058,.018],[.242,-.034,-.045,.005]]),
+   loft([[.177,-.034,-.073,.022],[.21,-.039,-.075,.02],[.233,-.048,-.061,.008]])]),.004,.003);
   add('horn',H.all([
    ...chain([[[0,.048,.152],.0155],[[0,.078,.166],.009],[[0,.098,.18],.0025]]),
-   ...both(s=>chain([[[s*.029,.068,.068],.021],[[s*.042,.12,.132],.0125],[[s*.051,.152,.212],.0026]])),
+   ...both(s=>chain([[[s*.039,.068,.064],.023],[[s*.051,.111,.127],.017],[[s*.066,.149,.191],.0105],[[s*.073,.195,.235],.0017]])),
    ...both(s=>roundCone([s*.06,-.036,.046],[s*.08,-.066,.04],.012,.003))]),.008,.003);
-  const eye=[.036,.046,.076];add('eye',H.all(both(s=>sphere([s*eye[0],eye[1],eye[2]],.0098))),.002,.001);
-  carve('socket',H.all(both(s=>ellipsoid([s*.046,.047,.077],[.0115,.0105,.0135]))),.004);
-  carve('nostril',H.all(both(s=>ellipsoid([s*.024,.012,.205],[.006,.0085,.013],{pitch:-.3}))),.004);
+  const eye=[.047,.041,.075];add('eye',H.all(both(s=>sphere([s*eye[0],eye[1],eye[2]],.0102))),0,0);
+  carve('socket',H.all(both(s=>ellipsoid([s*.057,.043,.078],[.015,.012,.016]))),.003);
+  carve('nostril',H.all(both(s=>ellipsoid([s*.034,.007,.181],[.009,.008,.016],{pitch:-.3}))),.003);
   // The frill: a solid shield rising back from the skull roof, dished slightly forward, thickest along its
   // midline; its lower corners reach down beside the cheeks. Local x lateral, z up the frill, y through it.
-  const Fr=placer({o:H.toWorld([0,.05,-.004]),pitch:.42-(Math.PI-.5)}),A=.126,B=.126,ZC=.04;
-  const bend=(x,z)=>-.4*x*x-.12*Math.max(0,z-.1)**2;
+  const Fr=placer({o:H.toWorld([0,.05,-.004]),pitch:.29-(Math.PI-.52)}),A=.153,B=.131,ZC=.04;
+  const bend=(x,z)=>-.9*x*x-.2*Math.max(0,z-.1)**2;
   const frill=sheet(ellipse2(0,ZC,A,B),(x,z)=>.0052+.0055*clamp01(1-(x/A)**2-((z-ZC)/B)**2)+.0035*Math.exp(-((x/.014)**2))*smooth(-.03,.03,z)*(1-smooth(.12,.165,z)),bend,[0,ZC,A+.01]);
   add('frill',[Fr.wrap(frill)],.02,.006);
   const rim=[];for(let i=0;i<19;i++){const t=-.42+i*(Math.PI+.84)/18,x=Math.cos(t)*A,z=ZC+Math.sin(t)*B,nx=Math.cos(t)/A,nz=Math.sin(t)/B,nl=Math.hypot(nx,nz);
@@ -356,9 +425,9 @@ const SPECIES={
    fore:{pivot:[.09,.24,.13],muscle:[[.092,.245,.14],[.044,.07,.068]],keys:[[.005,.152,.03,.033,.106],[.03,.15,.026,.028,.106],[.07,.146,.024,.025,.105],[.12,.14,.028,.03,.106],[.17,.132,.036,.038,.109],[.215,.133,.05,.045,.1],[.26,.13,.06,.05,.086]],
     toes:[-1,-.5,0,.5,1],spread:.019,splay:.005,reach:.026,toeR:.0085},
   });
-  return {field,H,Fr,frill:{A,B,ZC},eyes:eyesOf(H,eye,.0098,.35),headY:.25,headZ:.34,quad:true,neckBase:[0,.26,.2],neckZ:[.19,.3],tail:[-.26,-.64],tailPivot:[0,.3,-.25],centre:.26,
-   bounds:[[-.21,-.012,-.68],[.21,.5,.58]],
-   paint:{back:[.105,.092,.066],belly:[.33,.29,.21],bands:[26,.16],mottle:.3,frill:[.34,.13,.05],frillRim:[.06,.045,.03],horn:[.56,.5,.38],beak:[.045,.04,.034],hoof:[.07,.06,.045],epoc:[.48,.42,.31],iris:[.16,.09,.025],scale:.5,tub:.75},
+  return {field,H,Fr,frill:{A,B,ZC},eyes:eyesOf(H,eye,.0102*1.08,.35),headY:.25,headZ:.34,quad:true,neckBase:[0,.26,.2],neckZ:[.19,.3],tail:[-.26,-.64],tailPivot:[0,.3,-.25],centre:.26,
+   bounds:[[-.23,-.012,-.68],[.23,.57,.62]],
+   paint:{back:[.094,.076,.067],belly:[.27,.224,.183],bands:[26,.08],mottle:.48,frill:[.16,.116,.092],frillRim:[.059,.048,.041],horn:[.34,.285,.203],beak:[.14,.113,.074],hoof:[.065,.053,.042],epoc:[.24,.201,.151],iris:[.16,.074,.041],scale:.58,tub:.56},
    decorate(L,col){const [x,y,z]=L;
     // A closed lip line from the beak back under the eye.
     if(z>.03&&z<.226&&Math.abs(x)>.012){const m=-.047+.006*smooth(.14,.22,z),d=Math.abs(y-m);if(d<.0024)return col.map(v=>v*(.4+.6*smooth(.0008,.0024,d)));}
@@ -373,7 +442,7 @@ const SPECIES={
   add('neck',chain([[[0,.214,.235],.046],[[0,.196,.29],.035],[[0,.184,.328],.025]],{squeeze:.8}),.02,.012);
   // Ossicles: a pavement of small bony studs under the throat.
   add('ossicle',[...Array(9)].map((_,i)=>{const z=.25+i*.011,t=(z-.235)/.105,y=.212+(.18-.212)*t-(.044+(.026-.044)*t)*.86;return sphere([(i%2?1:-1)*.008,y,z],.0052);}),.004,.002);
-  const H=placer({o:[0,.18,.338],pitch:.42,scale:.84});
+  const H=placer({o:[0,.18,.338],pitch:.3,scale:1.02});
   add('head',H.all([loft([[-.018,.028,-.022,.024],[.005,.033,-.024,.026],[.03,.03,-.022,.022],[.055,.021,-.018,.016],[.075,.011,-.013,.011],[.088,.002,-.01,.007]]),...both(s=>ellipsoid([s*.016,-.008,.026],[.0095,.014,.022])),...both(s=>ellipsoid([s*.014,.026,.02],[.008,.006,.017]))]),.007,.008);
   add('jaw',H.all([loft([[-.012,-.012,-.036,.02],[.02,-.014,-.034,.019],[.05,-.013,-.026,.013],[.08,-.01,-.017,.0065]])]),.006,.006);
   add('beak',H.all([ellipsoid([0,-.007,.086],[.0066,.0098,.0085])]),.004,.003);
@@ -381,38 +450,38 @@ const SPECIES={
   carve('socket',H.all(both(s=>ellipsoid([s*.027,.014,.023],[.008,.0072,.009]))),.003);
   carve('nostril',H.all(both(s=>ellipsoid([s*.0065,.002,.08],[.003,.003,.0045]))),.002);
   // Plates: broad rounded leaves, tallest over the hips and the base of the tail, in two staggered rows.
-  const plates=[];for(let i=0;i<17;i++){const z=.27-i*.045,bell=Math.exp(-(((z+.14)/.21)**2)),neck=smooth(.1,.27,z),h=.018+.07*bell-.006*neck,s=i%2?1:-1,t=body.top(z);
-   plates.push(plate([s*.0105,t+h*.42,z],(.022+.026*bell)*(1-.25*neck),h,.0048,{pitch:-.14-.1*bell,yaw:s*.045,leaf:.55,round:.0035}));}
+  const plates=[];for(let i=0;i<17;i++){const z=.28-i*.048,bell=Math.exp(-(((z+.12)/.23)**2)),neck=smooth(.1,.27,z),h=.021+.116*bell-.01*neck,s=i%2?1:-1,t=body.top(z);
+   plates.push(plate([s*.018,t+h*.52,z],(.024+.035*bell)*(1-.25*neck),h,.006,{pitch:-.11-.13*bell,yaw:s*.065,leaf:.24,round:.004}));}
   add('plate',plates,.009,.002);
-  add('spike',both(s=>[roundCone([s*.012,.228,-.5],[s*.078,.272,-.54],.0125,.003),roundCone([s*.01,.215,-.56],[s*.066,.254,-.625],.0115,.0028)]),.007,.002);
+  add('spike',both(s=>[roundCone([s*.012,.228,-.5],[s*.115,.286,-.552],.014,.002),roundCone([s*.01,.215,-.56],[s*.097,.272,-.661],.013,.0018)]),.007,.002);
   pillarLegs(add,{
    hind:{pivot:[.07,.34,-.15],muscle:[[.075,.29,-.15],[.04,.082,.078]],keys:[[.005,-.128,.034,.03,.075],[.035,-.134,.027,.025,.075],[.08,-.143,.025,.024,.074],[.13,-.158,.028,.026,.073],[.19,-.143,.034,.03,.072],[.25,-.124,.045,.036,.071],[.3,-.14,.065,.046,.07],[.36,-.155,.08,.05,.066]],
     toes:[-1,0,1],spread:.016,splay:.002,reach:.03,toeR:.0095},
    fore:{pivot:[.075,.2,.17],muscle:[[.076,.2,.17],[.036,.06,.056]],keys:[[.005,.186,.028,.029,.085],[.03,.184,.024,.024,.085],[.07,.181,.022,.022,.086],[.11,.177,.026,.026,.088],[.16,.173,.036,.034,.085],[.21,.17,.046,.038,.077]],
     toes:[-1,-.5,0,.5,1],spread:.015,splay:.004,reach:.022,toeR:.0072},
   });
-  return {field,H,eyes:eyesOf(H,eye,.0062*.84),top:z=>body.top(z),headY:.17,headZ:.38,quad:true,neckBase:[0,.2,.22],neckZ:[.21,.31],tail:[-.18,-.66],tailPivot:[0,.33,-.18],centre:.27,
-   bounds:[[-.18,-.012,-.68],[.18,.56,.47]],
-   paint:{back:[.095,.105,.058],belly:[.37,.34,.21],bands:[30,.2],mottle:.3,plate:[.42,.14,.05],plateEdge:[.5,.34,.14],spike:[.52,.46,.34],beak:[.05,.045,.035],hoof:[.07,.06,.045],ossicle:[.36,.33,.24],iris:[.12,.07,.02],scale:.5,tub:.55},
+  return {field,H,eyes:eyesOf(H,eye,.0062*1.02),top:z=>body.top(z),headY:.17,headZ:.38,quad:true,neckBase:[0,.2,.22],neckZ:[.21,.31],tail:[-.18,-.66],tailPivot:[0,.33,-.18],centre:.27,
+   bounds:[[-.18,-.012,-.71],[.18,.67,.47]],
+   paint:{back:[.077,.105,.071],belly:[.31,.3,.205],bands:[30,.15],mottle:.43,plate:[.18,.139,.075],plateEdge:[.23,.213,.13],spike:[.31,.281,.19],beak:[.055,.048,.034],hoof:[.062,.054,.039],ossicle:[.25,.245,.16],iris:[.2,.115,.026],scale:.6,tub:.44},
    decorate(L,col){const [x,y,z]=L;if(z>.0&&z<.082&&Math.abs(x)>.006&&Math.abs(y+.014+.003*smooth(.05,.085,z))<.0017)return col.map(v=>v*.35);return col;},
-   spheres:[[0,.29,-.06,.13],[0,.33,-.2,.1],[0,.44,-.12,.07],[0,.17,.37,.05],[0,.23,-.45,.05]]};
+   spheres:[[0,.29,-.06,.13],[0,.33,-.2,.1],[0,.51,-.19,.092],[0,.51,-.04,.087],[0,.17,.37,.05],[0,.23,-.45,.05]]};
  },
  // Gallimimus: an ostrich-like runner; small big-eyed head with a long toothless beak on a slender S-curved
  // neck, a deep compact body, a long level tail and long slim legs. Rigged like the chase's herd animals.
  gallimimus(){
   const {add,carve,field}=sculpt();
   add('body',[loft([[-.64,.318,.306,.002],[-.5,.328,.3,.008],[-.36,.34,.291,.018],[-.22,.362,.27,.037],[-.1,.398,.25,.062],[.0,.412,.24,.074],[.08,.406,.248,.068],[.14,.388,.282,.05],[.18,.37,.318,.028]])],0,0);
-  add('neck',[uprightLoft([[.335,.13,.036,.032],[.37,.165,.03,.026],[.41,.198,.024,.02],[.45,.225,.02,.017],[.49,.258,.018,.0155],[.525,.296,.018,.016]])],.02,0);
-  const H=placer({o:[0,.522,.312],pitch:.06});
+  add('neck',[uprightLoft([[.335,.13,.035,.028],[.382,.163,.03,.024],[.43,.178,.026,.02],[.482,.183,.022,.017],[.535,.22,.019,.016],[.583,.278,.022,.018]])],.016,0);
+  const H=placer({o:[0,.582,.303],pitch:.03,scale:1.08});
   add('head',H.all([loft([[-.024,.012,-.012,.015],[-.004,.019,-.013,.018],[.018,.015,-.01,.014],[.036,.007,-.007,.008],[.05,.002,-.005,.005]])]),.006,.006);
   add('jaw',H.all([loft([[-.016,-.004,-.017,.013],[.012,-.006,-.014,.01],[.042,-.005,-.008,.005]])]),.004,.004);
-  add('beak',H.all([ellipsoid([0,-.002,.052],[.0048,.0055,.016])]),.004,.003);
-  const eye=[.0148,.007,.0];add('eye',H.all(both(s=>sphere([s*eye[0],eye[1],eye[2]],.0064))),.0015,.001);
+  add('beak',H.all([ellipsoid([0,-.002,.057],[.0085,.0055,.023])]),.004,.003);
+  const eye=[.0125,.007,.0];add('eye',H.all(both(s=>sphere([s*eye[0],eye[1],eye[2]],.0072))),0,0);
   carve('socket',H.all(both(s=>ellipsoid([s*.0205,.0075,.001],[.0068,.0068,.0082]))),.003);
-  runnerLegs(add,{hipX:.052,slim:.88});runnerArms(add,{shoulder:[.04,.372,.12],elbow:[.062,.312,.148],hand:[.066,.284,.2],r:[.011,.0075]});
-  return {field,H,eyes:eyesOf(H,eye,.0064,.1),headY:.52,headZ:.33,biped:true,neckBase:[0,.35,.13],neckY:[.37,.47],tail:[-.14,-.64],tailPivot:[0,.32,-.1],centre:.31,
-   bounds:[[-.17,-.012,-.66],[.17,.58,.4]],
-   paint:{back:[.16,.11,.065],belly:[.48,.42,.31],bands:[38,.2],mottle:.2,beak:[.2,.17,.12],iris:[.2,.12,.03],scale:.5,tub:0},
+  runnerLegs(add,{hipX:.052,slim:.83});runnerArms(add,{shoulder:[.044,.371,.11],elbow:[.064,.294,.137],hand:[.068,.245,.205],r:[.012,.0085],grasp:true});
+  return {field,H,eyes:eyesOf(H,eye,.0072*1.08,.1),headY:.58,headZ:.33,biped:true,neckBase:[0,.35,.13],neckY:[.37,.55],tail:[-.14,-.64],tailPivot:[0,.32,-.1],centre:.31,
+   bounds:[[-.17,-.012,-.68],[.17,.65,.43]],
+   paint:{back:[.235,.119,.046],belly:[.49,.404,.27],bands:[38,.14],mottle:.38,beak:[.13,.102,.068],iris:[.27,.17,.058],scale:.55,tub:0},
    spheres:[[0,.33,0,.1]]};
  },
 };
@@ -423,7 +492,7 @@ const pad=b=>b.length%4?Buffer.concat([b,Buffer.alloc(4-b.length%4)]):b;
 const only=process.argv[2]?.split(',');
 for(const name of Object.keys(SPECIES))for(const tier of ['high','low']){
  if(only&&!only.includes(name))continue;
- const vox=VOX=tier==='high'?.0064:.0115,a=SPECIES[name](),{field,paint:pt}=a,{positions:P,normals:N,indices:I}=mesh(field,vox,a.bounds),n=P.length/3;
+ const vox=VOX=tier==='high'?(name==='raptor'?.0042:.0048):.0102,a=SPECIES[name](),{field,paint:pt}=a,{positions:P,normals:N,indices:I}=mesh(field,vox,a.bounds),n=P.length/3;
  // Positions are quantized inside the bounds; a surface that reaches them would be clipped open and wrap.
  for(let i=0;i<n*3;i++){const ax=i%3,v=P[i];if((ax!==1&&v<a.bounds[0][ax]+vox)||v>a.bounds[1][ax]-vox)throw Error(`${name} ${tier}: the sculpt reaches its ${'xyz'[ax]} bound (${v.toFixed(3)})`);}
  const pivots=[],pivotIndex=(part,side,lead,p)=>{const key=[part,side,lead,...p].join();let i=pivots.findIndex(q=>q.key===key);if(i<0){i=pivots.length;pivots.push({key,part,side,lead,p});}return i;};
@@ -449,6 +518,18 @@ for(const name of Object.keys(SPECIES))for(const tier of ['high','low']){
   col=col.map((v,c)=>v*(1+(pt.mottle||0)*((m-.5)*1.6+(m2-.5)*.5))*(c===1?1+(m-.5)*.12:1));
   const [freq,depth]=pt.bands,band=smooth(.28,.78,Math.sin(z*freq+Math.sin(y*45)*1.2+Math.abs(x)*12+(m-.5)*2.2))*(a.quad?smooth(.15,.3,y):smooth(.22,.36,y))*dorsal;
   col=col.map(v=>v*(1-band*depth));
+  if(name==='parasaurolophus'&&(region==='body'||region==='neck')){
+   // The Lost World maquette has longitudinal dark dorsal ribbons and a
+   // stippled ochre saddle, rather than the shared theropod zebra pattern.
+   const ribbon=smooth(.39,.5,ny)*(1-smooth(.64,.74,ny)),spine=smooth(.88,.98,ny);
+   col=mix(col,[.062,.034,.019],Math.max(ribbon*.78,spine*.7)*smooth(.31,.4,y));
+   const dots=smooth(.64,.78,vnoise(x*175,y*175,z*175))*smooth(.26,.34,y)*(1-smooth(.41,.45,y));
+   col=col.map(v=>v*(1-dots*.46));
+  }
+  if(name==='raptor'&&region==='head'){
+   const L=a.H.local([x,y,z]),mask=(1-smooth(.01,.036,Math.abs(L[1]-.025)))*(1-smooth(.03,.1,L[2]));
+   col=col.map(v=>v*(1-mask*.28));
+  }
   if(pt.spots){const s=Math.sin(x*190+z*37)*Math.sin(z*150+y*61)*Math.sin(y*170+x*40);if(s>.35)col=col.map(v=>v*.6);}
   const speckle=hash3(Math.round(x*900),Math.round(y*900),Math.round(z*900));col=col.map(v=>v*(.94+speckle*.08));
   let scale=pt.scale*(region==='head'||region==='jaw'?.75:1),tub=(pt.tub||0)*dorsal*(region==='head'||region==='jaw'?.3:1),gloss=0;
@@ -460,11 +541,19 @@ for(const name of Object.keys(SPECIES))for(const tier of ['high','low']){
    scale=.3;tub=0;}
   if(region==='dome'&&pt.dome){col=mix(col,pt.dome,smooth(.15,.7,ny)).map(v=>v*(.9+m2*.18));scale=.08;tub=0;gloss=.18;}
   if(region==='knob'&&pt.knob){col=mix(col,pt.knob,.75);scale=0;tub=0;gloss=.25;}
+  if(region==='lid'){scale=.18;tub=0;}
   if(region==='frill'&&pt.frill){
    // Warm field darkening to a banded rim, with radiating vascular streaks.
    const [u,,w]=a.Fr.local([x,y,z]),{A,B,ZC}=a.frill,r=Math.hypot(u/A,(w-ZC)/B),ang=Math.atan2(w-ZC,u);
    col=mix(mix(col,pt.frill,smooth(-.02,.05,w)),pt.frillRim,smooth(.8,.96,r)).map(v=>v*(.84+.16*Math.sin(ang*23+m*3)*smooth(.3,.7,r)));
    if(r>.55&&r<.72)col=col.map(v=>v*.78);scale=.35;tub=0;}
+  if(region==='displayFrill'){
+   const [u,,v]=a.F.local([x,y,z]),r=Math.hypot(u/a.fan.A,v/a.fan.B),angle=Math.atan2(v/a.fan.B,u/a.fan.A);
+   const ray=(.5+.5*Math.sin(angle*22+Math.sin(r*12)*.25))**6,rim=smooth(.78,.97,r);
+   col=mix([.15,.052,.024],[.35,.22,.055],smooth(.2,.55,r));
+   col=mix(col,[.028,.037,.016],rim*.94+ray*smooth(.25,.52,r)*(1-rim)*.65);
+   col=col.map(v=>v*(.8+m*.35));scale=.22;tub=0;
+  }
   if(region==='epoc'&&pt.epoc){col=pt.epoc.map(v=>v*(.85+m2*.2));scale=0;tub=0;gloss=.2;}
   if(region==='horn'&&pt.horn){
    // Keratin: skin-coloured at the base, pale along the shaft, darker at the tip.
@@ -482,7 +571,7 @@ for(const name of Object.keys(SPECIES))for(const tier of ['high','low']){
    if(region==='eye'){const t=(dx*e.axis[0]+dy*e.axis[1]+dz*e.axis[2])/dist;col=mix(pt.iris.map(v=>v*.55),pt.iris,smooth(.55,.8,t));
     const vy=dy-e.axis[1]*t*dist,hz=Math.sqrt(Math.max(0,dist*dist*(1-t*t)-vy*vy));if(pt.slit?t>.62&&hz<e.r*.2:t>.86)col=[.004,.004,.003];scale=0;tub=0;gloss=1;}
    else col=col.map(v=>v*(.45+.55*smooth(e.r*1.15,e.r*1.9,dist)));}
-  if(f.hole==='nostril')col=col.map(v=>v*.45);
+  if(f.hole==='nostril'||f.hole==='lip')col=col.map(v=>v*.3);
   if(a.decorate&&H&&region!=='eye'&&!KERATIN.has(region))col=a.decorate(H,col);
   // Baked occlusion: close cavities and broad shadowing (between the legs, under the frill).
   let occ=0;for(const [d,w] of [[.006,.32],[.016,.3],[.035,.24],[.07,.14]])occ+=Math.max(0,(d-field(x+nx*d,y+ny*d,z+nz*d))/d)*w;
@@ -500,7 +589,7 @@ for(const name of Object.keys(SPECIES))for(const tier of ['high','low']){
   // Resting hull for the dead body (extreme surface points about the body centre) and hit spheres.
   const dirs=[];for(const dx of [-1,0,1])for(const dy of [-1,0,1])for(const dz of [-1,0,1])if(dx||dy||dz)dirs.push([dx,dy,dz].map(v=>v/Math.hypot(dx,dy,dz)));
   const hull=dirs.map(d=>{let best=-1e9,at=null;for(let v=0;v<n;v++){const px=P[v*3],py=P[v*3+1]-a.centre,pz=P[v*3+2],s=px*d[0]+py*d[1]+pz*d[2];if(s>best){best=s;at=[px,py,pz];}}return at.map(v=>+v.toFixed(4));});
-  header.species[name]={centre:a.centre,quad:!!a.quad,spheres:a.spheres,hull};
+  header.species[name]={centre:a.centre,quad:!!a.quad,spheres:a.spheres,hull,eyes:a.eyes,iris:pt.iris,slit:!!pt.slit};
  }
  console.log(`${name} ${tier}: ${n} vertices / ${I.length/3} triangles`);
 }
