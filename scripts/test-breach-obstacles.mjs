@@ -1,0 +1,13 @@
+import assert from 'node:assert/strict';
+import * as T from 'three';
+import {createObstacles} from '../src/breach/obstacles.js';
+const world=createObstacles(),wall=world.addBox('Thin barrier',[-2,0,4.95],[2,2,5.05]);
+const c={species:'raptor',scale:3.1,p:new T.Vector3(0,0,10),yaw:Math.PI};
+assert.equal(world.contact(c),null);
+assert.equal(world.canMove(c,new T.Vector3(0,0,0),Math.PI),false,'A long step cannot tunnel through a thin barrier');
+c.p.set(0,3,10);assert.equal(world.canMove(c,new T.Vector3(0,3,0),Math.PI),true,'A jump may clear a low obstacle');
+c.p.set(0,0,7.4);c.yaw=0;assert.ok(world.contact(c),'The trailing body is checked even when the root is clear');
+assert.equal(world.clearLine(new T.Vector3(0,1,4.95),new T.Vector3(0,1,0)),true,'Splash travels away from the front face');
+assert.equal(world.clearLine(new T.Vector3(0,1,4.95),new T.Vector3(0,1,10)),false,'Solid props block splash behind them');
+wall.enabled=false;assert.equal(world.contact(c),null,'Destroyed gates no longer obstruct passage');
+console.log('Breach obstacles passed: swept movement, height clearance, tail volume, solid splash and destroyed-gate state.');

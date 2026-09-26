@@ -1,8 +1,10 @@
 import * as T from 'three';
+import {createBreakup} from './breakup.js';
 
 // Breach-only pools: wet, lit geometry for liquid and torn tissue, with ground
 // contact and persistent splatter. No per-hit meshes or unbounded decal lists.
 export function createCombatFX(scene,effects){
+ const breakup=createBreakup(scene);
  let seed=703,nextDrop=0,nextChunk=0,nextStain=0,budget=1;
  const random=()=>{seed=(Math.imul(seed,1664525)+1013904223)>>>0;return seed/4294967296;};
  const dummy=new T.Object3D(),up=new T.Vector3(0,1,0),axis=new T.Vector3(),turn=new T.Quaternion(),color=new T.Color();
@@ -42,7 +44,7 @@ export function createCombatFX(scene,effects){
  const body=new T.Mesh(new T.CylinderGeometry(.055,.055,.5,8),rocketMat);body.rotation.x=Math.PI/2;rocket.add(body);
  const tip=new T.Mesh(new T.ConeGeometry(.056,.18,8),rocketMat);tip.rotation.x=Math.PI/2;tip.position.z=.32;rocket.add(tip);
  const flame=new T.Mesh(new T.ConeGeometry(.085,.5,8),new T.MeshBasicMaterial({color:new T.Color(5,1.9,.3),toneMapped:false}));flame.rotation.x=-Math.PI/2;flame.position.z=-.45;rocket.add(flame);rocket.visible=false;scene.add(rocket);
- const flight={age:0,duration:0,trail:0,from:new T.Vector3(),at:new T.Vector3(),detonate:null};
+ const flight={age:0,duration:0,trail:0,from:new T.Vector3(),at:new T.Vector3(),previous:new T.Vector3(),detonate:null,trace:null};
  function surface(x,z){return Math.abs(x)<1.02&&z>1.75&&z<3.26?1.075:0;}
  function stain(p,size=.6,floor=surface(p.x,p.z)){
   const i=nextStain++%stains.entries.length,b=stains.entries[i];b.life=b.max=18+random()*12;b.p.copy(p);b.deck=floor>0;b.p.y=floor+.008+(i%5)*.0005;b.s.set(size*(.8+random()*.6),size*(.6+random()*.5),1);b.q.setFromEuler(new T.Euler(-Math.PI/2,0,random()*6.28));stainData.setXY(i,random()*6.28,1);stainData.needsUpdate=true;stats.stains++;
@@ -52,16 +54,16 @@ export function createCombatFX(scene,effects){
   const bone=flesh&&random()<.06;
   color.setRGB(bone?.4:.16+random()*.13,bone?.26:.006+random()*.012,bone?.17:.012+random()*.018);pool.mesh.setColorAt(index%pool.entries.length,color);pool.mesh.instanceColor.needsUpdate=true;
  }
- function hit(p,dir,{dead=false,explosive=false,heavy=false}={}){
+ function hit(p,dir,{dead=false,explosive=false,heavy=false,direct=false}={}){
   stats.hits++;if(dead)stats.kills++;if(explosive)stats.blasts++;
-  const strength=(explosive?2.4:dead?1.55:1)*(heavy?1.18:1),count=Math.round((explosive?150:dead?95:45)*budget);
+  const strength=(explosive?2.4:dead?1.55:1)*(heavy?1.18:1),count=Math.round((direct?230:explosive?150:dead?95:45)*budget);
   for(let i=0;i<count;i++){
    // Entry spray comes back toward the gun; the exit jet follows the round.
    const forward=i%4===0?1:-1,vel=dir.clone().multiplyScalar(forward*(2+random()*5)*strength);
    vel.add(new T.Vector3((random()-.5)*4,random()*3,(random()-.5)*4).multiplyScalar(strength));
    launch(drops,nextDrop++,p,vel,(.004+random()*.01)*(dead?1.2:1));stats.drops++;
   }
-  const pieces=Math.round((explosive?25:dead?12:3)*budget);
+  const pieces=Math.round((direct?38:explosive?25:dead?12:3)*budget);
   for(let i=0;i<pieces;i++){
    const vel=new T.Vector3(random()-.5,.25+random()*.55,random()-.5).normalize().multiplyScalar((2+random()*4)*strength).addScaledVector(dir,explosive?2:-1);
    launch(chunks,nextChunk++,p,vel,(explosive?.065:dead?.045:.02)+random()*(explosive?.11:.04),true);stats.chunks++;
@@ -92,21 +94,23 @@ export function createCombatFX(scene,effects){
    }dummy.updateMatrix();pool.mesh.setMatrixAt(i,dummy.matrix);
   }pool.mesh.count=end;pool.mesh.instanceMatrix.needsUpdate=true;
  }
- return {stats,drops,chunks,stains,rocket,
-  hit,stain,
-  setQuality(t){budget=t.gore??t.particles;},
-  launch(from,at,detonate){flight.from.copy(from);flight.at.copy(at);flight.age=flight.trail=0;flight.duration=Math.max(.09,from.distanceTo(at)/70);flight.detonate=detonate;rocket.position.copy(from);rocket.lookAt(at);rocket.visible=true;stats.rockets++;},
+ return {stats,drops,chunks,stains,rocket,breakup,
+  hit,stain,shatter:breakup.burst,get impact(){return flight.impact;},
+  setQuality(t){budget=t.gore??t.particles;breakup.setQuality(t);},
+  launch(from,at,detonate,trace=null){flight.from.copy(from);flight.at.copy(at);flight.age=flight.trail=0;flight.impact=null;flight.duration=Math.max(.09,from.distanceTo(at)/70);flight.detonate=detonate;flight.trace=trace;rocket.position.copy(from);rocket.lookAt(at);rocket.visible=true;stats.rockets++;},
   update(dt,speed=0){
    if(dt<=0)return;
+   breakup.update(dt,speed);
    write(drops,dt,speed);write(chunks,dt,speed,true);
    let end=0;for(let i=0;i<stains.entries.length;i++){
     const b=stains.entries[i];if(b.life<=0)dummy.scale.setScalar(0);else{b.life=Math.max(0,b.life-dt);if(!b.deck)b.p.z+=speed*dt;end=i+1;dummy.position.copy(b.p);dummy.quaternion.copy(b.q);dummy.scale.copy(b.s);stainData.setY(i,Math.min(1,b.life/3));}dummy.updateMatrix();stains.mesh.setMatrixAt(i,dummy.matrix);
    }stains.mesh.count=end;stains.mesh.instanceMatrix.needsUpdate=true;stainData.needsUpdate=true;
-   if(rocket.visible){flight.age+=dt;flight.trail+=dt;rocket.position.lerpVectors(flight.from,flight.at,Math.min(1,flight.age/flight.duration));flame.scale.setScalar(.8+random()*.4);
+   if(rocket.visible){flight.age+=dt;flight.trail+=dt;flight.previous.copy(rocket.position);rocket.position.lerpVectors(flight.from,flight.at,Math.min(1,flight.age/flight.duration));flame.scale.setScalar(.8+random()*.4);
+    const contact=flight.trace?.(flight.previous,rocket.position);if(contact)rocket.position.copy(contact.point);
     if(flight.trail>.035/budget){flight.trail=0;effects.haze(rocket.position,new T.Vector3(0,.12,0),{life:.6,size:.12,growth:.7,opacity:.2,color:0x8b8273});}
-    if(flight.age>=flight.duration){rocket.visible=false;const detonate=flight.detonate;flight.detonate=null;detonate?.(flight.at);}
+    if(contact||flight.age>=flight.duration){rocket.visible=false;flight.impact={type:contact?.type??'splash',point:rocket.position.toArray()};const detonate=flight.detonate;flight.detonate=flight.trace=null;detonate?.(rocket.position.clone(),contact);}
    }
   },
-  reset(){for(const p of [drops,chunks,stains]){for(const b of p.entries)b.life=0;p.mesh.count=0;}rocket.visible=false;flight.detonate=null;nextDrop=nextChunk=nextStain=0;for(const k in stats)stats[k]=0;}
+  reset(){for(const p of [drops,chunks,stains]){for(const b of p.entries)b.life=0;p.mesh.count=0;}breakup.reset();rocket.visible=false;flight.detonate=flight.trace=null;nextDrop=nextChunk=nextStain=0;for(const k in stats)stats[k]=0;}
  };
 }

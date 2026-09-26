@@ -42,7 +42,9 @@ const vehicleState={phase:'pursuit',phaseTime:0,distance:20,reload:0,ammo:80,res
 let best=0;try{best=Math.max(0,Number(localStorage.getItem('rex-breach-best-v1'))||0);}catch{}$('best').textContent=best?`PERSONAL BEST  ${best.toLocaleString()} PTS`:'A TWO-MINUTE HOLDOUT · ONE WAY OUT';
 function radio(text,seconds=4){$('radio-copy').textContent=text;radioTime=seconds;$('radio').style.opacity=1;}
 const director=createBreachDirector(critters,round,{
- canDamage:(from,to)=>world?.clearEntryLine(from,to)??true,
+ canDamage:(from,to)=>world?.obstacles.clearLine(from,to)??true,
+ canMove:(c,from,yaw)=>world?.obstacles.canMove(c,from,yaw)??true,
+ onShatter(c,dir){critters.updateDirected(0);combatFX.shatter(c,dir);},
  onLand(p,strength){effects.bodyImpact(p,strength);audio.vehicleCrash();shake=Math.max(shake,strength*.6);},
  onHit(p,dir,options){combatFX.hit(p,dir,options);},
  onCue(type,a){if(mode!=='playing')return;
@@ -84,7 +86,7 @@ async function start(){if(!ready||mode==='starting')return;setMode('starting');$
 }
 $('start').onclick=$('restart').onclick=start;
 function nearest(){raycaster.setFromCamera(aim,camera);const ray=raycaster.ray;let target=null,distance=90;
- const coverHit=raycaster.intersectObject(world.entryCover,true)[0];if(coverHit&&coverHit.distance<distance){target={type:'cover',point:coverHit.point,distance:coverHit.distance};distance=coverHit.distance;}
+ const coverHit=world.obstacles.trace(ray.origin,ray.at(distance,new T.Vector3()));if(coverHit){target=coverHit;distance=coverHit.distance;}
  const switchHit=raycaster.intersectObjects(world.switches,false)[0];if(switchHit&&switchHit.distance<distance){target={type:'switch',point:switchHit.point,distance:switchHit.distance};distance=target.distance;}
  const animal=director.hit(ray,distance);if(animal){target={type:'raptor',...animal};distance=animal.distance;}
  if(rex.actor.visible&&round.time>=BREACH.breach&&rex.aimHit(ray,hitPoint)){const d=ray.origin.distanceTo(hitPoint);if(d<distance){target={type:'rex',distance:d,point:hitPoint.clone()};distance=d;}}
@@ -100,13 +102,25 @@ function shoot(){if(mode!=='playing'||!round.shoot())return false;const target=n
   else effects.burst(target.point,false);
  }return true;
 }
+const rocketRay=new T.Ray();
+function rocketContact(from,to){
+ const distance=from.distanceTo(to);if(distance<1e-5)return null;rocketRay.set(from,to.clone().sub(from).divideScalar(distance));
+ let hit=world.obstacles.trace(from,to),far=hit?.distance??distance;
+ const animal=director.hit(rocketRay,far+4);if(animal&&animal.distance>=0&&animal.distance<=far){hit={type:'raptor',...animal};far=animal.distance;}
+ if(rex.actor.visible&&round.time>=BREACH.breach&&rex.aimHit(rocketRay,hitPoint)){const d=from.distanceTo(hitPoint);if(d<=far){hit={type:'rex',point:hitPoint.clone(),distance:d};far=d;}}
+ if(rocketRay.intersectPlane(groundPlane,hitPoint)){const d=from.distanceTo(hitPoint);if(d<=far)hit={type:'ground',point:hitPoint.clone(),distance:d};}
+ return hit;
+}
 function grenade(){if(mode!=='playing'||!round.launchGrenade())return;const target=nearest(),direction=raycaster.ray.direction.clone();const at=target?.point?.clone()||raycaster.ray.at(16,new T.Vector3());at.y=Math.max(.15,at.y);jeep.muzzle.getWorldPosition(muzzle);
- combatFX.launch(muzzle,at,p=>{
+ // Aim along the launch-time sightline; keep flying until an actual contact.
+ // A moving animal must not turn its old hit point into an invisible fuse.
+ at.sub(muzzle).normalize().multiplyScalar(90).add(muzzle);
+ combatFX.launch(muzzle,at,(p,contact)=>{
   if(round.result||round.phase!=='hold')return;
-  director.blast(p,5.5);
+  director.blast(p,5.5,{direct:contact?.critter,direction});
   if(round.time>=BREACH.breach&&rex.actor.visible&&rex.headPosition().distanceTo(p)<12){round.hitRex(10);combatFX.hit(p,direction,{explosive:true,heavy:true});}
-  if(target?.type==='switch')triggerTrap();effects.burst(p,target?.type==='raptor'||target?.type==='rex',true);audio.impact(true);shake=.35;hitTime=.2;
- });
+  if(target?.type==='switch'&&target.point.distanceTo(p)<.8)triggerTrap();effects.burst(p,contact?.type==='raptor'||contact?.type==='rex',true);audio.impact(true);shake=.35;hitTime=.2;
+ },rocketContact);
 }
 function events(){for(const e of round.drain()){
  if(e.type==='reload')audio.reload();
