@@ -35,6 +35,7 @@ Read `package.json` and the selected script before running it. There is no need 
 | Core combat, timers, objectives, deadline | `npm run test:logic`, `npm run test:arcade` |
 | Main game shooting, damage, restart | `npm test` |
 | Containment Breach: waves, trap, weapons, leap/board attacks, Rex/gate finale, pause/restart and touch | `npm run test:breach`; rules alone: `node scripts/test-breach.mjs` (also in `test:logic`) |
+| Breach service-passage concealment, continuous arrivals, entrance cover and phone sightlines | `npm run test:breach-arrivals` (source server only) |
 | Safari rules, mode picker, scoring, results, remembered records and mobile flow | `npm run test:safari` |
 | Shared Safari gait/frill, Breach leap pose, hit transforms and continuous deaths at both tiers | `npm run test:safari-motion` (source server only) |
 | Full creature catalogue, frill presets, selection races and short-menu scrolling | `npm run test:creature-lab` |

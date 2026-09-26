@@ -42,11 +42,13 @@ const vehicleState={phase:'pursuit',phaseTime:0,distance:20,reload:0,ammo:80,res
 let best=0;try{best=Math.max(0,Number(localStorage.getItem('rex-breach-best-v1'))||0);}catch{}$('best').textContent=best?`PERSONAL BEST  ${best.toLocaleString()} PTS`:'A TWO-MINUTE HOLDOUT · ONE WAY OUT';
 function radio(text,seconds=4){$('radio-copy').textContent=text;radioTime=seconds;$('radio').style.opacity=1;}
 const director=createBreachDirector(critters,round,{
+ canDamage:(from,to)=>world?.clearEntryLine(from,to)??true,
  onLand(p,strength){effects.bodyImpact(p,strength);audio.vehicleCrash();shake=Math.max(shake,strength*.6);},
  onHit(p,dir,options){combatFX.hit(p,dir,options);},
  onCue(type,a){if(mode!=='playing')return;
   if(type==='wave'){audio.cue(false);radio(a===1?'Multiple contacts. Watch both sides of the deck.':a===2?'The packs are closing in. Use rockets and the grid.':'All lanes compromised. Break up the pack before it reaches you.');}
   if(type==='spawn'){audio.call(a.c.species,a.c.p);if(a.heavy)radio('Pachy incoming. Stop it before it rams the Jeep!',3);}
+  if(type==='entry'){world.arrival(a.side);audio.sample('reload',{volume:.16,rate:.65,duration:.3,fade:.1,at:a.c.p,wet:.25});audio.call(a.c.species,a.c.p);}
   if(type==='windup')audio.debrisWarning();
   if(type==='leap')audio.call('raptor',a.c.p);
   if(type==='charge')audio.call(a.c.species,a.c.p);
@@ -82,7 +84,8 @@ async function start(){if(!ready||mode==='starting')return;setMode('starting');$
 }
 $('start').onclick=$('restart').onclick=start;
 function nearest(){raycaster.setFromCamera(aim,camera);const ray=raycaster.ray;let target=null,distance=90;
- const switchHit=raycaster.intersectObjects(world.switches,false)[0];if(switchHit){target={type:'switch',point:switchHit.point,distance:switchHit.distance};distance=target.distance;}
+ const coverHit=raycaster.intersectObject(world.entryCover,true)[0];if(coverHit&&coverHit.distance<distance){target={type:'cover',point:coverHit.point,distance:coverHit.distance};distance=coverHit.distance;}
+ const switchHit=raycaster.intersectObjects(world.switches,false)[0];if(switchHit&&switchHit.distance<distance){target={type:'switch',point:switchHit.point,distance:switchHit.distance};distance=target.distance;}
  const animal=director.hit(ray,distance);if(animal){target={type:'raptor',...animal};distance=animal.distance;}
  if(rex.actor.visible&&round.time>=BREACH.breach&&rex.aimHit(ray,hitPoint)){const d=ray.origin.distanceTo(hitPoint);if(d<distance){target={type:'rex',distance:d,point:hitPoint.clone()};distance=d;}}
  if(!target){const p=ray.intersectPlane(groundPlane,point);if(p&&ray.origin.distanceTo(p)<90)target={type:'ground',point:p.clone(),distance:ray.origin.distanceTo(p)};}

@@ -1,10 +1,11 @@
 import * as T from 'three';
 import {box,cylinder,tube,mergeStatic,canvasDecal} from '../chase/vehicle-geometry.js';
 import {BREACH} from './rules.js';
+import {ENTRY} from './entries.js';
 const smooth=(a,b,v)=>T.MathUtils.smoothstep(v,a,b);
 export function createCompound(scene,branchMap){
  const root=new T.Group();root.name='Maintenance compound';scene.add(root);
- const fixed=new T.Group();root.add(fixed);
+ const fixed=new T.Group(),entryCover=new T.Group();root.add(fixed,entryCover);
  const mat=(color,roughness=.7,metalness=0)=>new T.MeshStandardMaterial({color,roughness,metalness});
  const concrete=mat(0x63665e,.88),metal=mat(0x44504d,.4,.6),dark=mat(0x192728,.56,.5),yellow=mat(0xb19a48,.68),red=mat(0x7d352b,.67),white=mat(0xbab79f,.6),rubber=mat(0x111815,.92);
  const blue=new T.MeshStandardMaterial({color:0x45d8dc,emissive:0x31cfef,emissiveIntensity:3,roughness:.3});
@@ -34,24 +35,59 @@ export function createCompound(scene,branchMap){
  }
  for(const side of [-1,1]){
   for(let z=0;z<=35;z+=7)panel(fixed,side*16,z,7,5.8,Math.PI/2);
-  panel(fixed,side*11,35,12,7.5);box(fixed,concrete,[1.1,8.3,1.3],[side*5.6,4.15,35]);
+  box(fixed,concrete,[1.1,8.3,1.3],[side*5.6,4.15,35]);
   // Floodlight masts and real pools of light on the yard.
   for(const z of [9,28]){box(fixed,metal,[.22,8.6,.22],[side*10,4.3,z]);box(fixed,dark,[1.5,.55,.35],[side*10,8.4,z],[.28,0,0]);box(fixed,lampMat,[1.32,.36,.05],[side*10,8.39,z-.21],[.28,0,0]);}
   // Jersey barriers frame two flanking approaches without covering targets.
   for(const z of [16,24]){box(fixed,concrete,[3.8,1,.8],[side*7.5,.5,z],[0,side*.15,0]);box(fixed,yellow,[3.5,.13,.84],[side*7.5,.79,z],[0,side*.15,0]);}
   for(const z of [4,12,20,28])box(fixed,yellow,[.12,.012,3.5],[side*3.8,.001,z]);
-  const plinth=box(fixed,concrete,[1.35,.3,1.4],[side*3.2,.15,12]);
-  box(fixed,dark,[.95,1.6,.75],[side*3.2,1.02,12]);box(fixed,metal,[1.12,.14,.88],[side*3.2,1.89,12]);
-  cylinder(fixed,metal,.12,.12,.55,[side*3.2,2.2,12],[0,0,0],10);
-  for(let i=0;i<4;i++)cylinder(fixed,rubber,.23,.23,.07,[side*3.2,2.0+i*.11,12],[0,0,0],10);
-  for(let i=0;i<5;i++)box(fixed,metal,[.68,.035,.05],[side*3.2,.7+i*.13,11.60]);
-  sign('GRID '+(side<0?'A':'B'),'SHOOT TO DISCHARGE',[1.8,.45],[side*3.2,2.85,11.57],'#16343b','#76f4f0');
-  tube(fixed,dark,[side*3.2,.04,12],[side*7,.04,12],.04);tube(fixed,dark,[side*7,.04,12],[side*7,.04,26],.04);
+  // Keep the switch cabinets outside the sightline to each service entrance.
+  const plinth=box(fixed,concrete,[1.35,.3,1.4],[side*3.9,.15,12]);
+  box(fixed,dark,[.95,1.6,.75],[side*3.9,1.02,12]);box(fixed,metal,[1.12,.14,.88],[side*3.9,1.89,12]);
+  cylinder(fixed,metal,.12,.12,.55,[side*3.9,2.2,12],[0,0,0],10);
+  for(let i=0;i<4;i++)cylinder(fixed,rubber,.23,.23,.07,[side*3.9,2.0+i*.11,12],[0,0,0],10);
+  for(let i=0;i<5;i++)box(fixed,metal,[.68,.035,.05],[side*3.9,.7+i*.13,11.60]);
+  sign('GRID '+(side<0?'A':'B'),'SHOOT TO DISCHARGE',[1.8,.45],[side*3.9,2.85,11.57],'#16343b','#76f4f0');
+  tube(fixed,dark,[side*3.9,.04,12],[side*7,.04,12],.04);tube(fixed,dark,[side*7,.04,12],[side*7,.04,26],.04);
   void plinth;
  }
- const switches=[-1,1].map(side=>{const sw=box(root,blue,[.63,.43,.11],[side*3.2,1.48,11.55]);sw.name='Electrical discharge switch';return sw;});
+ const switches=[-1,1].map(side=>{const sw=box(root,blue,[.63,.43,.11],[side*3.9,1.48,11.55]);sw.name='Electrical discharge switch';return sw;});
  const mainGate=[panel(root,-2.7,35,5.4,7.5),panel(root,2.7,35,5.4,7.5)];
  box(fixed,dark,[13.3,.8,1.1],[0,8.25,35]);sign('PADDOCK 07','DANGER  /  HIGH VOLTAGE',[10.6,2.1],[0,7.7,34.39],'#303c36','#e3c477');
+ // Breached service passages have a real dogleg behind opaque walls. They
+ // conceal the entire animal at birth from both playable camera positions,
+ // even with the flashlight, lightning or Low's reduced foliage density.
+ const entryGates=[];
+ for(const side of [-1,1]){
+  const x=side*ENTRY.centre,h=ENTRY.height,z=ENTRY.front,inner=ENTRY.centre-ENTRY.halfWidth,outer=ENTRY.centre+ENTRY.halfWidth,width=ENTRY.halfWidth*2;
+  // Front perimeter: leave a broad opening, with a side-facing inlet
+  // behind the outside wing. No path crosses the central Rex gate.
+  box(entryCover,concrete,[inner-5.6,h,.6],[side*(inner+5.6)/2,h/2,z]);
+  box(entryCover,concrete,[22-outer,h,.6],[side*(outer+22)/2,h/2,z]);
+  box(entryCover,concrete,[.5,h,9],[side*(inner-.25),h/2,39.5]);
+  box(entryCover,concrete,[.5,h,3.2],[side*(outer+.25),h/2,36.6]);
+  box(entryCover,concrete,[width+1,h,.5],[x,h/2,ENTRY.back]);
+  box(entryCover,concrete,[width+1,.4,9.5],[x,h+.2,39.5]);
+  panel(fixed,side*(outer+22)/2,z,22-outer,2.3).position.y=h;
+  for(const edge of [inner,outer]){
+   box(fixed,metal,[.22,h,.3],[side*edge,h/2,z-.36]);
+   for(let y=.45;y<3.8;y+=.6)box(fixed,yellow,[.24,.24,.045],[side*edge,y,z-.53],[0,0,side*.45]);
+  }
+  box(fixed,dark,[width+.5,.45,.8],[x,h-.25,z-.1]);
+  for(let i=0;i<5;i++)box(fixed,metal,[width-.1,.09,.12],[x,h-.08+i*.16,z-.53]);
+  sign('SERVICE '+(side<0?'B':'A'),'PERIMETER BREACH',[width,.75],[x,h+.6,z-.48],'#293631','#e3c477');
+  // A broken leaf hangs open beside the route, then rattles as a pack passes.
+  const hinge=new T.Group();hinge.position.set(side*outer,0,z);root.add(hinge);
+  const gate=panel(hinge,-side*.82,0,1.64,3.85);gate.rotation.z=side*.09;
+  hinge.rotation.y=side*1.7;entryGates.push({side,hinge,pulse:0});
+  box(fixed,amber,[.2,.3,.12],[x,h-.67,z-.56]);
+  // A warm threshold light makes the emerging silhouette legible in the rain.
+  const light=new T.PointLight(0xe8a75f,36,10,2);light.position.set(x,3.9,z-1);root.add(light);
+ }
+ entryCover.updateMatrixWorld(true);
+ const coverBounds=entryCover.children.map(mesh=>new T.Box3().setFromObject(mesh));
+ const coverRay=new T.Ray(),coverPoint=new T.Vector3(),coverDirection=new T.Vector3();
+ mergeStatic(entryCover);
  sign('RESTRICTED','MAINTENANCE ACCESS',[3.3,.8],[-10,2.3,23.7]);
  // Security booth, stairs, service shed and stacked utility crates.
  box(fixed,concrete,[4.7,3.8,5],[-12,1.9,18]);box(fixed,dark,[5.2,.22,5.5],[-12,3.9,18]);
@@ -78,12 +114,22 @@ export function createCompound(scene,branchMap){
  const arcPositions=new Float32Array(288*3),arcGeo=new T.BufferGeometry();arcGeo.setAttribute('position',new T.BufferAttribute(arcPositions,3));
  const arcMat=new T.LineBasicMaterial({color:new T.Color(2,5,7),transparent:true,blending:T.AdditiveBlending,depthWrite:false,toneMapped:false});const arcs=new T.LineSegments(arcGeo,arcMat);arcs.frustumCulled=false;arcs.visible=false;root.add(arcs);
  let arcTime=0,quality=1;
- return {root,switches,floodlights,mainGate,exit,
+ return {root,switches,floodlights,mainGate,exit,entryCover,entryGates,coverBounds,
+  clearEntryLine(from,to){
+   coverDirection.subVectors(to,from);const distance=coverDirection.length();if(distance<.04)return true;
+   coverRay.direction.copy(coverDirection).divideScalar(distance);
+   // A rocket on a wall can splash back into the yard. Step off its surface
+   // toward the target so the outgoing ray does not self-intersect at zero.
+   coverRay.origin.copy(from).sub(root.position).addScaledVector(coverRay.direction,.03);
+   return !coverBounds.some(bounds=>coverRay.intersectBox(bounds,coverPoint)&&coverPoint.distanceTo(coverRay.origin)<distance-.03);
+  },
   setQuality(t){quality=t.detail?1:.5;leaves.count=Math.round(304*Math.min(1,t.flora??1));},
-  reset(){root.position.z=0;arcTime=0;arcs.visible=false;mainGate.forEach(g=>g.rotation.x=0);exit.forEach((g,i)=>g.position.x=(i?1:-1)*2.3);},
+  reset(){root.position.z=0;arcTime=0;arcs.visible=false;mainGate.forEach(g=>g.rotation.x=0);exit.forEach((g,i)=>g.position.x=(i?1:-1)*2.3);for(const g of entryGates){g.pulse=0;g.hinge.rotation.y=g.side*1.7;}},
+  arrival(side){const g=entryGates.find(g=>g.side===side);if(g)g.pulse=1;},
   discharge(){arcTime=.7;},
   update(dt,round,reduced=false){
    arcTime=Math.max(0,arcTime-dt);const t=round.time,blackout=t>=BREACH.reveal&&t<BREACH.reveal+2.5;
+   for(const g of entryGates){g.pulse=Math.max(0,g.pulse-dt*1.6);g.hinge.rotation.y=g.side*(1.7+(reduced?0:Math.sin((1-g.pulse)*20)*g.pulse*.085));}
    const emergency=t>=BREACH.reveal;floodlights.forEach(l=>l.intensity=blackout?0:emergency?110:230);lampMat.emissiveIntensity=blackout?.1:emergency?1.2:2.6;
    beacons.forEach((l,i)=>l.intensity=emergency?10+8*(.5+.5*Math.sin(t*3+i*Math.PI)):3);amber.emissiveIntensity=emergency?3:1;
    blue.emissiveIntensity=round.trap>0?.15:2.6+.4*Math.sin(t*2);blue.color.setHex(round.trap>0?0x336b6d:0x45d8dc);

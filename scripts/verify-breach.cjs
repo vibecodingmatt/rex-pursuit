@@ -24,7 +24,7 @@ const base=process.env.TEST_URL||'http://127.0.0.1:5188/',url=new URL('breach.ht
   // Simulate a whole run, aiming through the real hit proxies. No health or
   // cooldown edits here: this also establishes that the authored encounter wins.
   await p.evaluate(()=>{const b=breach;window.breachAutoplay=()=>{
-   const live=b.director.live,a=b.director.warning||live[0],r=b.round;
+   const live=b.director.live,a=b.director.warning||live.find(a=>a.entered),r=b.round;
    if(r.trap===0&&(live.filter(a=>a.c.p.z>=6&&a.c.p.z<=27).length>=3||(r.time>=99&&r.rexDistance<24))){const sw=b.world.switches[0];b.aimAt(sw.getWorldPosition(sw.position.clone()));b.shoot();}
    else if(r.time>=99&&r.rexDistance<27&&(!a||!['board','charge'].includes(a.phase))){b.aimAt(b.rex.headPosition());b.shoot();if(r.grenade===0)b.grenade();}
    else if(a){const at=a.c.p.clone();at.y+=a.c.kind.centre*a.c.scale;b.aimAt(at);b.shoot();if(r.grenade===0&&(a.heavy||live.length>=3||r.reload>0))b.grenade();}
