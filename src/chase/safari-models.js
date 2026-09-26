@@ -3,7 +3,8 @@ import * as T from 'three';
  * The Safari sculpts in one request: every species at two geometry budgets
  * (scripts/build-safari.mjs, format 2). Positions arrive quantized to each model's
  * bounds and the rig as bytes plus a pivot table; both are expanded here into the
- * float attributes the critter shader reads. The spare fourth bytes carry the hide:
+ * float attributes the critter shader reads (part 3: legs, part 4: shoulder/arm,
+ * with fingers and nails following the same shoulder). The spare fourth bytes carry the hide:
  * `hide` (colour alpha) is the fine-scale amount and `gloss` (the normal's fourth
  * byte) is positive for eyes, horn and beak, negative for large tubercles. Also returns
  * per-species hit spheres, the body centre and the hull a dead body rests on.

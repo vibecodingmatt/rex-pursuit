@@ -1,5 +1,15 @@
 # Rex: Pursuit handoff
 
+## Safari ground-animal motion (2026-09-26, local)
+
+The user asked for less rigid running bodies and hanging arms, and for groups to stop stepping in sync, excluding compies. `safari-motion.js` now supplies size-appropriate heave, pitch and lateral weight transfer to the seven baked ground species (including the ghost raptor's shared rig). Lizards get a small height-weighted torso pulse as well as their existing spine bend. Compy and golden-compy gait settings are unchanged.
+
+- **Suspension and feet:** the live instance pivots around the body centre. A separate `aBody` attribute lets the shader undo that transform at the toes, fading the correction up each leg. The planted half of the stride stays close to the road instead of inheriting the hip swing's upward arc. The heavy quadrupeds have smaller movement. Body motion must stay outside the old limb-weight blend: torso vertices have weight zero, which previously erased their bob.
+- **Arms:** the existing sculpt generator now records part 4 with a shoulder pivot and smooth attachment weights, including fingers/nails. Both mesh tiers were rebuilt. The gait adds a delayed shoulder swing and a small outward movement; normals and depth shadows follow the pose. Shape, colour and topology remain the accepted sculpts.
+- **Individuals:** each non-compy gets a persistent cadence multiplier (0.89–1.11); the baked animals also vary motion strength (0.9–1.1), and size adjusts cadence. Safari running speeds vary by 5%. Random starting phases remain. These variations are sampled on pool reuse, not every frame.
+- **Hits and falls:** `livePose()` is shared by rendering, target positions and hit spheres. A kill carries the current body position/orientation into the fall, retaining the foot compensation as the death curl blends in, so a shot does not reset the runner's pose. The chase's shared Gallimimus herd gets the same improvements.
+- **Checks:** `test:safari-motion` uses GPU transform feedback on the actual gait shader for all seven sculpts and both tiers: torso/arm movement, foot clearance, body targets, hits, continuous kill transforms, settled falls, herd cadence and compy exclusions. `test:safari`, `test:wildlife`, `test:smoke` and `build` pass. The before/after binary comparison confirms identical positions, normals, colours and triangle indices on both tiers; only rig data and its pivot tables changed. Before/after phase sheets, phone captures and the frame-cost comparison are in ignored `art/review/safari-motion/`.
+
 ## Spawns, roosts and snowy leaves (2026-09-26)
 
 The user reported three bugs after the sculpt polish: Safari animals appearing and then running as if teleported, instead of coming out of the brush; flying reptiles clinging to nothing where no tree was; and the "snowy/white" leaves back by day and by night (their screenshot: verge leaves lit a flat pale blue at night).

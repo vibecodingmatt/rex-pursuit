@@ -153,7 +153,8 @@ const fbm=(x,y,z)=>vnoise(x,y,z)*.55+vnoise(x*2.13+5.2,y*2.13,z*2.13)*.3+vnoise(
 
 // ------------------------------------------------------------------ anatomy --
 // Each species adds named groups of primitives. A group can carry `leg` (the pivot it
-// swings about, its side and lead: +1 hind, -1 fore) and the rig follows it. Carves
+// swings about, its side and lead: +1 hind, -1 fore); arm joints use the same
+// metadata with `arm:true`. The rig follows it. Carves
 // subtract (sockets, nostrils, grooves) after every group is joined.
 const HEADISH=new Set(['head','jaw','beak','horn','frill','epoc','eye','crest','dome','knob','neck','brow','ossicle']);
 const KERATIN=new Set(['horn','beak','hoof','claw','nail','spike']);
@@ -164,7 +165,7 @@ function sculpt(){
  const field=(x,y,z,region=false)=>{
   let d=1e6,closest=1e6,which='body',own=null,limb=1e6,body=1e6,leg=null,legD=1e6;
   for(const g of groups){let gd=1e6;for(const p of g.prims){const [bx,by,bz,br]=p.bound;if(len(x-bx,y-by,z-bz)-br>Math.max(gd,d)+g.blend+g.internal+.02)continue;gd=smin(gd,p.d(x,y,z),g.internal);}
-   if(gd<closest){closest=gd;which=g.region;own=g.leg;}if(g.leg){limb=Math.min(limb,gd);if(gd<legD){legD=gd;leg=g.leg;}}else body=Math.min(body,gd);d=smin(d,gd,g.blend);
+   if(gd<closest){closest=gd;which=g.region;own=g.leg;}if(g.leg){limb=Math.min(limb,gd);if(!g.leg.arm&&gd<legD){legD=gd;leg=g.leg;}}else body=Math.min(body,gd);d=smin(d,gd,g.blend);
   }
   let hole=null;
   for(const c of carves){let cd=1e6;for(const p of c.prims){const [bx,by,bz,br]=p.bound;if(len(x-bx,y-by,z-bz)-br>c.k+.012)continue;cd=Math.min(cd,p.d(x,y,z));}
@@ -192,13 +193,13 @@ function runnerLegs(add,{hipX=.06,heavy=false,claw=false,slim=1}){
 }
 function runnerArms(add,{shoulder=[.048,.357,.103],elbow=[.08,.292,.145],hand=[.09,.29,.235],r=[.015,.01],fingers=3,hoof=false}){
  for(const side of [-1,1]){
-  const s=p=>[side*p[0],p[1],p[2]];
-  add('arm',[roundCone(s(shoulder),s(elbow),r[0],r[1]),roundCone(s(elbow),s(hand),r[1],r[1]*.62)],.009,.006);
-  if(hoof){add('nail',[ellipsoid(s([hand[0],hand[1]-.008,hand[2]+.006]),[r[1]*.75,r[1]*.9,r[1]*.8])],.004,.002);continue;}
+  const s=p=>[side*p[0],p[1],p[2]],arm={pivot:s(shoulder),side,lead:1,arm:true};
+  add('arm',[roundCone(s(shoulder),s(elbow),r[0],r[1]),roundCone(s(elbow),s(hand),r[1],r[1]*.62)],.009,.006,arm);
+  if(hoof){add('nail',[ellipsoid(s([hand[0],hand[1]-.008,hand[2]+.006]),[r[1]*.75,r[1]*.9,r[1]*.8])],.004,.002,arm);continue;}
   const spreads=fingers===3?[-1,0,1]:[-1,1];
   for(const spread of spreads){const tip=[side*hand[0]+spread*.006,hand[1]-.016,hand[2]+.024];
-   add('finger',[roundCone(s(hand),tip,.004,.0022)],.003,.002);
-   add('nail',[roundCone(tip,[tip[0],tip[1]-.009,tip[2]+.006],.0024,.0008)],.002,.0015);}
+   add('finger',[roundCone(s(hand),tip,.004,.0022)],.003,.002,arm);
+   add('nail',[roundCone(tip,[tip[0],tip[1]-.009,tip[2]+.006],.0024,.0008)],.002,.0015,arm);}
  }
 }
 /** Four quadruped legs from upright lofts, with a muscle mass over each hip and shoulder and hoofed toes. */
@@ -434,7 +435,7 @@ for(const name of Object.keys(SPECIES))for(const tier of ['high','low']){
   let part=0,weight=0,piv=pivotIndex(0,0,1,[0,0,0]);
   // Continuous weights fade limb, neck and tail deformation into the shared torso.
   const L=f.own||(a.biped&&y<.24&&z<.16?f.leg:null);
-  if(L){part=3;weight=clamp01((L.pivot[1]-y)/L.pivot[1])*f.limb;piv=pivotIndex(3,L.side,L.lead,L.pivot);}
+  if(L){part=L.arm?4:3;weight=(L.arm?smooth(0,.065,len(x-L.pivot[0],y-L.pivot[1],z-L.pivot[2])):clamp01((L.pivot[1]-y)/L.pivot[1]))*f.limb;piv=pivotIndex(part,L.side,L.lead,L.pivot);}
   else if(z<tail[0]&&(region==='body'||region==='spike'||region==='plate'&&z<tail[0]-.05)){part=2;weight=smooth(tail[0]+.01,tail[1],z);piv=pivotIndex(2,0,1,a.tailPivot);}
   else if(HEADISH.has(region)){part=1;const neckish=region==='neck'||region==='ossicle';
    weight=a.neckY?(neckish?smooth(a.neckY[0],a.neckY[1],y):1):neckish?smooth(a.neckZ[0],a.neckZ[1],z):region==='frill'||region==='epoc'?1:smooth(a.neckZ[0]-.02,a.neckZ[0]+.06,z);piv=pivotIndex(1,0,1,a.neckBase);}
