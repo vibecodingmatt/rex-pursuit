@@ -20,7 +20,10 @@ export async function loadSafariModels(){
   const [lo,hi]=m.bounds,position=new Float32Array(n*3),rig=new Float32Array(n*4),pivot=new Float32Array(n*3);
   for(let i=0;i<n;i++){
    for(let a=0;a<3;a++)position[i*3+a]=lo[a]+(q[i*3+a]+32768)/65535*(hi[a]-lo[a]);
-   const [part,side,lead,px,py,pz]=m.pivots[bytes[i*4+2]];rig[i*4]=part;rig[i*4+1]=bytes[i*4+1]/255;rig[i*4+2]=side;rig[i*4+3]=lead;pivot[i*3]=px;pivot[i*3+1]=py;pivot[i*3+2]=pz;
+   const [part,side,lead,px,py,pz]=m.pivots[bytes[i*4+2]];rig[i*4]=part;rig[i*4+1]=bytes[i*4+1]/255;rig[i*4+2]=side;
+   // Head vertices do not need a fore/hind-leg sign. Reuse that component for
+   // the membrane weight to stay within WebGL's 16 vertex-attribute slots.
+   rig[i*4+3]=part===1?bytes[i*4+3]/255:lead;pivot[i*3]=px;pivot[i*3+1]=py;pivot[i*3+2]=pz;
   }
   const g=new T.BufferGeometry();g.setAttribute('position',new T.BufferAttribute(position,3));
   const normals=new T.InterleavedBuffer(normal,4),colors=new T.InterleavedBuffer(color,4);

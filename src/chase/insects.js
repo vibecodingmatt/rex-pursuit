@@ -98,6 +98,8 @@ const KINDS={
  dragonfly:{colors:[[.12,.4,1],[.95,.16,.08],[.25,.7,.3],[.08,.1,.12]],span:[.1,.13],flap:[27,31],amp:.28,mean:.05,under:0,speed:[6,9],y:[.5,2.2],x:[0,4.5],every:21}
 };
 
+// Shared with the test catalogue; appearance and wing cadence stay in one place.
+export {KINDS as INSECT_KINDS};
 export function createInsects(scene,{night}){
  const atlas=wingAtlas();
  const make=(geometry,material,max,name)=>{const fly=new T.InstancedBufferAttribute(new Float32Array(max*4),4);fly.setUsage(T.DynamicDrawUsage);geometry.setAttribute('aFly',fly);

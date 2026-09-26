@@ -509,7 +509,10 @@ for(const name of Object.keys(SPECIES))for(const tier of ['high','low']){
   else if(HEADISH.has(region)){part=1;const neckish=region==='neck'||region==='ossicle';
    weight=a.neckY?(neckish?smooth(a.neckY[0],a.neckY[1],y):1):neckish?smooth(a.neckZ[0],a.neckZ[1],z):region==='frill'||region==='epoc'?1:smooth(a.neckZ[0]-.02,a.neckZ[0]+.06,z);piv=pivotIndex(1,0,1,a.neckBase);}
   else if(a.neckZ&&z>a.neckZ[0]&&region==='body'){part=1;weight=smooth(a.neckZ[0],a.neckZ[1],z);piv=pivotIndex(1,0,1,a.neckBase);}
-  rig.set([part,Math.round(weight*255),piv,0],i*4);
+  // Spare rig byte: isolate the display membrane from the skull/neck. Fade at
+  // its attachment so the cone fold never pulls a seam out of the throat.
+  const frill=region==='displayFrill'?smooth(.032,.065,Math.hypot(x,y-.441)):0;
+  rig.set([part,Math.round(weight*255),piv,Math.round(frill*255)],i*4);
   // ---- hide: dorsal colour over a pale belly, mottled and banded, then the special regions.
   const limb=region==='leg'||region==='toes';
   const dorsal=a.quad?(limb?.9:smooth(-.6,-.05,ny)*smooth(.1,.22,y)):smooth(.22,.4,y)*smooth(-.5,.2,ny);
@@ -588,8 +591,9 @@ for(const name of Object.keys(SPECIES))for(const tier of ['high','low']){
  if(tier==='high'){
   // Resting hull for the dead body (extreme surface points about the body centre) and hit spheres.
   const dirs=[];for(const dx of [-1,0,1])for(const dy of [-1,0,1])for(const dz of [-1,0,1])if(dx||dy||dz)dirs.push([dx,dy,dz].map(v=>v/Math.hypot(dx,dy,dz)));
-  const hull=dirs.map(d=>{let best=-1e9,at=null;for(let v=0;v<n;v++){const px=P[v*3],py=P[v*3+1]-a.centre,pz=P[v*3+2],s=px*d[0]+py*d[1]+pz*d[2];if(s>best){best=s;at=[px,py,pz];}}return at.map(v=>+v.toFixed(4));});
-  header.species[name]={centre:a.centre,quad:!!a.quad,spheres:a.spheres,hull,eyes:a.eyes,iris:pt.iris,slit:!!pt.slit};
+  const hullFrill=[];
+  const hull=dirs.map(d=>{let best=-1e9,at=null,weight=0;for(let v=0;v<n;v++){const px=P[v*3],py=P[v*3+1]-a.centre,pz=P[v*3+2],s=px*d[0]+py*d[1]+pz*d[2];if(s>best){best=s;at=[px,py,pz];weight=rig[v*4+3]/255;}}hullFrill.push(weight);return at.map(v=>+v.toFixed(4));});
+  header.species[name]={centre:a.centre,quad:!!a.quad,spheres:a.spheres,hull,...(name==='dilophosaurus'?{hullFrill}:{}),eyes:a.eyes,iris:pt.iris,slit:!!pt.slit};
  }
  console.log(`${name} ${tier}: ${n} vertices / ${I.length/3} triangles`);
 }

@@ -18,6 +18,7 @@
                     "test:release": "node scripts/test-release.mjs",
                     "test:pages": "node scripts/verify-pages.cjs",
                     "social:render": "node scripts/create-social.cjs",
+                    "test:creature-lab": "node scripts/verify-creature-lab.cjs",
                     "test:lab":  "node scripts/verify.cjs",
                     "test:build":  "node scripts/verify-build.cjs",
                     "test:gait":  "node scripts/verify-gait.cjs",

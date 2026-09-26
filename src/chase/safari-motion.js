@@ -13,6 +13,46 @@ export function safariBody(phase,stride,profile,out){
  return out;
 }
 
+// Per-animal display, in simulation time: pause and death retain the current
+// shape. Most time is spent folded; the membrane opens quickly and settles back.
+export function resetFrill(c,random=Math.random){
+ c.frill=0;c.frillTarget=0;c.frillFrom=0;c.frillTime=0;
+ c.frillDuration=.7;c.frillWait=.3+random()*3.7;
+}
+export function stepFrill(c,dt,random=Math.random){
+ if(dt<=0||c.state==='dead')return;
+ if(c.frillTime<c.frillDuration){
+  c.frillTime=Math.min(c.frillDuration,c.frillTime+dt);
+  const t=c.frillTime/c.frillDuration,s=t*t*(3-2*t);
+  c.frill=c.frillFrom+(c.frillTarget-c.frillFrom)*s;
+ }else if((c.frillWait-=dt)<=0){
+  c.frillFrom=c.frill;c.frillTarget=1-c.frillTarget;c.frillTime=0;
+  c.frillDuration=c.frillTarget?.55+random()*.3:.85+random()*.35;
+  c.frillWait=c.frillTarget?.9+random()*1.5:2.2+random()*3.8;
+ }
+}
+export function foldFrillPoint(p,open,weight=1){
+ const x=p.x,y=p.y-.441,r=Math.hypot(x,y),a=(1-open)*1.37*weight;
+ const reach=Math.max(0,r-.033),shrink=reach*(1-Math.cos(a))/Math.max(r,.0001);
+ p.x-=x*shrink;p.y-=y*shrink;p.z-=reach*Math.sin(a);return p;
+}
+
+// The same cone fold is used before head motion in the surface and depth
+// shaders. Only explicitly baked membrane vertices carry the frill weight.
+export const SAFARI_FRILL_GLSL=`
+ attribute float aFrill;
+ void safariFrill(inout vec3 p,inout vec3 n){
+  float frill=rig.x>.5&&rig.x<1.5?rig.w:0.;
+  if(frill<.001)return;
+  vec2 radial=p.xy-vec2(0.,.441);float r=length(radial);
+  vec2 axis=radial/max(r,.0001);float a=(1.-aFrill)*1.37*frill,c=cos(a),s=sin(a);
+  float reach=max(0.,r-.033);
+  p.xy-=axis*reach*(1.-c);p.z-=reach*s;
+  float nr=dot(n.xy,axis);n.xy+=axis*(nr*(c-1.)+n.z*s);n.z=n.z*c-nr*s;
+  n=normalize(n);
+ }
+`;
+
 // aBody is the instance's model-space heave, pitch, roll and body-centre height.
 // Undo its transform at the toes, fading the correction up the leg: the torso
 // can rise and rock without pulling the supporting foot off the road.

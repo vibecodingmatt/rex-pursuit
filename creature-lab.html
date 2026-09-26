@@ -1,0 +1,39 @@
+<!doctype html>
+<html lang="en">
+<head>
+ <meta charset="UTF-8"><meta name="viewport" content="width=device-width, initial-scale=1">
+ <meta name="robots" content="noindex,nofollow"><meta name="theme-color" content="#171e22">
+ <title>All creatures · Test lab · Rex: Pursuit</title>
+ <link rel="icon" href="./favicon.svg"><link rel="stylesheet" href="/src/creature-lab.css">
+ <script type="importmap">{"imports":{"three":"/node_modules/three/build/three.module.js","three/addons/":"/node_modules/three/examples/jsm/"}}</script>
+</head>
+<body>
+ <header><a href="./" class="wordmark">REX<span>:</span>PURSUIT</a><span class="test-badge">TEST ONLY</span><a href="./model-lab.html">Original Rex study ↗</a></header>
+ <main>
+  <section class="studio" aria-label="Creature preview">
+   <canvas id="scene" aria-label="Creature model. Drag to orbit, scroll or pinch to zoom."></canvas>
+   <div class="specimen"><span id="counter">CREATURE CATALOGUE</span><h1 id="name">Preparing the studio…</h1><p id="category"></p></div>
+   <div id="status" role="status" aria-live="polite">Loading creature models…</div>
+   <div class="views" role="group" aria-label="Camera views"><button data-view="three" aria-pressed="true">¾ VIEW</button><button data-view="side" aria-pressed="false">SIDE</button><button data-view="front" aria-pressed="false">FRONT</button><button data-view="head" aria-pressed="false">DETAIL</button></div>
+   <p class="orbit-hint">DRAG TO ORBIT <span>·</span> SCROLL / PINCH TO ZOOM</p>
+  </section>
+  <aside aria-label="Creature inspection controls">
+   <div class="panel-title"><h2>Creature library</h2><span id="total"></span></div>
+   <label for="species">SPECIMEN</label><div class="selection"><button id="previous" aria-label="Previous creature">←</button><select id="species"></select><button id="next" aria-label="Next creature">→</button></div>
+   <p id="description"></p>
+   <div class="settings">
+    <label for="tier">MODEL QUALITY</label><select id="tier"><option value="high">High / Ultra</option><option value="low">Low / Medium</option></select>
+    <label for="motion">MOVEMENT</label><select id="motion"><option value="animate">Animate</option><option value="rest">Rest pose</option></select>
+    <label for="speed">PLAYBACK <output id="speed-value">1×</output></label><input id="speed" type="range" min="0.1" max="1.5" step="0.1" value="1">
+    <button id="pause" aria-pressed="false">Pause animation</button>
+    <div id="frill-controls" hidden><label for="frill-mode">DILOPHOSAURUS FRILL</label><select id="frill-mode"><option value="auto">Random display</option><option value="manual">Manual inspection</option></select><label for="frill">OPENING <output id="frill-value">0%</output></label><input id="frill" type="range" min="0" max="1" step="0.01" value="0" disabled></div>
+    <label for="surface">SURFACE</label><select id="surface"><option value="skin">Game materials</option><option value="wire">Wireframe</option></select>
+    <button id="rotate" aria-pressed="false">Auto rotate</button><button id="reset-view">Reset camera</button>
+   </div>
+   <p id="model-stats"></p><p class="note">Live game models under neutral studio lighting. Each creature is fitted to the view; sizes are not shown to a common scale.</p>
+   <nav id="roster" aria-label="All creatures"></nav>
+  </aside>
+ </main>
+ <script type="module" src="/src/creature-lab.js"></script>
+</body>
+</html>

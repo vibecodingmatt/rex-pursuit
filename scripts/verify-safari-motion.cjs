@@ -8,7 +8,7 @@ const {chromium}=require('playwright-core'),assert=require('node:assert/strict')
   await page.addInitScript(()=>{let seed=0x516af;Math.random=()=>{seed=(Math.imul(seed,1664525)+1013904223)>>>0;return seed/4294967296;};});
   await page.goto('http://127.0.0.1:5188/');await page.waitForFunction(()=>window.rexChase?.mode==='menu');
   const result=await page.evaluate(async()=>{
-   const r=rexChase,T=await import('/node_modules/three/build/three.module.js'),{SAFARI_GAIT_GLSL}=await import('/src/chase/safari-motion.js');
+   const r=rexChase,T=await import('/node_modules/three/build/three.module.js'),{SAFARI_GAIT_GLSL,SAFARI_FRILL_GLSL,resetFrill,stepFrill}=await import('/src/chase/safari-motion.js');
    await r.critters.ready();r.freeze=true;
    const require=(v,msg)=>{if(!v)throw Error(msg);},gl=document.createElement('canvas').getContext('webgl2');
    const program=gl.createProgram(),shader=(kind,source)=>{const s=gl.createShader(kind);gl.shaderSource(s,source);gl.compileShader(s);require(gl.getShaderParameter(s,gl.COMPILE_STATUS),gl.getShaderInfoLog(s));gl.attachShader(program,s);};
@@ -17,8 +17,9 @@ const {chromium}=require('playwright-core'),assert=require('node:assert/strict')
     in vec3 position;in vec3 normal;in vec4 rig;in vec3 pivot;
     uniform vec4 aPose;uniform vec4 aBody;uniform mat4 model;
     out vec3 posed;
+    ${SAFARI_FRILL_GLSL.replace('attribute float aFrill;','uniform float aFrill;')}
     ${SAFARI_GAIT_GLSL}
-    void main(){vec3 p=position,n=normal;safariPose(p,n);posed=(model*vec4(p,1.)).xyz;gl_Position=vec4(posed,1.);}`);
+    void main(){vec3 p=position,n=normal;safariFrill(p,n);safariPose(p,n);posed=(model*vec4(p,1.)).xyz;gl_Position=vec4(posed,1.);}`);
    shader(gl.FRAGMENT_SHADER,'#version 300 es\nprecision highp float;out vec4 color;void main(){color=vec4(1.);}');
    gl.transformFeedbackVaryings(program,['posed'],gl.INTERLEAVED_ATTRIBS);gl.linkProgram(program);require(gl.getProgramParameter(program,gl.LINK_STATUS),gl.getProgramInfoLog(program));gl.useProgram(program);
    const loc=name=>gl.getUniformLocation(program,name),output=gl.createBuffer(),matrix=new T.Matrix4(),point=new T.Vector3(),rows=[];
@@ -33,6 +34,7 @@ const {chromium}=require('playwright-core'),assert=require('node:assert/strict')
     }
     require(ids.length>0,`${name}/${tier}: no toe samples`);require(torso>=0,`${name}/${tier}: no torso`);
     const toes=ids.length;ids.push(torso);if(arm>=0)ids.push(arm);require(k.quad||arm>=0,`${name}/${tier}: missing arm rig`);
+    if(name==='dilophosaurus'){let fan=-1;for(let i=0;i<pos.count;i++)if(rig.getX(i)===1&&rig.getW(i)>.99&&(fan<0||pos.getX(i)>pos.getX(fan)))fan=i;require(fan>=0,`${tier}: missing frill rig`);ids.push(fan);}
     const buffers=[];
     for(const name of ['position','normal','rig','pivot']){const a=g.attributes[name],n=a.itemSize,data=new Float32Array(ids.length*n),buffer=gl.createBuffer(),location=gl.getAttribLocation(program,name);if(location<0)continue;
      ids.forEach((id,j)=>{for(let v=0;v<n;v++)data[j*n+v]=a.getComponent(id,v);});gl.bindBuffer(gl.ARRAY_BUFFER,buffer);gl.bufferData(gl.ARRAY_BUFFER,data,gl.STATIC_DRAW);gl.vertexAttribPointer(location,n,gl.FLOAT,false,0,0);gl.enableVertexAttribArray(location);buffers.push(buffer);}
@@ -40,7 +42,7 @@ const {chromium}=require('playwright-core'),assert=require('node:assert/strict')
     const data=new Float32Array(ids.length*3),heights=[],arms=[];let footMin=Infinity;
     for(let i=0;i<24;i++){
      c.p.set(0,0,20);c.phase=i/24;c.yaw=0;c.roll=0;c.v.set(0,0,c.run);r.critters.update(.000001,{speed:0,spawn:false});k.mesh.getMatrixAt(0,matrix);
-     gl.uniform4fv(loc('aPose'),k.pose.array.slice(0,4));gl.uniform4fv(loc('aBody'),k.body.array.slice(0,4));gl.uniformMatrix4fv(loc('model'),false,matrix.elements);
+     gl.uniform1f(loc('aFrill'),c.frill??1);gl.uniform4fv(loc('aPose'),k.pose.array.slice(0,4));gl.uniform4fv(loc('aBody'),k.body.array.slice(0,4));gl.uniformMatrix4fv(loc('model'),false,matrix.elements);
      gl.enable(gl.RASTERIZER_DISCARD);gl.beginTransformFeedback(gl.POINTS);gl.drawArrays(gl.POINTS,0,ids.length);gl.endTransformFeedback();gl.disable(gl.RASTERIZER_DISCARD);gl.getBufferSubData(gl.TRANSFORM_FEEDBACK_BUFFER,0,data);
      for(let j=0;j<toes;j++)footMin=Math.min(footMin,data[j*3+1]-c.p.y);
      heights.push(data[toes*3+1]-c.p.y);
@@ -51,6 +53,13 @@ const {chromium}=require('playwright-core'),assert=require('node:assert/strict')
     const range=a=>Math.max(...a)-Math.min(...a),bob=range(heights),armRange=arm>=0?range(arms)*c.scale:0;
     require(bob>.015&&bob<.28,`${name}/${tier}: torso excursion ${bob}`);require(footMin>-.025,`${name}/${tier}: foot below ground ${footMin}`);
     require(k.quad||armRange>.02,`${name}/${tier}: rigid arms ${armRange}`);
+    if(name==='dilophosaurus'){
+     // Use the actual membrane vertex and shader on the GPU. The closed fan
+     // must tuck backwards, narrow substantially and leave the torso alone.
+     gl.uniform4fv(loc('aPose'),[0,0,0,0]);gl.uniform4fv(loc('aBody'),[0,0,0,k.centre]);gl.uniformMatrix4fv(loc('model'),false,new T.Matrix4().elements);
+     const shapes=[];for(const open of [0,1]){gl.uniform1f(loc('aFrill'),open);gl.enable(gl.RASTERIZER_DISCARD);gl.beginTransformFeedback(gl.POINTS);gl.drawArrays(gl.POINTS,0,ids.length);gl.endTransformFeedback();gl.disable(gl.RASTERIZER_DISCARD);gl.getBufferSubData(gl.TRANSFORM_FEEDBACK_BUFFER,0,data);shapes.push([...data]);}
+     const f=(ids.length-1)*3;require(shapes[0][f]<shapes[1][f]*.5,`${tier}: folded fan is still wide`);require(shapes[0][f+2]<shapes[1][f+2]-.08,`${tier}: fan did not fold backwards`);require(shapes[0].slice(toes*3,toes*3+3).every((v,i)=>v===shapes[1][toes*3+i]),`${tier}: folding pulled the torso`);
+    }
     // Kill with exactly the current pose, then write at dt=0 without stepping the fall.
     const prior=matrix.clone();r.critters.kill(c,new T.Vector3(0,0,1));r.critters.update(Number.MIN_VALUE,{speed:0,spawn:false});k.mesh.getMatrixAt(0,matrix);
     require(matrix.elements.every((v,i)=>Math.abs(v-prior.elements[i])<1e-5),`${name}/${tier}: body pops on kill`);
@@ -63,7 +72,11 @@ const {chromium}=require('playwright-core'),assert=require('node:assert/strict')
    for(let i=0;i<120;i++)r.critters.update(1/60,{speed:0,spawn:false});
    const cadence=herd.map(c=>c.cadence);require(Math.max(...cadence)-Math.min(...cadence)>.03,'herd has one cadence');require(new Set(herd.map(c=>c.phase.toFixed(2))).size>=3,'herd stays in sync');
    for(const name of ['compy','goldenCompy']){r.critters.reset({empty:true});const c=r.critters.huntSpawn(name,1,20);require(c.cadence===1&&c.vigor===1&&!c.kind.motion,`${name}: gait changed`);}
-   require(gl.getError()===gl.NO_ERROR,'GPU feedback error');gl.getExtension('WEBGL_lose_context')?.loseContext();return {rows,cadence};
+   const displays=Array.from({length:4},()=>{const c={state:'idle'};resetFrill(c);return c;}),min=[1,1,1,1],max=[0,0,0,0];let independent=false;
+   for(let i=0;i<2400;i++){displays.forEach((c,j)=>{stepFrill(c,1/60);min[j]=Math.min(min[j],c.frill);max[j]=Math.max(max[j],c.frill);});if(new Set(displays.map(c=>c.frill.toFixed(2))).size>2)independent=true;}
+   require(independent&&min.every(v=>v===0)&&max.every(v=>v===1),'frills never complete independent open/close cycles');
+   const frozen=displays[0];frozen.frill=.42;frozen.state='dead';stepFrill(frozen,10);require(frozen.frill===.42,'death changes frill pose');frozen.state='idle';stepFrill(frozen,0);require(frozen.frill===.42,'pause changes frill pose');
+   require(gl.getError()===gl.NO_ERROR,'GPU feedback error');gl.getExtension('WEBGL_lose_context')?.loseContext();return {rows,cadence,frills:{independent,min,max}};
   });
   assert.deepEqual(errors,[]);console.log(JSON.stringify(result,null,2));console.log('Safari motion passed: both tiers, torso/arms, foot clearance, hit tracking, continuous kills, settled falls, independent herd cadence and unchanged compy tuning.');
  }finally{await browser.close();}

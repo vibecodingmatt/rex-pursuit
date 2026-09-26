@@ -12,7 +12,9 @@ const mime={'.html':'text/html','.js':'text/javascript','.css':'text/css','.jpg'
   await page.goto(new URL('sound-library.html',base).href);await page.waitForSelector('.clip');assert.equal(await page.locator('.clip').count(),34);
   const audioFailures=await page.evaluate(async()=>{const failures=[];for(let i=1;i<=34;i++){const r=await fetch(`./audio/clip-${String(i).padStart(2,'0')}.wav`,{cache:'no-store'});if(!r.ok)failures.push({url:r.url,status:r.status});await r.arrayBuffer();}return failures;});assert.deepEqual(audioFailures,[],'Every published audio file is available');
   await page.goto(new URL('model-lab.html',base).href);await page.waitForFunction(()=>window.rexStudy,{timeout:120000});
+  await page.goto(new URL('creature-lab.html#dilophosaurus',base).href);await page.waitForFunction(()=>window.creatureLab?.active,{timeout:120000});
+  for(const name of ['rex','brachiosaurus','raptor']){await page.evaluate(name=>creatureLab.select(name),name);assert.equal(await page.locator('#status').textContent(),'');assert.equal(await page.evaluate(()=>!!creatureLab.active),true);}
   const phone=await browser.newPage({viewport:{width:390,height:844},isMobile:true,hasTouch:true});phone.on('pageerror',e=>errors.push(e.message));await phone.goto(base);await phone.waitForFunction(()=>window.rexChase?.rex,{timeout:120000});assert.equal(await phone.evaluate(()=>document.documentElement.scrollWidth>innerWidth),false);await phone.locator('#start').click();await phone.waitForFunction(()=>rexChase.mode==='playing');await phone.screenshot({path:`art/review/pages-${local?'local':'live'}-phone.png`});await phone.close();assert.deepEqual(errors,[]);
-  console.log(`Pages passed at ${base}: game, all 34 sounds, camera/pause, lab, phone layout and 1200x630 share card. No runtime or asset errors.`);
+  console.log(`Pages passed at ${base}: game, all 34 sounds, camera/pause, both labs, phone layout and 1200x630 share card. No runtime or asset errors.`);
  }finally{await browser.close();if(server)await new Promise(resolve=>server.close(resolve));}
 })().catch(e=>{console.error(e);process.exit(1);});

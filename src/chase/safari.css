@@ -34,7 +34,10 @@ body[data-state=menu] #safari-hud,body[data-state=ended] #safari-hud{display:non
 #safari-board{margin:0;padding-left:18px}#safari-board li{padding:3px 0 3px 2px;color:#b8c9a8}#safari-board b{font-variant-numeric:tabular-nums;color:#ede4c9}#safari-board span{display:block;font-size:9px;color:#9ead94}#safari-board .record b{color:#ffcf7c}
 #safari-save-status{font-size:9px!important;text-align:center;margin:12px 0 0}
 body[data-game=safari] #end-title{font-size:58px}body[data-game=safari] #end-stats{margin-top:12px}
-#start-screen .intro-copy{max-height:calc(100dvh - 142px);overflow:auto;scrollbar-width:thin;touch-action:pan-y}
+/* Entrance transforms briefly overflow this panel. Keep touch/wheel/keyboard
+   scrolling on short screens without flashing desktop scrollbar chrome. */
+#start-screen .intro-copy{max-height:calc(100dvh - 142px);overflow:auto;scrollbar-width:none;touch-action:pan-y}
+#start-screen .intro-copy::-webkit-scrollbar{display:none}
 @media(min-width:801px){#start-screen .intro-copy{top:auto;bottom:66px}#start-screen h1{font-size:clamp(52px,8vh,88px);margin:18px 0 16px}#start-screen .start-actions{margin-top:18px}#start-screen .start-tip{display:none}}
 @media(max-width:800px){#safari-hud{top:calc(64px + env(safe-area-inset-top));width:calc(100% - 40px);max-width:410px;padding:8px 12px}#safari-score{font-size:28px}#safari-multiplier{font-size:24px}body[data-game=safari] #mission-clock{top:calc(170px + env(safe-area-inset-top))}.safari-result-columns{gap:18px}body[data-game=safari] #end-title{font-size:44px}#field-guide{padding:25px 20px}}
 @media(orientation:portrait) and (max-width:800px){body #start-screen h1{font-size:clamp(42px,7.1vh,64px);margin:12px 0}body #start-screen .start-tip{display:none}.mode-picker{margin-top:12px}body #start-screen .start-actions{margin-top:12px}}

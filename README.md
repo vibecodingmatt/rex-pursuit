@@ -31,6 +31,7 @@ The Rex's eyes aim independently at a shared player position with a damped respo
 
 - `/` — playable chase.
 - `/model-lab.html` — preserved creature study, camera presets, exported clips, and original damage slider.
+- `/creature-lab.html` — TEST ONLY catalogue of all 20 creature models, including rare variants and insects. Orbit/zoom, camera presets, High/Low meshes, pause/speed, rest poses, wireframe, and a manual or random Dilophosaurus frill display. Linked from the local menu; the production build strips that menu shortcut. `npm run test:creature-lab` checks every entry and both mesh tiers.
 - `/sound-library.html` — audition and name the 34 cuts from the supplied audio reference; assign opening, charge, growl, and pain calls; export a named JSON catalog.
 
 ## Play

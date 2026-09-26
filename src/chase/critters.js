@@ -3,7 +3,7 @@ import {mergeGeometries} from 'three/addons/utils/BufferGeometryUtils.js';
 import {WET} from './weather-state.js';
 import {SPECIES} from './safari-rules.js';
 import {loadSafariModels} from './safari-models.js';
-import {SAFARI_MOTION,safariBody,SAFARI_GAIT_GLSL} from './safari-motion.js';
+import {SAFARI_MOTION,safariBody,SAFARI_GAIT_GLSL,SAFARI_FRILL_GLSL,resetFrill,stepFrill,foldFrillPoint} from './safari-motion.js';
 // Small ground life that reacts to the chase. Compies forage in loose packs on the
 // track and verges; lizards bask on verge rocks. Positions are in the Jeep's frame,
 // where the ground slides past at +speed along z, so a creature standing still rides
@@ -154,9 +154,9 @@ const SKIN_GLSL=`
 function critterMaterial(lizard,detail=false){
  const m=new T.MeshStandardMaterial({vertexColors:true,roughness:lizard?.55:.7});
  if(detail)m.userData.eyes={uEye0:{value:new T.Vector4()},uEye1:{value:new T.Vector4()},uEyeAxis0:{value:new T.Vector3(-1,0,0)},uEyeAxis1:{value:new T.Vector3(1,0,0)},uIris:{value:new T.Color(.3,.2,.06)},uSlit:{value:0}};
- const vertex=s=>{s.vertexShader=s.vertexShader.replace('#include <common>','#include <common>\nattribute vec4 rig;attribute vec3 pivot;attribute vec4 aPose;'+(detail?'\nattribute vec4 aBody;'+SAFARI_GAIT_GLSL:''))
-  .replace('#include <begin_vertex>','#include <begin_vertex>'+(detail?'\n{vec3 n=normal;safariPose(transformed,n);}':GAIT(lizard)));
-  if(detail)s.vertexShader=s.vertexShader.replace('#include <beginnormal_vertex>','#include <beginnormal_vertex>\n{vec3 p=position;safariPose(p,objectNormal);}');};
+ const vertex=s=>{s.vertexShader=s.vertexShader.replace('#include <common>','#include <common>\nattribute vec4 rig;attribute vec3 pivot;attribute vec4 aPose;'+(detail?'\nattribute vec4 aBody;'+SAFARI_FRILL_GLSL+SAFARI_GAIT_GLSL:''))
+  .replace('#include <begin_vertex>','#include <begin_vertex>'+(detail?'\n{vec3 n=normal;safariFrill(transformed,n);safariPose(transformed,n);}':GAIT(lizard)));
+  if(detail)s.vertexShader=s.vertexShader.replace('#include <beginnormal_vertex>','#include <beginnormal_vertex>\n{vec3 p=position;safariFrill(p,objectNormal);safariPose(p,objectNormal);}');};
  m.onBeforeCompile=s=>{s.uniforms.uWet=WET;vertex(s);
   if(detail){
    // hide: fine-scale amount; gloss: eyes, horn and beak (+) or large scales (-). Both come with the bake.
@@ -200,9 +200,9 @@ function critterMaterial(lizard,detail=false){
   }
   // Rain darkens the hide a little and gives it a wet sheen.
   s.fragmentShader=s.fragmentShader.replace('#include <common>','#include <common>\nuniform float uWet;').replace('#include <color_fragment>','#include <color_fragment>\ndiffuseColor.rgb*=1.-uWet*.25;').replace('#include <roughnessmap_fragment>','#include <roughnessmap_fragment>\nroughnessFactor*=1.-uWet*.5;');};
- m.customProgramCacheKey=()=>`rex-critter-${lizard?'lizard':'compy'}-${detail}-v8`;
+ m.customProgramCacheKey=()=>`rex-critter-${lizard?'lizard':'compy'}-${detail}-v9`;
  // Shadows step with the legs too.
- const depth=new T.MeshDepthMaterial({depthPacking:T.RGBADepthPacking});depth.onBeforeCompile=vertex;depth.customProgramCacheKey=()=>`rex-critter-depth-${lizard?'lizard':'compy'}-${detail}-v5`;
+ const depth=new T.MeshDepthMaterial({depthPacking:T.RGBADepthPacking});depth.onBeforeCompile=vertex;depth.customProgramCacheKey=()=>`rex-critter-depth-${lizard?'lizard':'compy'}-${detail}-v6`;
  return{material:m,depth};
 }
 
@@ -236,6 +236,7 @@ export function createCritters(scene,{jungle,camera=null}){
   k.motion=SAFARI_MOTION[k.name];
   k.pose=new T.InstancedBufferAttribute(new Float32Array(k.max*4),4);k.pose.setUsage(T.DynamicDrawUsage);k.geometry.setAttribute('aPose',k.pose);
   k.body=new T.InstancedBufferAttribute(new Float32Array(k.max*4),4);k.body.setUsage(T.DynamicDrawUsage);k.geometry.setAttribute('aBody',k.body);
+  k.frill=new T.InstancedBufferAttribute(new Float32Array(k.max),1);k.frill.setUsage(T.DynamicDrawUsage);
   k.mesh=new T.InstancedMesh(k.geometry,k.material,k.max);k.mesh.customDepthMaterial=k.depth;k.mesh.instanceMatrix.setUsage(T.DynamicDrawUsage);
   k.mesh.castShadow=true;k.mesh.receiveShadow=true;k.mesh.frustumCulled=false;k.mesh.count=0;k.mesh.name=k.label;
   k.mesh.setColorAt(0,new T.Color(1,1,1));scene.add(k.mesh);
@@ -254,9 +255,9 @@ export function createCritters(scene,{jungle,camera=null}){
  // The Gallimimus keeps its chase tuning (centre, hull, hit sphere) and only takes the baked sculpt's shape.
  function selectModels(){if(!models)return;for(const name of Object.keys(BAKED)){const k=kinds[name];k.mesh.geometry=models[name][modelTier];k.geometry=k.mesh.geometry;}
   if(models.gallimimus){G.mesh.geometry=models.gallimimus[modelTier];G.geometry=G.mesh.geometry;}}
- const modelLoad=loadSafariModels().then(loaded=>{models=loaded.models;for(const name of Object.keys(BAKED)){const k=kinds[name],sp=loaded.species[name];k.geometry.dispose();for(const g of Object.values(models[name])){g.setAttribute('aPose',k.pose);g.setAttribute('aBody',k.body);}
-   k.centre=sp.centre;k.hull=hull(sp.hull);k.spheres=sp.spheres.map(([x,y,z,r])=>({p:new T.Vector3(x,y,z),r}));k.hitR=sp.spheres[0][3];setEyes(k,sp);}
-   if(models.gallimimus){for(const g of Object.values(models.gallimimus)){g.setAttribute('aPose',G.pose);g.setAttribute('aBody',G.body);}G.geometry.dispose();const d=critterMaterial(false,true);G.material=G.mesh.material=d.material;G.depth=G.mesh.customDepthMaterial=d.depth;setEyes(G,loaded.species.gallimimus);}
+ const modelLoad=loadSafariModels().then(loaded=>{models=loaded.models;for(const name of Object.keys(BAKED)){const k=kinds[name],sp=loaded.species[name];k.geometry.dispose();for(const g of Object.values(models[name])){g.setAttribute('aPose',k.pose);g.setAttribute('aBody',k.body);g.setAttribute('aFrill',k.frill);}
+   k.centre=sp.centre;k.hull=hull(sp.hull);k.hullFrill=sp.hullFrill;k.spheres=sp.spheres.map(([x,y,z,r])=>({p:new T.Vector3(x,y,z),r}));k.hitR=sp.spheres[0][3];setEyes(k,sp);}
+   if(models.gallimimus){for(const g of Object.values(models.gallimimus)){g.setAttribute('aPose',G.pose);g.setAttribute('aBody',G.body);g.setAttribute('aFrill',G.frill);}G.geometry.dispose();const d=critterMaterial(false,true);G.material=G.mesh.material=d.material;G.depth=G.mesh.customDepthMaterial=d.depth;setEyes(G,loaded.species.gallimimus);}
    selectModels();}).catch(e=>{modelError=e;});
  // Safari names that share a kind: the ghost raptor and the golden compy are rare colourings.
  const ALIAS={ghostRaptor:'raptor',goldenCompy:'compy'},SIZE={compy:1.5,goldenCompy:1.35,lizard:2.4,gallimimus:5.5,raptor:3.8,ghostRaptor:4.1,dilophosaurus:5.2,parasaurolophus:7.5,pachycephalosaurus:4.6,triceratops:7.8,stegosaurus:8.5},
@@ -265,7 +266,7 @@ export function createCritters(scene,{jungle,camera=null}){
  function free(k){const c=k.pool.find(c=>!c.on);if(c){c.hp=1;c.species=k.name;c.swerveMax=null;c.base=0;c.flinch=0;c.crossTime=null;c.body.set(0,0,0);
   // An individual's stride length and energy stay consistent for its whole run.
   // Compies (including the golden one) retain their original gait and timing.
-  c.cadence=k===C?1:range(.89,1.11);c.vigor=k.motion?range(.9,1.1):1;}return c;}
+  c.cadence=k===C?1:range(.89,1.11);c.vigor=k.motion?range(.9,1.1):1;if(k.name==='dilophosaurus')resetFrill(c,rnd);}return c;}
  // What the camera can see (last rendered frame): an animal breaks cover out of view and leaves the same way.
  const frustum=new T.Frustum(),viewProj=new T.Matrix4(),bounds=new T.Sphere();let lastSpeed=0;
  const reach=k=>k.hull.reduce((r,h)=>Math.max(r,h.length()),.2);
@@ -323,7 +324,7 @@ export function createCritters(scene,{jungle,camera=null}){
   c.p.set(side*range(23,27),0,z);c.v.set(-side*run*.8,0,-run*.45);c.tint.setRGB(range(.85,1.15),range(.85,1.08),range(.8,1));return c;
  }
  /** Height of the body centre above the ground when resting in orientation `c.q`: the lowest of its hull points. */
- function clearance(c){let low=0;for(const h of c.kind.hull){probe.copy(h).applyQuaternion(c.q);low=Math.min(low,probe.y);}return -low*c.scale;}
+ function clearance(c){let low=0;const k=c.kind;for(let i=0;i<k.hull.length;i++){probe.copy(k.hull[i]);if(k.hullFrill?.[i]){probe.y+=k.centre;foldFrillPoint(probe,c.frill,k.hullFrill[i]);probe.y-=k.centre;}probe.applyQuaternion(c.q);low=Math.min(low,probe.y);}return -low*c.scale;}
  /** The render transform, also used for hits and the handoff into a physical fall. */
  function livePose(c,sc=c.scale){
   const k=c.kind,fl=c.flinch*c.flinch,stride=c.stride||0;
@@ -409,6 +410,7 @@ export function createCritters(scene,{jungle,camera=null}){
   if(k===C&&api.onScatter&&now-(api.lastCall||-9)>1.4){api.lastCall=now;api.onScatter(pos.set(c.p.x,.3,c.p.z));}
  }
  function step(k,c,dt,speed,rex){
+  if(k.name==='dilophosaurus')stepFrill(c,dt,rnd);
   if(c.state==='dead'){stepDead(c,dt,speed);return;}
   // ---- sense
   if(c.state==='idle'||c.state==='wary'){
@@ -466,9 +468,10 @@ export function createCritters(scene,{jungle,camera=null}){
    else livePose(c,sc);
    m.compose(pos,q,s.setScalar(sc));k.mesh.setMatrixAt(n,m);k.mesh.setColorAt(n,c.tint);
    B[n*4]=c.body.x;B[n*4+1]=c.body.y;B[n*4+2]=c.body.z;B[n*4+3]=k.centre;
+   k.frill.array[n]=c.frill??1;
    P[n*4]=c.phase;P[n*4+1]=(c.stride||0)*k.swing*c.vigor;P[n*4+2]=c.peck+c.flinch*.35;P[n*4+3]=c.curl||0;n++;}
   // An empty pool issues no draw (a zero-instance draw still binds its program).
-  k.mesh.count=n;k.mesh.visible=k.visible!==false&&n>0;if(n){k.mesh.instanceMatrix.needsUpdate=true;k.mesh.instanceColor.needsUpdate=true;k.pose.needsUpdate=true;if(k.motion)k.body.needsUpdate=true;}
+  k.mesh.count=n;k.mesh.visible=k.visible!==false&&n>0;if(n){k.mesh.instanceMatrix.needsUpdate=true;k.mesh.instanceColor.needsUpdate=true;k.pose.needsUpdate=true;if(k.motion){k.body.needsUpdate=true;k.frill.needsUpdate=true;}}
  }
 
  api={
@@ -499,9 +502,9 @@ export function createCritters(scene,{jungle,camera=null}){
    for(const k of ALL)for(const c of k.pool){if(!c.on||c.state==='dead'||c.state==='hide'||c.fade<.6)continue;
     if(k.spheres){
      livePose(c);
-     k.spheres.forEach((sp,i)=>{centre.copy(sp.p).multiplyScalar(c.scale).applyQuaternion(q).add(pos);
+     k.spheres.forEach((sp,i)=>{centre.copy(sp.p);const fan=k.name==='dilophosaurus'&&(i===3||i===4);if(fan)foldFrillPoint(centre,c.frill);centre.multiplyScalar(c.scale).applyQuaternion(q).add(pos);
       const along=push.subVectors(centre,ray.origin).dot(ray.direction);if(along<=0||along>far)return;
-      const r=i?sp.r*c.scale:Math.max(sp.r*c.scale,along*minAngle),d2=ray.distanceSqToPoint(centre);if(d2>r*r)return;
+      const r=i?sp.r*c.scale*(fan?.3+.7*c.frill:1):Math.max(sp.r*c.scale,along*minAngle),d2=ray.distanceSqToPoint(centre);if(d2>r*r)return;
       const t=along-Math.sqrt(r*r-d2);if(best&&t>=best.distance)return;best={critter:c,kind:c.species||k.name,distance:t,point:ray.at(t,new T.Vector3())};});
      continue;
     }
