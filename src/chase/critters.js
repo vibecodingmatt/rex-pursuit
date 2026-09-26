@@ -85,7 +85,7 @@ function lizardGeometry(){
 }
 /** Gallimimus, built on the compy's rig (hips at 0.3) and scaled up about 5.5 times: a deep
  *  short body, a long S-curved neck with a small beaked head held high, a long level tail and
- *  long running legs. */
+ *  long running legs. A stand-in: the baked sculpt (safari-models.js) replaces it once loaded. */
 function gallimimusGeometry(){
  const S=(w,h)=>new T.SphereGeometry(1,w,h),C=(t,b,r=8,hs=1)=>new T.CylinderGeometry(t,b,1,r,hs),parts=[];
  const neck=[0,.35,.13],hipY=.31,along=len=>(v,P)=>Math.min(1,v.distanceTo(P)/len);
@@ -136,23 +136,46 @@ const GAIT=lizard=>`
   transformed=pivot+q;
   if(part<2.5)transformed.y+=amp*.018*cos(th*2.);`}
  }`;
+// Hide detail for the baked sculpts (0 on the Low tier): fine scales wherever the bake asks for
+// them and a pavement of large scales on backs and flanks, both Worley cells in model space. The
+// bump is analytic (the cell gradients, turned into view space), so it stays smooth per pixel.
+const SKIN={value:1};
+const SKIN_GLSL=`
+ uniform float uSkin;varying vec3 vHide;varying vec3 vSkin;varying vec3 vAX;varying vec3 vAY;varying vec3 vAZ;
+ vec3 cellHash(vec3 p){p=fract(p*vec3(.1031,.103,.0973));p+=dot(p,p.yxz+33.33);return fract((p.xxy+p.yzz)*p.zyx);}
+ float dsmooth(float a,float b,float x){float t=clamp((x-a)/(b-a),0.,1.);return 6.*t*(1.-t)/(b-a);}
+ // Nearest and second-nearest feature distances and the nearest cell's random value; g1, g2 point to those features.
+ vec3 cells(vec3 p,out vec3 g1,out vec3 g2){vec3 i=floor(p),f=fract(p);float d1=8.,d2=8.,id=0.;g1=vec3(0.);g2=vec3(0.);
+  for(int z=-1;z<=1;z++)for(int y=-1;y<=1;y++)for(int x=-1;x<=1;x++){vec3 g=vec3(x,y,z),h=cellHash(i+g),r=g+h*.9-f;float d=dot(r,r);if(d<d1){d2=d1;g2=g1;d1=d;g1=r;id=h.z;}else if(d<d2){d2=d;g2=r;}}
+  d1=sqrt(d1);d2=sqrt(d2);g1/=max(d1,1e-4);g2/=max(d2,1e-4);return vec3(d1,d2,id);}`;
 function critterMaterial(lizard,detail=false){
  const m=new T.MeshStandardMaterial({vertexColors:true,roughness:lizard?.55:.7});
  const vertex=s=>{s.vertexShader=s.vertexShader.replace('#include <common>','#include <common>\nattribute vec4 rig;attribute vec3 pivot;attribute vec4 aPose;').replace('#include <begin_vertex>','#include <begin_vertex>'+GAIT(lizard)+(detail?'\ntransformed=mix(position,transformed,smoothstep(0.,.24,rig.y));':''));};
  m.onBeforeCompile=s=>{s.uniforms.uWet=WET;vertex(s);
   if(detail){
-   s.vertexShader=s.vertexShader.replace('#include <common>','#include <common>\nvarying vec3 vHide;').replace('#include <begin_vertex>','#include <begin_vertex>\nvHide=position;');
-   s.fragmentShader=s.fragmentShader.replace('#include <common>','#include <common>\nvarying vec3 vHide;');
+   // hide: fine-scale amount; gloss: eyes, horn and beak (+) or large scales (-). Both come with the bake.
+   s.uniforms.uSkin=SKIN;
+   s.vertexShader=s.vertexShader.replace('#include <common>','#include <common>\nattribute float hide;attribute float gloss;varying vec3 vHide;varying vec3 vSkin;varying vec3 vAX;varying vec3 vAY;varying vec3 vAZ;')
+    .replace('#include <begin_vertex>','#include <begin_vertex>\nvHide=position;vSkin=vec3(hide,max(gloss,0.),max(-gloss,0.));{mat3 toView=mat3(modelViewMatrix);\n#ifdef USE_INSTANCING\ntoView=toView*mat3(instanceMatrix);\n#endif\nvAX=normalize(toView[0]);vAY=normalize(toView[1]);vAZ=normalize(toView[2]);}\n');
+   s.fragmentShader=s.fragmentShader.replace('#include <common>','#include <common>'+SKIN_GLSL);
+   // Raised scales between fine seams, and large low plates; both fade out before they would shimmer.
+   s.fragmentShader=s.fragmentShader.replace('#include <color_fragment>',`#include <color_fragment>
+    float groove=0.;vec3 skinG=vec3(0.);
+    if(uSkin>.5){
+     float px=length(fwidth(vHide)),fine=vSkin.x*(1.-smoothstep(.22,.55,px*170.)),tub=vSkin.z*(1.-smoothstep(.3,.7,px*52.));vec3 g1,g2;
+     if(fine>.01){vec3 c=cells(vHide*170.,g1,g2);float e=c.y-c.x;skinG+=fine*(.65+.35*c.z)*.22*dsmooth(0.,.3,e)*(g1-g2);groove+=fine*(1.-smoothstep(0.,.14,e));}
+     if(tub>.01){vec3 c=cells(vHide*52.+11.,g1,g2);float e=c.y-c.x;skinG+=tub*(.6+.4*c.z)*.14*(.7*dsmooth(0.,.2,e)*(g1-g2)+.3*dsmooth(0.,.6,c.x)*g1);groove+=tub*(1.-smoothstep(0.,.08,e))*.9;}
+     diffuseColor.rgb*=1.-groove*.18;
+    }`);
    s.fragmentShader=s.fragmentShader.replace('#include <roughnessmap_fragment>',`#include <roughnessmap_fragment>
-    vec3 cell=fract(vHide*155.);float scaleBump=smoothstep(.15,.48,length(cell-.5));roughnessFactor=clamp(roughnessFactor+scaleBump*.12,.55,.92);`);
+    roughnessFactor=mix(clamp(roughnessFactor+groove*.1,.3,.95),.1,vSkin.y);`);
+   // The model-space slope, in view space, tilts the normal (tangential part only).
    s.fragmentShader=s.fragmentShader.replace('#include <normal_fragment_maps>',`#include <normal_fragment_maps>
-    vec3 dx=dFdx(vViewPosition),dy=dFdy(vViewPosition);float h=length(fract(vHide*155.)-.5)*.00055;
-    vec3 r1=cross(dy,normal),r2=cross(normal,dx);float det=dot(dx,r1);
-    normal=normalize(abs(det)*normal-sign(det)*(dFdx(h)*r1+dFdy(h)*r2));`);
+    {vec3 g=vAX*skinG.x+vAY*skinG.y+vAZ*skinG.z;normal=normalize(normal-(g-normal*dot(normal,g)));}`);
   }
   // Rain darkens the hide a little and gives it a wet sheen.
   s.fragmentShader=s.fragmentShader.replace('#include <common>','#include <common>\nuniform float uWet;').replace('#include <color_fragment>','#include <color_fragment>\ndiffuseColor.rgb*=1.-uWet*.25;').replace('#include <roughnessmap_fragment>','#include <roughnessmap_fragment>\nroughnessFactor*=1.-uWet*.5;');};
- m.customProgramCacheKey=()=>`rex-critter-${lizard?'lizard':'compy'}-${detail}-v4`;
+ m.customProgramCacheKey=()=>`rex-critter-${lizard?'lizard':'compy'}-${detail}-v5`;
  // Shadows step with the legs too.
  const depth=new T.MeshDepthMaterial({depthPacking:T.RGBADepthPacking});depth.onBeforeCompile=vertex;depth.customProgramCacheKey=()=>`rex-critter-depth-${lizard?'lizard':'compy'}-${detail}-v4`;
  return{material:m,depth};
@@ -197,9 +220,13 @@ export function createCritters(scene,{jungle}){
  let travel=0,nextPack=40,nextHerd=300,packId=0,density=1,now=0,chunkZ=[],api;
  const tally={kills:0};
  let modelTier='high',models=null,modelError=null;
- function selectModels(){if(!models)return;for(const name of Object.keys(BAKED)){const k=kinds[name];k.mesh.geometry=models[name][modelTier];k.geometry=k.mesh.geometry;}}
+ // The Gallimimus keeps its chase tuning (centre, hull, hit sphere) and only takes the baked sculpt's shape.
+ function selectModels(){if(!models)return;for(const name of Object.keys(BAKED)){const k=kinds[name];k.mesh.geometry=models[name][modelTier];k.geometry=k.mesh.geometry;}
+  if(models.gallimimus){G.mesh.geometry=models.gallimimus[modelTier];G.geometry=G.mesh.geometry;}}
  const modelLoad=loadSafariModels().then(loaded=>{models=loaded.models;for(const name of Object.keys(BAKED)){const k=kinds[name],sp=loaded.species[name];k.geometry.dispose();for(const g of Object.values(models[name]))g.setAttribute('aPose',k.pose);
-   k.centre=sp.centre;k.hull=hull(sp.hull);k.spheres=sp.spheres.map(([x,y,z,r])=>({p:new T.Vector3(x,y,z),r}));k.hitR=sp.spheres[0][3];}selectModels();}).catch(e=>{modelError=e;});
+   k.centre=sp.centre;k.hull=hull(sp.hull);k.spheres=sp.spheres.map(([x,y,z,r])=>({p:new T.Vector3(x,y,z),r}));k.hitR=sp.spheres[0][3];}
+   if(models.gallimimus){for(const g of Object.values(models.gallimimus))g.setAttribute('aPose',G.pose);G.geometry.dispose();const d=critterMaterial(false,true);G.material=G.mesh.material=d.material;G.depth=G.mesh.customDepthMaterial=d.depth;}
+   selectModels();}).catch(e=>{modelError=e;});
  // Safari names that share a kind: the ghost raptor and the golden compy are rare colourings.
  const ALIAS={ghostRaptor:'raptor',goldenCompy:'compy'},SIZE={compy:1.5,goldenCompy:1.35,lizard:2.4,gallimimus:5.5,raptor:3.8,ghostRaptor:4.1,dilophosaurus:5.2,parasaurolophus:7.5,pachycephalosaurus:4.6,triceratops:7.8,stegosaurus:8.5},
   RUN={compy:6,goldenCompy:11.5,lizard:4.3,gallimimus:9.8,raptor:10.3,ghostRaptor:13.5,dilophosaurus:8.8,parasaurolophus:8.4,pachycephalosaurus:9.2,triceratops:7.4,stegosaurus:6.4};
@@ -381,7 +408,7 @@ export function createCritters(scene,{jungle}){
  api={
   compies:C.mesh,lizards:L.mesh,gallimimus:G.mesh,meshes:ALL.map(k=>k.mesh),huntSpawn,strike,onScatter:null,onKill:null,onLand:null,onHerd:null,
   async ready(){await modelLoad;if(modelError)throw modelError;},
-  setQuality(t){density=Math.min(1,t.fauna??t.particles);for(const k of ALL)k.mesh.castShadow=!!t.detail;modelTier=t.detail?'high':'low';selectModels();},
+  setQuality(t){density=Math.min(1,t.fauna??t.particles);for(const k of ALL)k.mesh.castShadow=!!t.detail;modelTier=t.detail?'high':'low';SKIN.value=t.detail?1:0;selectModels();},
   /** The world is already alive when a scene begins: lizards on nearby rocks and a pack foraging in view. */
   reset({intro=false,empty=false}={}){for(const k of ALL){for(const c of k.pool)c.on=false;k.mesh.count=0;}travel=0;nextPack=range(20,45);nextHerd=range(280,420);alarms.length=0;queue.length=0;chunkZ=[];tally.kills=0;if(empty)return;
    for(const chunk of jungle.chunks){const z=chunk.group.position.z;if(z>-70&&z<70)populatePerches(chunk,.45*density);}

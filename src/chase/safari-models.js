@@ -3,8 +3,10 @@ import * as T from 'three';
  * The Safari sculpts in one request: every species at two geometry budgets
  * (scripts/build-safari.mjs, format 2). Positions arrive quantized to each model's
  * bounds and the rig as bytes plus a pivot table; both are expanded here into the
- * float attributes the critter shader reads. Also returns per-species hit spheres,
- * the body centre and the hull a dead body rests on.
+ * float attributes the critter shader reads. The spare fourth bytes carry the hide:
+ * `hide` (colour alpha) is the fine-scale amount and `gloss` (the normal's fourth
+ * byte) is positive for eyes, horn and beak, negative for large tubercles. Also returns
+ * per-species hit spheres, the body centre and the hull a dead body rests on.
  */
 export async function loadSafariModels(){
  const response=await fetch('./models/safari-runners.bin');if(!response.ok)throw Error(`Safari models: ${response.status}`);
@@ -20,8 +22,9 @@ export async function loadSafariModels(){
    const [part,side,lead,px,py,pz]=m.pivots[bytes[i*4+2]];rig[i*4]=part;rig[i*4+1]=bytes[i*4+1]/255;rig[i*4+2]=side;rig[i*4+3]=lead;pivot[i*3]=px;pivot[i*3+1]=py;pivot[i*3+2]=pz;
   }
   const g=new T.BufferGeometry();g.setAttribute('position',new T.BufferAttribute(position,3));
-  g.setAttribute('normal',new T.InterleavedBufferAttribute(new T.InterleavedBuffer(normal,4),3,0,true));
-  g.setAttribute('color',new T.InterleavedBufferAttribute(new T.InterleavedBuffer(color,4),3,0,true));
+  const normals=new T.InterleavedBuffer(normal,4),colors=new T.InterleavedBuffer(color,4);
+  g.setAttribute('normal',new T.InterleavedBufferAttribute(normals,3,0,true));g.setAttribute('gloss',new T.InterleavedBufferAttribute(normals,1,3,true));
+  g.setAttribute('color',new T.InterleavedBufferAttribute(colors,3,0,true));g.setAttribute('hide',new T.InterleavedBufferAttribute(colors,1,3,true));
   g.setAttribute('rig',new T.BufferAttribute(rig,4));g.setAttribute('pivot',new T.BufferAttribute(pivot,3));g.setIndex(new T.BufferAttribute(index,1));g.computeBoundingSphere();
   (models[m.name]??={})[m.tier]=g;
  }
