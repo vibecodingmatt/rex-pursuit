@@ -1,7 +1,14 @@
 // Simulation-only contract: a stopped Jeep, three escalating waves, then a
 // closing Rex while the service exit opens. No wall clocks or render state.
 export const BREACH={duration:120,reveal:94,breach:99,gateAt:106,escape:4,magazine:80,reload:2.6,fireInterval:.085,grenadeCooldown:11,trapCooldown:18,staggerHits:14};
-export const waveAt=t=>t<7?0:t<38?1:t<43?0:t<73?2:t<78?0:t<94?3:4;
+export const waveAt=t=>t<3?0:t<37?1:t<40?0:t<72?2:t<75?0:t<94?3:4;
+// Existing attackers keep moving through the short reload breaks and finale.
+export const PRESSURE={
+ 1:{interval:2.25,limit:4,approach:4.8},
+ 2:{interval:1.45,limit:6,approach:4.2},
+ 3:{interval:1.05,limit:8,approach:3.6},
+ 4:{interval:2.4,limit:5,approach:4.3}
+};
 const clamp=(v,a,b)=>Math.max(a,Math.min(b,v));
 export class BreachRound{
  constructor(){this.reset();}
@@ -27,7 +34,7 @@ export class BreachRound{
  launchGrenade(){if(this.result||this.phase!=='hold'||this.grenade>0)return false;this.grenade=BREACH.grenadeCooldown;return true;}
  discharge(){if(this.result||this.phase!=='hold'||this.trap>0)return false;this.trap=BREACH.trapCooldown;this.events.push({type:'trap'});return true;}
  damage(amount,source='raptor'){if(this.result||this.phase!=='hold')return;this.jeep=Math.max(0,this.jeep-amount);this.events.push({type:'damage',source,amount});if(!this.jeep){this.result='lost';this.events.push({type:'lost',source});}}
- killed({trap=false,onJeep=false}={}){if(this.result||this.phase!=='hold')return;this.kills++;this.trapKills+=Number(trap);this.saves+=Number(onJeep);this.score+=100+(trap?50:0)+(onJeep?50:0);}
+ killed({trap=false,onJeep=false,heavy=false}={}){if(this.result||this.phase!=='hold')return;this.kills++;this.trapKills+=Number(trap);this.saves+=Number(onJeep);this.score+=(heavy?180:100)+(trap?50:0)+(onJeep?50:0);}
  hitRex(power=1){if(this.result||this.phase!=='hold'||!this._broken)return false;this.hits++;this.rexCharge+=power;
   if(this.rexCharge>=BREACH.staggerHits){this.rexCharge=0;this.staggers++;
    // The charge gathers ground even under perfect fire, but a stagger never

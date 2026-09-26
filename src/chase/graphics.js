@@ -10,6 +10,8 @@ export const TIERS={
  ultra:{label:'Ultra',pixelRatio:2.25,scale:[.85,1],msaa:4,bloomLevels:6,volumetric:{steps:28,resolution:.5},shadow:4096,grass:1.35,flora:1,particles:1,fauna:1,beams:false,detail:true,motionBlur:1,ao:{samples:12,steps:10}}
 };
 export const ORDER=['low','medium','high','ultra'];
+// Combat geometry/splatter budget. Enemy counts remain identical at every tier.
+for(const [name,t]of Object.entries(TIERS))t.gore=name==='low'?.35:name==='medium'?.65:1;
 
 function gpuName(renderer){
  try{const gl=renderer.getContext(),ext=gl.getExtension('WEBGL_debug_renderer_info');return String(ext?gl.getParameter(ext.UNMASKED_RENDERER_WEBGL):gl.getParameter(gl.RENDERER)||'');}catch{return '';}

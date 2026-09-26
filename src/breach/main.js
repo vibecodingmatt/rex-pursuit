@@ -15,6 +15,7 @@ import {ChaseAudio} from '../chase/audio.js';
 import {BREACH,BreachRound} from './rules.js';
 import {createCompound} from './world.js';
 import {createBreachDirector} from './director.js';
+import {createCombatFX} from './combat-fx.js';
 const $=id=>document.getElementById(id),reduced=matchMedia('(prefers-reduced-motion: reduce)').matches;
 installAtmosphericFog();
 const renderer=new T.WebGLRenderer({canvas:$('scene'),antialias:false,powerPreference:'high-performance'});renderer.shadowMap.enabled=true;renderer.shadowMap.type=T.PCFSoftShadowMap;renderer.toneMapping=T.ACESFilmicToneMapping;renderer.toneMappingExposure=1.13;renderer.info.autoReset=false;
@@ -27,27 +28,30 @@ const rim=new T.DirectionalLight(0xa5ceda,.9);rim.position.set(-6,13,34);scene.a
 // Shift the complete gun station (pedestal, gunner and weapon) forward to
 // leave space for an attacker on the rear deck, with the muzzle in front of it.
 const sky=createSky(scene),jeep=createJeep(scene,{gunOffset:-1.31}),effects=createEffects(scene,dustTexture()),audio=new ChaseAudio(),round=new BreachRound();
+const combatFX=createCombatFX(scene,effects);
 // A broad work lamp above the gun lights close faces without the narrow
 // flashlight's inverse-square hotspot at the end of the barrel.
-const workLamp=new T.SpotLight(0xffdfb0,42,13,.67,1,2);workLamp.position.set(0,3.6,-.35);workLamp.target.position.set(0,1.9,6);scene.add(workLamp,workLamp.target);
+const workLamp=new T.SpotLight(0xffdfb0,28,13,.67,1,2);workLamp.position.set(0,3.6,-.35);workLamp.target.position.set(0,1.9,6);scene.add(workLamp,workLamp.target);
 // A lowered tailgate provides a physical landing deck for the close attacker.
 const deck=new T.MeshStandardMaterial({color:0x354333,roughness:.75,metalness:.3});box(jeep.root,deck,[2.02,.12,1.5],[0,1.01,2.5]);
 const weather=createWeather(scene,{renderer,sky,makeEnvironment:createEnvironmentMap,reducedMotion:reduced});weather.captureBase({sun,hemi,rim,fill,post});weather.set('night-storm',{instant:true,persist:false});
-const night=createNight(scene,{jeep,weather,renderer}),critters=createCritters(scene,{jungle:{chunks:[],groundAt:()=>0}});critters.reset({empty:true});
+const night=createNight(scene,{jeep,weather,renderer}),critters=createCritters(scene,{jungle:{chunks:[],groundAt:()=>0},capacities:{raptor:14}});critters.reset({empty:true});
 let world=null,rex=null,mode='loading',view='first',firing=false,time=0,last=performance.now(),radioTime=0,shake=0,damageFlash=0,hitTime=0,endAge=0,rexVisualDistance=43,freeze=false,ready=false,preview=null;
 const aim=new T.Vector2(),raycaster=new T.Raycaster(),aimTarget=new T.Vector3(0,2,15),muzzle=new T.Vector3(),point=new T.Vector3(),hitPoint=new T.Vector3(),projected=new T.Vector3(),groundPlane=new T.Plane(new T.Vector3(0,1,0),0),cameraFrom=new T.Vector3(),cameraAt=new T.Vector3();
 const vehicleState={phase:'pursuit',phaseTime:0,distance:20,reload:0,ammo:80,result:null,time:0};
 let best=0;try{best=Math.max(0,Number(localStorage.getItem('rex-breach-best-v1'))||0);}catch{}$('best').textContent=best?`PERSONAL BEST  ${best.toLocaleString()} PTS`:'A TWO-MINUTE HOLDOUT · ONE WAY OUT';
 function radio(text,seconds=4){$('radio-copy').textContent=text;radioTime=seconds;$('radio').style.opacity=1;}
 const director=createBreachDirector(critters,round,{
- onLand(p){effects.bodyImpact(p,.4);audio.vehicleCrash();shake=Math.max(shake,.3);},
+ onLand(p,strength){effects.bodyImpact(p,strength);audio.vehicleCrash();shake=Math.max(shake,strength*.6);},
+ onHit(p,dir,options){combatFX.hit(p,dir,options);},
  onCue(type,a){if(mode!=='playing')return;
-  if(type==='wave'){audio.cue(false);radio(a===1?'Movement at the fence. Keep them off the Jeep.':a===2?'More contacts. Use the grid when they enter the yard.':'They are coming in fast. Keep your escape route clear.');}
-  if(type==='spawn')audio.call('raptor',a.c.p);
+  if(type==='wave'){audio.cue(false);radio(a===1?'Multiple contacts. Watch both sides of the deck.':a===2?'The packs are closing in. Use rockets and the grid.':'All lanes compromised. Break up the pack before it reaches you.');}
+  if(type==='spawn'){audio.call(a.c.species,a.c.p);if(a.heavy)radio('Pachy incoming. Stop it before it rams the Jeep!',3);}
   if(type==='windup')audio.debrisWarning();
   if(type==='leap')audio.call('raptor',a.c.p);
-  if(type==='bite'){audio.impact();shake=.5;}
-  if(type==='killed')audio.death('raptor',a.c.p);
+  if(type==='charge')audio.call(a.c.species,a.c.p);
+  if(type==='bite'||type==='ram'){audio.impact();shake=type==='ram'?.65:.4;}
+  if(type==='killed')audio.death(a.c.species,a.c.p);
  }});
 critters.onLand=(p,s)=>effects.bodyImpact(p,s*.3);
 weather.onThunder=(delay,near)=>audio.thunder(delay,near);
@@ -57,7 +61,7 @@ const controls=createPointerControls({canvas:$('scene'),fireButton:$('fire'),isP
 function resize(){controls.reset();renderer.setSize(innerWidth,innerHeight);camera.aspect=innerWidth/innerHeight;camera.fov=camera.aspect<.8?78:56;camera.updateProjectionMatrix();moveReticle();}
 addEventListener('resize',resize);
 function applyQuality(){tier=quality==='auto'?detected.tier:quality;const t=TIERS[tier];renderer.setPixelRatio(Math.min(devicePixelRatio,t.pixelRatio));governor.setRange(t.scale);governor.reset();sun.shadow.mapSize.set(t.shadow,t.shadow);sun.shadow.map?.dispose();sun.shadow.map=null;
- post.configure({scale:governor.scale,msaa:t.msaa,bloomLevels:t.bloomLevels,volumetric:null,ao:t.ao});critters.setQuality(t);effects.setQuality(t);weather.setQuality(t);night.setQuality(t);world?.setQuality(t);resize();
+ post.configure({scale:governor.scale,msaa:t.msaa,bloomLevels:t.bloomLevels,volumetric:null,ao:t.ao});critters.setQuality(t);effects.setQuality(t);combatFX.setQuality(t);weather.setQuality(t);night.setQuality(t);world?.setQuality(t);resize();
 }
 $('quality').value=quality;$('quality').onchange=()=>{quality=$('quality').value;storeQuality(quality);applyQuality();};applyQuality();
 function pause(){if(!['playing','paused'].includes(mode))return;const paused=mode==='playing';setMode(paused?'paused':'playing');$('pause-screen').hidden=!paused;audio.pause(paused);}
@@ -73,7 +77,7 @@ addEventListener('keydown',e=>{if(e.target.matches('input,select,textarea')||e.r
 document.addEventListener('visibilitychange',()=>{if(document.hidden&&mode==='playing')pause();});addEventListener('blur',()=>{controls.reset();if(mode==='playing')pause();});
 async function start(){if(!ready||mode==='starting')return;setMode('starting');$('start').disabled=true;
  try{await audio.init();await audio.pause(false);}catch(e){console.warn('Breach audio unavailable:',e.message);}
- round.reset();director.reset();world.reset();rex.reset();weather.reset();effects.reset();jeep.reset();night.reset();aim.set(0,0);time=0;endAge=0;rexVisualDistance=43;shake=damageFlash=hitTime=0;view='first';preview=null;$('view').textContent='3RD';$('light').setAttribute('aria-pressed','true');
+ round.reset();director.reset();world.reset();rex.reset();weather.reset();effects.reset();combatFX.reset();jeep.reset();night.reset();aim.set(0,0);time=0;endAge=0;rexVisualDistance=43;shake=damageFlash=hitTime=0;view='first';preview=null;$('view').textContent='3RD';$('light').setAttribute('aria-pressed','true');
  $('end-screen').hidden=$('pause-screen').hidden=$('start-screen').hidden=true;$('transition').style.opacity=0;$('start').disabled=false;setMode('playing');radio('Service exit offline. Hold your position while we restore power.',6);audio.cue(false);moveReticle();
 }
 $('start').onclick=$('restart').onclick=start;
@@ -89,13 +93,17 @@ function triggerTrap(){if(!round.discharge())return false;const caught=director.
 function shoot(){if(mode!=='playing'||!round.shoot())return false;const target=nearest();jeep.shoot();audio.gun();jeep.muzzle.getWorldPosition(muzzle);const end=target?.point||raycaster.ray.at(85,point);effects.trace(muzzle,end);shake=Math.max(shake,.025);
  if(target){if(target.type==='switch'){if(triggerTrap())hitTime=.12;else audio.hit('ground',target.distance,target.point);effects.burst(target.point,false);}
   else if(target.type==='raptor'){round.hits++;director.strike(target,raycaster.ray.direction);effects.burst(target.point,true);audio.hit('hide',target.distance,target.point);hitTime=.13;}
-  else if(target.type==='rex'){round.hitRex(target.point.y>3.5?2:1);rex.hit();effects.burst(target.point,true);audio.hit('hide',target.distance,target.point);hitTime=.13;}
+  else if(target.type==='rex'){round.hitRex(target.point.y>3.5?2:1);rex.hit();effects.burst(target.point,true);combatFX.hit(target.point,raycaster.ray.direction);audio.hit('hide',target.distance,target.point);hitTime=.13;}
   else effects.burst(target.point,false);
  }return true;
 }
-function grenade(){if(mode!=='playing'||!round.launchGrenade())return;const target=nearest();const at=target?.point?.clone()||raycaster.ray.at(16,new T.Vector3());at.y=Math.max(.15,at.y);director.blast(at,5.5);
- if(round.time>=BREACH.breach&&rex.actor.visible&&rex.actor.position.distanceTo(at)<12)round.hitRex(10);
- if(target?.type==='switch')triggerTrap();effects.burst(at,true,true);audio.impact(true);shake=.35;hitTime=.2;
+function grenade(){if(mode!=='playing'||!round.launchGrenade())return;const target=nearest(),direction=raycaster.ray.direction.clone();const at=target?.point?.clone()||raycaster.ray.at(16,new T.Vector3());at.y=Math.max(.15,at.y);jeep.muzzle.getWorldPosition(muzzle);
+ combatFX.launch(muzzle,at,p=>{
+  if(round.result||round.phase!=='hold')return;
+  director.blast(p,5.5);
+  if(round.time>=BREACH.breach&&rex.actor.visible&&rex.headPosition().distanceTo(p)<12){round.hitRex(10);combatFX.hit(p,direction,{explosive:true,heavy:true});}
+  if(target?.type==='switch')triggerTrap();effects.burst(p,target?.type==='raptor'||target?.type==='rex',true);audio.impact(true);shake=.35;hitTime=.2;
+ });
 }
 function events(){for(const e of round.drain()){
  if(e.type==='reload')audio.reload();
@@ -108,14 +116,14 @@ function events(){for(const e of round.drain()){
  if(e.type==='stagger'){rex.hit();audio.pain(true);radio('She is falling back. Keep her off the Jeep.',2);}
  if(e.type==='damage'){damageFlash=.8;shake=Math.max(shake,.35);}
  if(e.type==='escape'){controls.reset();audio.stopCalls();audio.cue(true);radio('Gate clear. GO! GO! GO!',4);}
- if(e.type==='lost'){setMode('ending');audio.stopCalls();audio.impact();radio(e.source==='rex'?'The Rex reached the Jeep.':'The raptors overran the vehicle.',2);endAge=0;}
+ if(e.type==='lost'){setMode('ending');audio.stopCalls();audio.impact();radio(e.source==='rex'?'The Rex reached the Jeep.':'The dinosaurs overran the vehicle.',2);endAge=0;}
  if(e.type==='won')finish();
  }}
 function finish(){setMode('ended');audio.stopCalls();audio.update(0,0,false,false);$('end-screen').hidden=false;$('warning').hidden=$('target').hidden=true;
  const won=round.result==='won',newBest=round.score>best;best=Math.max(best,round.score);let saved=true;try{localStorage.setItem('rex-breach-best-v1',String(best));}catch{saved=false;}
  $('end-eyebrow').textContent=won?'SERVICE EXIT REACHED':'COMPOUND OVERRUN';$('end-title').textContent=won?'Gate cleared.':'They got through.';
- $('end-copy').textContent=won?'The Jeep is clear. Paddock Seven belongs to the dinosaurs again.':round.time>=BREACH.breach?'Sustained hits and grenades repel the Rex. Save a grid discharge for her charge.':'Watch for the crouch before a leap. Shoot the attacker off the deck before its first strike.';
- $('end-stats').textContent=`${round.score.toLocaleString()} points · ${round.kills} raptors repelled · ${round.trapKills} grid kills · ${round.staggers} Rex staggers`;
+ $('end-copy').textContent=won?'The Jeep is clear. Paddock Seven belongs to the dinosaurs again.':round.time>=BREACH.breach?'Split your fire between the Rex and the pack. Save a rocket or grid discharge for her charge.':'Clear both sides of the deck. Stop charging pachys, and use rockets or the grid to thin the packs.';
+ $('end-stats').textContent=`${round.score.toLocaleString()} points · ${round.kills} dinosaurs repelled · ${round.trapKills} grid kills · ${round.staggers} Rex staggers`;
  $('end-best').textContent=saved?`${newBest?'NEW BEST · ':''}PERSONAL BEST ${best.toLocaleString()}`:'Storage unavailable. Your score is shown for this visit.';$('restart').focus({preventScroll:true});
 }
 function updateCamera(dt){
@@ -126,16 +134,16 @@ function updateCamera(dt){
  const j=reduced?0:shake;cameraFrom.x+=Math.sin(time*67)*j*.12;cameraFrom.y+=Math.sin(time*79)*j*.1;
  camera.position.copy(cameraFrom);camera.lookAt(cameraAt);camera.updateMatrixWorld();
 }
-function hud(){const t=round.time,w=round.wave;const stage=t<7?'SERVICE EXIT OFFLINE':w===1?'WAVE 01 / FENCE CONTACTS':w===2?'WAVE 02 / PACK ATTACK':w===3?'WAVE 03 / HOLD THE LINE':w===4?'APEX BREACH / KEEP FIRING':'REGROUP / RELOAD';
+function hud(){const t=round.time,w=round.wave;const stage=t<3?'SERVICE EXIT OFFLINE':w===1?'WAVE 01 / FENCE CONTACTS':w===2?'WAVE 02 / PACK ATTACK':w===3?'WAVE 03 / HOLD THE LINE':w===4?'APEX BREACH / KEEP FIRING':'REGROUP / RELOAD';
  $('stage').textContent=stage;$('objective-title').textContent=round.phase==='escape'?'Gate clear. Move!':w===4?'Repel the Rex.':'Hold the compound.';
  const seconds=Math.ceil(round.remaining);$('clock').textContent=`${Math.floor(seconds/60)}:${String(seconds%60).padStart(2,'0')}`;
  $('gate-progress').style.transform=`scaleX(${Math.min(1,t/BREACH.duration)})`;$('objective-detail').textContent=t>=BREACH.gateAt?`EXIT OPENING · ${Math.round(round.gate*100)}%`:`EXIT REBOOT · ${Math.round(Math.min(1,t/BREACH.gateAt)*100)}%`;
  $('integrity').innerHTML=`${Math.ceil(round.jeep)}<small>%</small>`;$('integrity-bar').style.transform=`scaleX(${round.jeep/100})`;$('ammo').innerHTML=`${String(round.ammo).padStart(3,'0')}<small>/ 080</small>`;$('heat').style.transform=`scaleX(${round.heat})`;
- $('weapon-status').textContent=round.reload>0?`RELOADING ${round.reload.toFixed(1)}s`:round.heat>=.98?'COOLING':'READY';$('score').textContent=`${round.score.toLocaleString()} PTS · ${round.kills} REPELLED`;
+ $('weapon-status').textContent=round.reload>0?`RELOADING ${round.reload.toFixed(1)}s`:round.heat>=.98?'COOLING':'READY';$('score').textContent=`${round.score.toLocaleString()} PTS · ${director.live.length} CONTACTS`;
  $('grenade-state').textContent=round.grenade>0?`${Math.ceil(round.grenade)}s`:'READY';$('grid-label').textContent=round.trap>0?`GRID RECHARGING · ${Math.ceil(round.trap)}s`:'GRID READY';$('grid-tip').textContent=round.trap>0?'Wait for the blue switch lights.':'Shoot either blue switch to electrify the yard.';
  $('rex-meter').hidden=t<BREACH.breach||round.phase==='escape';$('stagger-progress').style.transform=`scaleX(${round.rexCharge/BREACH.staggerHits})`;
  const threat=director.warning,show=mode==='playing'&&round.phase==='hold';$('warning').hidden=!show||!threat;$('target').hidden=!show||!threat;
- if(threat&&show){const c=threat.c,board=threat.phase==='board';$('warning-title').textContent=board?'RAPTOR ON THE JEEP':threat.phase==='leap'?'INCOMING!':'RAPTOR PREPARING TO LEAP';$('warning-copy').textContent=board?'Shoot it off before it strikes.':'Keep firing at the marked attacker.';$('target-label').textContent=board?'SHOOT IT OFF':'LEAP';
+ if(threat&&show){const c=threat.c,board=threat.phase==='board',boards=director.live.filter(a=>a.phase==='board').length;$('warning-title').textContent=board?(boards>1?'RAPTORS ON BOTH SIDES':'RAPTOR ON THE JEEP'):threat.heavy?'PACHY CHARGE':threat.phase==='leap'?'INCOMING!':'RAPTOR PREPARING TO LEAP';$('warning-copy').textContent=board?'Clear the deck. More contacts are closing in.':threat.heavy?'Stop the ram. A rocket breaks its charge.':'Keep firing at the marked attacker.';$('target-label').textContent=board?'SHOOT IT OFF':threat.heavy?'STOP THE RAM':'LEAP';
   projected.copy(c.p).y+=c.kind.centre*c.scale;projected.project(camera);const x=(projected.x*.5+.5)*innerWidth,y=(.5-projected.y*.5)*innerHeight;
   $('target').hidden=projected.z>1||x<0||x>innerWidth||y<0||y>innerHeight;$('target').style.left=`${x}px`;$('target').style.top=`${y}px`;
  }
@@ -161,7 +169,7 @@ function step(dt){
  const close=director.warning;if(close)night.flashlight.intensity*=T.MathUtils.clamp(((close.c.p.distanceTo(camera.position)-2)/8)**2,.035,1);
  // Ambient fill preserves readable silhouettes even during the scripted outage.
  hemi.intensity=Math.max(hemi.intensity,.3);fill.intensity=Math.max(fill.intensity,.55);scene.environmentIntensity=Math.max(scene.environmentIntensity,.17);night.tail.intensity*=.18;
- effects.update(sim,speed);audio.listen(camera,rex?.actor.visible?rex.headPosition():null);audio.weather(playing?weather.value:0);audio.update(speed,sim,playing,false);
+ combatFX.update(sim,speed);effects.update(sim,speed);audio.listen(camera,rex?.actor.visible?rex.headPosition():null);audio.weather(playing?weather.value:0);audio.update(speed,sim,playing,false);
  if(playing){if(firing)shoot();events();}hud();
 }
 function render(now){requestAnimationFrame(render);const dt=Math.min(.04,(now-last)/1000);last=now;if(!freeze)step(dt);
@@ -171,8 +179,11 @@ function render(now){requestAnimationFrame(render);const dt=Math.min(.04,(now-la
 requestAnimationFrame(render);
 async function load(){try{
  const [branch,loadedRex]=await Promise.all([new T.TextureLoader().loadAsync('./textures/jungle-branch.png'),createRex(scene),critters.ready()]);branch.colorSpace=T.SRGBColorSpace;
- rex=loadedRex;world=createCompound(scene,branch);world.setQuality(TIERS[tier]);preview=director.spawn(0);preview.c.p.set(2.3,0,12);preview.c.yaw=Math.PI+.25;preview.c.stride=0;critters.updateDirected(0);ready=true;
+ // The compound lamps hit from only a few metres away. Preserve the baked hide
+ // under the wet shader instead of reflecting a white hotspot over the body.
+ for(const mesh of critters.meshes){mesh.material.roughness=.94;mesh.material.envMapIntensity=.45;}
+ rex=loadedRex;world=createCompound(scene,branch);world.setQuality(TIERS[tier]);preview=director.spawn(0);preview.c.p.set(2.3,0,12);preview.c.yaw=Math.PI+.25;preview.c.stride=0;preview.c.fade=1;critters.updateDirected(0);ready=true;
  $('loading-status').textContent='Mouse: hold to fire. Touch: drag to aim, hold FIRE.';$('start').textContent='HOLD THE COMPOUND ↗';$('start').disabled=false;setMode('menu');
  }catch(error){$('loading-status').textContent=`Could not load the encounter: ${error.message}. Reload to try again.`;console.error(error);}}
 load();
-window.breach={round,director,critters,renderer,scene,camera,jeep,weather,get world(){return world;},get rex(){return rex;},get mode(){return mode;},get ready(){return ready;},get view(){return view;},get quality(){return tier;},get freeze(){return freeze;},set freeze(v){freeze=v;},start,pause,step,shoot,grenade,triggerTrap,aimAt(p){aim.copy(p.clone().project(camera));moveReticle();},snapshot(){return{mode,time:round.time,phase:round.phase,result:round.result,jeep:round.jeep,kills:round.kills,score:round.score,rexDistance:round.rexDistance,live:director.live.length,calls:renderer.info.render.calls,triangles:renderer.info.render.triangles};}};
+window.breach={round,director,critters,combatFX,renderer,scene,camera,jeep,weather,get world(){return world;},get rex(){return rex;},get mode(){return mode;},get ready(){return ready;},get view(){return view;},get quality(){return tier;},get freeze(){return freeze;},set freeze(v){freeze=v;},start,pause,step,shoot,grenade,triggerTrap,aimAt(p){aim.copy(p.clone().project(camera));moveReticle();},snapshot(){return{mode,time:round.time,phase:round.phase,result:round.result,jeep:round.jeep,kills:round.kills,score:round.score,rexDistance:round.rexDistance,live:director.live.length,calls:renderer.info.render.calls,triangles:renderer.info.render.triangles};}};

@@ -11,9 +11,9 @@ export function createCompound(scene,branchMap){
  const amber=new T.MeshStandardMaterial({color:0xffad41,emissive:0xff7425,emissiveIntensity:3});
  const lampMat=new T.MeshStandardMaterial({color:0xe4eadf,emissive:0xcfedff,emissiveIntensity:5});
  // Concrete variation is fixed in world metres, so the yard does not look tiled.
- const floor=mat(0x3b4542,.37,.15);
+ const floor=mat(0x3b4542,.53,.04);
  floor.onBeforeCompile=s=>{s.vertexShader=s.vertexShader.replace('#include <common>','#include <common>\nvarying vec3 vYard;').replace('#include <begin_vertex>','#include <begin_vertex>\nvYard=(modelMatrix*vec4(transformed,1.)).xyz;');s.fragmentShader=s.fragmentShader.replace('#include <common>','#include <common>\nvarying vec3 vYard;').replace('#include <color_fragment>',`#include <color_fragment>
- float n=fract(sin(dot(floor(vYard.xz*11.),vec2(12.9898,78.233)))*4375.58);
+ vec3 h=fract(vec3(floor(vYard.xz*11.).xyx)*.1031);h+=dot(h,h.yzx+33.33);float n=fract((h.x+h.y)*h.z);
  float slabs=step(.03,fract(vYard.x*.24))*step(.03,fract(vYard.z*.24));
  float wear=.5+.25*sin(vYard.x*1.17+sin(vYard.z*.72))+.25*cos(vYard.z*1.3);
  diffuseColor.rgb*=mix(.72,1.05,n)*mix(.55,1.,slabs)*mix(.68,1.,wear);`);};floor.customProgramCacheKey=()=> 'breach-concrete-v1';

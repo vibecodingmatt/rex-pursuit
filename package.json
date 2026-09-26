@@ -13,7 +13,7 @@
                     "test:touch": "node scripts/test-touch.mjs && node scripts/verify-touch.cjs",
                     "test:gaze": "node scripts/verify-gaze.cjs",
                     "test:logic": "node scripts/test-combat.mjs && node scripts/test-defeat.mjs && node scripts/test-ambush.mjs && node scripts/test-touch.mjs && node scripts/test-victory.mjs && node scripts/test-safari.mjs && node scripts/test-breach.mjs",
-                    "test:breach": "node scripts/test-breach.mjs && node scripts/verify-breach.cjs",
+                    "test:breach": "node scripts/test-breach.mjs && node scripts/test-breach-director.mjs && node scripts/verify-breach.cjs",
                     "test:safari": "node scripts/test-safari.mjs && node scripts/verify-safari.cjs",
                     "test:safari-motion": "node scripts/verify-safari-motion.cjs",
                     "test:release": "node scripts/test-release.mjs",

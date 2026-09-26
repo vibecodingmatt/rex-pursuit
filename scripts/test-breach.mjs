@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict';
 import {BREACH,BreachRound,waveAt} from '../src/breach/rules.js';
 const advance=(r,seconds,act=()=>{})=>{for(let t=0;t<seconds-1e-8;t+=1/60){act(r);r.tick(Math.min(1/60,seconds-t));}};
-assert.deepEqual([0,7,38,43,73,78,94].map(waveAt),[0,1,0,2,0,3,4]);
+assert.deepEqual([0,3,37,40,72,75,94].map(waveAt),[0,1,0,2,0,3,4]);
 const r=new BreachRound();
 assert.equal(r.startReload(),false);assert.equal(r.hitRex(100),false);
 assert.equal(r.shoot(),true);assert.equal(r.shoot(),false);assert.equal(r.ammo,79);

@@ -207,7 +207,7 @@ function critterMaterial(lizard,detail=false){
 }
 
 // --------------------------------------------------------------------- system --
-export function createCritters(scene,{jungle,camera=null}){
+export function createCritters(scene,{jungle,camera=null,capacities={}}){
  // Per species: body centre height and hit radius (model units, before scale), the hull the
  // dead body rests on, fall gravity, whether it is heavy (keeps its momentum when shot and
  // skids), running lean, stride (m per gait cycle: a + b x speed), full-stride speed,
@@ -233,6 +233,8 @@ export function createCritters(scene,{jungle,camera=null}){
  };
  for(const [name,o]of Object.entries(BAKED))kinds[name]={...kinds.galli,name,label:SPECIES[name].name,geometry:new T.BufferGeometry(),...critterMaterial(false,true),hitR:.2,...o,baked:true};
  for(const [name,k]of Object.entries(kinds)){
+  // Authored encounters can reserve more bodies without changing Safari density.
+  k.max=capacities[name]??k.max;
   k.motion=SAFARI_MOTION[k.name];
   k.pose=new T.InstancedBufferAttribute(new Float32Array(k.max*4),4);k.pose.setUsage(T.DynamicDrawUsage);k.geometry.setAttribute('aPose',k.pose);
   k.body=new T.InstancedBufferAttribute(new Float32Array(k.max*4),4);k.body.setUsage(T.DynamicDrawUsage);k.geometry.setAttribute('aBody',k.body);
