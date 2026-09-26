@@ -1,0 +1,26 @@
+import assert from 'node:assert/strict';
+import {Encounter} from '../src/chase/combat.js';
+import {SafariRound,SPECIES,parseScores,readScores,saveScore,chainMultiplier,safariRank} from '../src/chase/safari-rules.js';
+const e=new Encounter();e.startSafari();assert.equal(e.fire(),false);e.tick(3);assert.equal(e.remaining,90);assert.equal(e.fire(),true);
+e.damage(99999);e.hit(true,true);assert.equal(e.health,5600);assert.equal(e.jeep,100);
+for(let n=0;n<899;n++)e.tick(.1);assert.ok(e.remaining>.09);assert.equal(e.result,null);e.tick(.1);assert.equal(e.result,'safari');assert.equal(e.remaining,0);assert.equal(e.fire(),false);assert.equal(e.launch(),false);assert.equal(e.lossReason,null);assert.equal(e.defeat,null);
+assert.equal(e.drainEvents().filter(x=>x==='safari-complete').length,1);e.tick(1);assert.equal(e.drainEvents().length,0);
+e.reset();assert.equal(e.safari,null);assert.equal(e.phase,'intro');
+const r=new SafariRound();assert.equal(r.award('compy'),0);r.tick(3);
+assert.equal(r.award('compy'),100);r.tick(1);r.award('compy');assert.equal(r.award('compy'),200);assert.equal(r.multiplier,2);
+r.award('compy');r.award('compy');assert.equal(r.award('ghostRaptor'),7500);assert.equal(r.multiplier,3);assert.equal(r.rare,1);
+assert.equal(r.nextStep,4);for(let i=0;i<4;i++)r.award('compy');assert.equal(r.multiplier,4);for(let i=0;i<5;i++)r.award('compy');assert.equal(r.multiplier,5);assert.equal(r.nextStep,0);
+assert.deepEqual([1,2,3,6,10,15,40].map(chainMultiplier),[1,1,2,3,4,5,5]);assert.equal(safariRank(0),'Trail rookie');assert.equal(safariRank(30000),'Jungle legend');
+r.tick(4.01);assert.equal(r.multiplier,1);assert.equal(r.award('raptor'),450);assert.equal(r.chain,1);assert.equal(r.bestChain,15);
+const score=r.score;r.tick(100);assert.equal(r.award('raptor'),0);assert.equal(r.score,score);
+let cookie='',written='';const doc={get cookie(){return cookie;},set cookie(v){written=v;cookie=v.split(';')[0];}};
+for(let i=0;i<8;i++)saveScore({score:100+i,kills:i,rare:0},doc,{});
+const saved=readScores(doc,{});assert.equal(saved.runs,8);assert.equal(saved.top.length,5);assert.equal(saved.top[0].score,107);assert.ok(written.includes('SameSite=Lax'));assert.ok(written.includes('Max-Age=31536000'));assert.ok(written.length<3000);
+assert.equal(parseScores('{broken').top.length,0);assert.equal(parseScores(JSON.stringify({v:1,top:[{score:'<script>',kills:0,rare:0,at:1}]})).top.length,0);
+const blocked={get cookie(){throw Error('blocked')},set cookie(v){throw Error('blocked')}};assert.equal(saveScore(r,blocked,{}).saved,false);
+const memory=new Map(),storage={getItem:k=>memory.get(k),setItem:(k,v)=>memory.set(k,v)};assert.equal(saveScore(r,blocked,storage).saved,true);assert.equal(readScores(blocked,storage).top[0].score,r.score);
+assert.equal(Object.keys(SPECIES).length,15);
+// Every species ever bagged is kept (deduplicated, unknown names dropped) for the field guide.
+const seenDoc={cookie:''};Object.defineProperty(seenDoc,'cookie',{get(){return this._c||'';},set(v){this._c=v.split(';')[0];}});
+saveScore({score:10,kills:1,rare:0,breakdown:{compy:100}},seenDoc,{});saveScore({score:20,kills:1,rare:1,breakdown:{triceratops:1200,compy:100}},seenDoc,{});
+assert.deepEqual(readScores(seenDoc,{}).seen.sort(),['compy','triceratops']);assert.deepEqual(parseScores(JSON.stringify({v:1,top:[],seen:['compy','__proto__','nope',5]})).seen,['compy']);console.log('Safari rules passed: countdown + exact 90s, no damage, end lock, x2-x5 streak steps and expiry, rare scoring, ranks, restart, top five and bagged-species cookie, blocked-storage fallback.');

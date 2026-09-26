@@ -1,0 +1,69 @@
+/* Safari uses the existing typography, amber instrumentation and forest glass. */
+.mode-picker{display:flex;width:min(360px,100%);gap:6px;margin:16px 0 0}
+.mode-picker button{flex:1;min-height:48px;text-align:left;padding:9px 13px;border:1px solid #c3cdb235;background:#09160ddd;letter-spacing:1.3px;font-size:10px;font-weight:700}
+.mode-picker button small{display:block;margin-top:4px;color:#a4b49a;font-size:8px;letter-spacing:.5px;font-weight:400}
+.mode-picker button[aria-pressed=true]{border-color:#e8be75;color:#ffe0a5;background:#7258314a;box-shadow:inset 3px 0 #e8be75}
+#safari-menu-info{display:flex;align-items:center;gap:14px;margin-top:10px;font-size:9px;letter-spacing:1px;color:var(--amber)}
+#guide-open{font-size:9px;padding:8px 0;border-bottom:1px solid #e8be7555;color:#e2e7d9}
+#field-guide{width:min(590px,94vw);max-height:88dvh;overflow:auto;touch-action:pan-y}
+#field-guide h2{margin:14px 0}.guide-intro{margin-bottom:15px}
+#guide-close{position:absolute;right:10px;top:8px;width:44px;height:44px;font-size:24px}
+.species-row{display:flex;justify-content:space-between;align-items:center;border-top:1px solid #e8be7520;padding:10px 0;gap:14px}
+.species-row strong{font-size:12px}.species-row small{display:block;font-size:10px;color:#a7b59e;margin-top:4px;line-height:1.4}.species-row b{color:#e8be75;font-variant-numeric:tabular-nums;font-size:14px}
+.species-row[data-rarity=Legendary] strong{color:#efc786}.species-row[data-rarity=Rare] strong{color:#c3d994}
+body[data-game=safari] #boss{display:none}
+body[data-game=safari] .integrity-row svg,body[data-game=safari] .integrity-row>span,body[data-game=safari] .integrity-track{display:none}
+#safari-hud{position:fixed;left:50%;top:22px;transform:translateX(-50%);width:min(400px,40vw);z-index:3;pointer-events:none;padding:10px 16px;background:linear-gradient(180deg,#0a170ee8,#0a170e88);border:1px solid #e8be7540;backdrop-filter:blur(6px)}
+.safari-scoreline{display:flex;align-items:center;justify-content:space-between;gap:16px}
+#safari-score{font:600 36px/1 'Barlow Condensed',Impact,sans-serif;font-variant-numeric:tabular-nums;color:#ffe4ad}
+#safari-multiplier{font:600 28px/1 'Barlow Condensed',Impact,sans-serif;color:#bbd58a}
+.safari-subline{display:flex;justify-content:space-between;margin-top:4px;gap:10px;font-size:8px;letter-spacing:1.1px;color:#c4cdb5}
+.safari-streak{height:2px;margin-top:8px;background:#e8be7522}.safari-streak i{display:block;height:100%;background:#bad18c;transform-origin:left}
+#safari-notice{font-size:8px;letter-spacing:1px;color:#aabd9d;margin-top:7px;min-height:10px}
+#safari-notice[data-rare=true]{color:#ffdaa0}
+body[data-game=safari] #mission-clock{top:135px}
+body[data-game=safari] #warning{top:30%}
+body[data-game=safari] #warning-title{font-size:36px}
+body[data-state=paused] #safari-hud{opacity:.3}
+body[data-state=menu] #safari-hud,body[data-state=ended] #safari-hud{display:none}
+.menu-return{display:block;margin:14px auto 0;padding:10px 16px;min-height:40px;font-size:10px;letter-spacing:1.4px;color:#cbd7bc;text-decoration:underline;text-underline-offset:4px}
+#safari-results{margin-top:18px;text-align:left;font-size:11px;line-height:1.5}
+.safari-result-columns{display:grid;grid-template-columns:1.1fr 1fr;gap:24px}.safari-result-columns h3{font-size:9px;letter-spacing:1.8px;color:#adbea0;margin:0 0 8px}
+#safari-breakdown{max-height:164px;overflow:auto;touch-action:pan-y}
+#safari-breakdown>div{display:flex;justify-content:space-between;gap:10px;padding:3px 0;color:#d2dbc6}#safari-breakdown b{color:#e8be75}
+#safari-board{margin:0;padding-left:18px}#safari-board li{padding:3px 0 3px 2px;color:#b8c9a8}#safari-board b{font-variant-numeric:tabular-nums;color:#ede4c9}#safari-board span{display:block;font-size:9px;color:#9ead94}#safari-board .record b{color:#ffcf7c}
+#safari-save-status{font-size:9px!important;text-align:center;margin:12px 0 0}
+body[data-game=safari] #end-title{font-size:58px}body[data-game=safari] #end-stats{margin-top:12px}
+#start-screen .intro-copy{max-height:calc(100dvh - 142px);overflow:auto;scrollbar-width:thin;touch-action:pan-y}
+@media(min-width:801px){#start-screen .intro-copy{top:auto;bottom:66px}#start-screen h1{font-size:clamp(52px,8vh,88px);margin:18px 0 16px}#start-screen .start-actions{margin-top:18px}#start-screen .start-tip{display:none}}
+@media(max-width:800px){#safari-hud{top:calc(64px + env(safe-area-inset-top));width:calc(100% - 40px);max-width:410px;padding:8px 12px}#safari-score{font-size:28px}#safari-multiplier{font-size:24px}body[data-game=safari] #mission-clock{top:calc(170px + env(safe-area-inset-top))}.safari-result-columns{gap:18px}body[data-game=safari] #end-title{font-size:44px}#field-guide{padding:25px 20px}}
+@media(orientation:portrait) and (max-width:800px){body #start-screen h1{font-size:clamp(42px,7.1vh,64px);margin:12px 0}body #start-screen .start-tip{display:none}.mode-picker{margin-top:12px}body #start-screen .start-actions{margin-top:12px}}
+@media(max-height:570px) and (orientation:landscape){#safari-hud{top:calc(12px + env(safe-area-inset-top));width:36vw;max-width:380px;padding:7px 10px}#safari-notice{font-size:7px}.safari-subline{font-size:7px}#safari-score{font-size:27px}body[data-game=safari] #mission-clock{top:113px}body[data-game=safari] #warning{top:42%}body #start-screen .intro-copy{top:65px;bottom:40px;max-height:none;overflow:auto}body #start-screen h1{font-size:40px;margin:10px 0}.mode-picker{margin-top:8px}.mode-picker button{min-height:40px;padding:6px 10px}.mode-picker small{display:none}#safari-menu-info{margin-top:3px}body #start-screen .start-actions{margin-top:10px}.safari-result-columns{max-width:480px;margin:auto}}
+@media(prefers-reduced-motion:reduce){#safari-hud *{transition:none}}
+/* World-anchored feedback: kill points rising from the body, and the tag over a wounded or rare animal. */
+#safari-fx{position:fixed;inset:0;z-index:3;pointer-events:none;overflow:hidden}
+.safari-pop{position:absolute;left:0;top:0;text-align:center;white-space:nowrap;will-change:transform,opacity;text-shadow:0 2px 10px #000,0 0 2px #000}
+.safari-pop b{display:block;font:600 30px/1 'Barlow Condensed',Impact,sans-serif;letter-spacing:.5px;color:#f6e7bf}
+.safari-pop small{display:block;margin-top:2px;font-size:8px;letter-spacing:1.4px;text-transform:uppercase;color:#e6dcc0}
+.safari-pop[data-rarity=uncommon] b{color:#cfe89a}.safari-pop[data-rarity=rare] b{color:#ffc86e;font-size:38px}
+.safari-pop[data-rarity=legendary] b{color:#ffe07a;font-size:46px;text-shadow:0 0 18px #ffb52e,0 2px 10px #000}
+.safari-tag{position:absolute;left:0;top:0;min-width:118px;padding:5px 9px 6px;background:#08140ccc;border:1px solid #e8be7555;border-left:3px solid #e8be75;white-space:nowrap;will-change:transform}
+.safari-tag b{display:block;font-size:9px;letter-spacing:1.6px;color:#f3e8cb}
+.safari-tag small{display:block;font-size:7px;letter-spacing:1.1px;color:#aebf9d;margin-top:2px}
+.safari-tag span{display:block;height:3px;margin-top:5px;background:#e8be7526}.safari-tag i{display:block;height:100%;background:#e8be75;transform-origin:left;transition:transform .12s}
+.safari-tag[data-rarity=rare]{border-left-color:#ffb95a}.safari-tag[data-rarity=rare] i{background:#ffb95a}
+.safari-tag[data-rarity=legendary]{border-color:#ffd66a88;border-left-color:#ffd66a;box-shadow:0 0 18px #ffc34a55}.safari-tag[data-rarity=legendary] i{background:#ffd66a}
+.safari-tag::after{content:'';position:absolute;left:50%;bottom:-7px;width:1px;height:7px;background:#e8be7599}
+body[data-state=paused] #safari-fx,body[data-state=ended] #safari-fx,body[data-state=menu] #safari-fx{visibility:hidden}
+#safari-callout{position:fixed;z-index:3;left:50%;top:27%;transform:translate(-50%,-50%);pointer-events:none;opacity:0;font:600 46px/1 'Barlow Condensed',Impact,sans-serif;letter-spacing:4px;color:#dff08f;text-shadow:0 0 24px #9dc24a88,0 3px 14px #000;white-space:nowrap}
+#safari-callout.show{animation:safari-callout 1.1s ease-out}
+@keyframes safari-callout{0%{opacity:0;transform:translate(-50%,-50%) scale(1.5)}12%{opacity:1;transform:translate(-50%,-50%) scale(1)}70%{opacity:1}100%{opacity:0;transform:translate(-50%,-62%) scale(.96)}}
+#safari-multiplier[data-level="3"]{color:#e4e07a}#safari-multiplier[data-level="4"]{color:#ffc96b}#safari-multiplier[data-level="5"]{color:#ffa35a;text-shadow:0 0 14px #ff8a3a88}
+#safari-notice[data-rare=legendary]{color:#ffe07a;text-shadow:0 0 10px #ffb52e88}
+#guide-count{font-size:9px;letter-spacing:1.6px;color:var(--amber);margin:4px 0 6px}
+.species-row em{font-style:normal;font-size:8px;letter-spacing:1.4px;color:#b9d58a;margin-left:auto}
+.species-row[data-seen=false][data-rarity=Legendary] small{color:#8f9b86}
+#safari-breakdown>div[data-rarity=Rare] span{color:#ffd9a0}#safari-breakdown>div[data-rarity=Legendary] span{color:#ffe07a}
+@media(max-width:800px){.safari-pop b{font-size:24px}.safari-pop[data-rarity=rare] b{font-size:30px}.safari-pop[data-rarity=legendary] b{font-size:36px}#safari-callout{font-size:34px;top:31%}}
+@keyframes safari-fade{0%,80%{opacity:1}100%{opacity:0}}
+@media(prefers-reduced-motion:reduce){#safari-callout.show{animation-name:safari-fade}}

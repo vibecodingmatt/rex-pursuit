@@ -13,7 +13,7 @@ export function setupSharing({button,copyButton,status,fallback,input,getState})
  input.onclick=()=>input.select();
  button.onclick=async()=>{
   if(!navigator.share){await copy();return;}
-  const token=generation,s=getState(),text=s.result==='won'?`I escaped the T. rex in ${Math.floor(s.fightTime)} seconds and made it to the Visitor Center. Can you make it?`:'The T. rex caught my Jeep. Think you can escape? Play Rex: Pursuit.';
+  const token=generation,s=getState(),text=s.safari?`I scored ${s.safari.score.toLocaleString()} points and bagged ${s.safari.kills} animals in Safari Run. Can you beat my 90-second run? Play Rex: Pursuit.`:s.result==='won'?`I escaped the T. rex in ${Math.floor(s.fightTime)} seconds and made it to the Visitor Center. Can you make it?`:'The T. rex caught my Jeep. Think you can escape? Play Rex: Pursuit.';
   button.disabled=true;
   try{await navigator.share({title:'Rex: Pursuit',text,url:GAME_URL});if(token===generation)status.textContent='Thanks for sharing the chase!';}
   catch(error){if(token===generation&&error.name!=='AbortError'){fallback.hidden=false;status.textContent='Sharing is unavailable here. Copy the game link below.';}}

@@ -1,6 +1,7 @@
 import * as T from 'three';
 import {mergeGeometries} from 'three/addons/utils/BufferGeometryUtils.js';
 import {WET} from './weather-state.js';
+import {SPECIES} from './safari-rules.js';
 // Pterosaurs, for the gunner to shoot. Dimorphodon cling to the road side of the leaning
 // edge trees (roosts recorded per chunk in environment.js), belly to the bark and wings
 // folded. A round close by, a big noise, one of them being shot, the Jeep passing underneath
@@ -70,6 +71,22 @@ function dimorphodonGeometry(){
  return mergeGeometries(parts);
 }
 
+/** Giant azhdarchid: long stiff neck, spear bill, broad root and narrow wingtips. */
+function quetzalcoatlusGeometry(){
+ const hide={back:[.31,.23,.13],belly:[.58,.47,.31]},bill={back:[.5,.29,.085]},parts=[];
+ parts.push(piece(S(16,12),{at:[0,0,0],scale:[.24,.28,.72],...hide}));
+ parts.push(piece(Cy(.085,.15,12),{from:[0,.14,.5],to:[0,.54,1.72],...hide}));
+ parts.push(piece(S(14,10),{at:[0,.56,1.85],scale:[.14,.18,.3],...hide}));
+ parts.push(piece(Cy(.004,.125,12),{from:[0,.57,2],to:[0,.38,3.65],...bill}));
+ parts.push(piece(S(10,8),{at:[0,.77,1.7],scale:[.038,.3,.29],rot:[.5,0,0],back:[.43,.13,.045]}));
+ for(const side of [-1,1]){
+  parts.push(piece(S(8,6),{at:[side*.12,.62,1.95],scale:[.03,.034,.038],back:[.012,.008,.003]}));
+  parts.push(piece(Cy(.018,.048,8),{from:[side*.12,-.06,-.52],to:[side*.36,-.18,-1.55],...hide}));
+  parts.push(membrane(side,[[.2,.12,.4],[1.4,.17,.54],[2.7,.2,.25],[4,.13,-.18],[5.4,.04,-.65]],[[.16,-.02,-.72],[1.45,.0,-.7],[2.9,.03,-.67],[4.3,.03,-.64],[5.4,.04,-.65]],{edge:[.17,.11,.065],inner:[.46,.29,.17]},20));
+ }
+ return mergeGeometries(parts);
+}
+
 // -------------------------------------------------------------------- shader --
 // Wings turn about the shoulder: folding sweeps them back and shortens them, the flap
 // rolls them about the body axis with the tip lagging the root, and dead crumples one
@@ -99,6 +116,7 @@ export function createFlyers(scene,{jungle}){
  const species={
   ptero:{name:'pteranodon',label:'Pteranodon',geometry:pteranodonGeometry(),max:8,...flyerMaterial('ptero',[.12,.08,.25]),hitR:.5,wingR:.6,wingAt:1.5,rest:.16,flapHz:1.25},
   dimorph:{name:'dimorphodon',label:'Dimorphodon',geometry:dimorphodonGeometry(),max:24,...flyerMaterial('dimorph',[.04,.03,.06]),hitR:.14,wingR:.13,wingAt:.36,rest:.06,flapHz:5.5},
+  quetz:{name:'quetzalcoatlus',label:'Quetzalcoatlus',geometry:quetzalcoatlusGeometry(),max:2,...flyerMaterial('quetz',[.2,.12,.4]),hitR:.7,wingR:.9,wingAt:2.6,rest:.3,flapHz:.75},
  };
  for(const k of Object.values(species)){
   k.pose=new T.InstancedBufferAttribute(new Float32Array(k.max*4),4);k.pose.setUsage(T.DynamicDrawUsage);k.geometry.setAttribute('aFly',k.pose);
@@ -108,11 +126,23 @@ export function createFlyers(scene,{jungle}){
   k.pool=Array.from({length:k.max},()=>({on:false,kind:k,state:'perch',p:new T.Vector3(),v:new T.Vector3(),q:new T.Quaternion(),spin:new T.Vector3(),n:new T.Vector3(),
    phase:0,amp:0,fold:1,dead:0,scale:1,fade:1,tint:new T.Color(),t:0,flushAt:-1,flap:0,wobble:0,bank:0,grounded:false,landed:false,age:0,flick:0}));
  }
- const P=species.ptero,D=species.dimorph,ALL=[P,D];
+ const P=species.ptero,D=species.dimorph,ALL=Object.values(species);
  const m4=new T.Matrix4(),s=new T.Vector3(),x=new T.Vector3(),y=new T.Vector3(),z=new T.Vector3(),up=new T.Vector3(0,1,0),o=new T.Vector3(),
   turn=new T.Quaternion(),bankQ=new T.Quaternion(),settle=new T.Quaternion(),axis=new T.Vector3(),c3=new T.Vector3(),w3=new T.Vector3(),pos=new T.Vector3(),e=new T.Euler(0,0,0,'YXZ');
  let now=0,travel=0,nextPass=150,density=1,chunkZ=[],api;const tally={kills:0};
- const free=k=>k.pool.find(c=>!c.on);
+ const free=k=>{const c=k.pool.find(c=>!c.on);if(c)c.hp=1;return c;};
+ function huntSpawn(name,side){
+  if(name==='dimorphodon'){
+   const c=perch(side*4.8,range(3.3,5),range(18,28),-side,0);
+   if(c&&rnd()<.7){launch(c);c.v.z=-8;c.p.x=side*6;c.p.y=4.5;}
+   return c;
+  }
+  const k=ALL.find(k=>k.name===name),c=k&&free(k);if(!c)return null;
+  const giant=name==='quetzalcoatlus';
+  Object.assign(c,{on:true,state:'glide',hp:SPECIES[name].hp,phase:rnd(),amp:.12,fold:0,dead:0,scale:range(.95,1.05),fade:1,t:0,flap:range(.4,1),wobble:rnd()*TAU,bank:0,grounded:false,landed:false,age:0});
+  c.p.set(side*range(1,3),giant?9:range(6,8.5),giant?58:range(42,54));c.v.set(-side*.3,0,giant?-23:-16);c.tint.setRGB(1,1,1);orient(c,0);api.onCall?.(c.p);return c;
+ }
+ function strike(c,dir,power=1,damage=1){if(!c?.on||c.state==='dead')return false;c.hp=(c.hp??1)-damage;if(c.hp>0){c.flap=-.7;c.bank+=(rnd()<.5?-1:1)*.55;c.v.y-=.8;return false;}return kill(c,dir,power);}
 
  /** A Dimorphodon clinging to a trunk at (x,y,z), belly to the bark, back to the road (n points out). */
  function perch(x0,y0,z0,nx,nz){
@@ -213,9 +243,9 @@ export function createFlyers(scene,{jungle}){
  function sphereAlong(ray,centre,r){w3.subVectors(centre,ray.origin);const t=w3.dot(ray.direction);if(t<=0)return -1;const d2=w3.lengthSq()-t*t;return d2>r*r?-1:t-Math.sqrt(r*r-d2);}
 
  api={
-  meshes:[P.mesh,D.mesh],onKill:null,onLand:null,onFlush:null,onCall:null,
+  meshes:ALL.map(k=>k.mesh),huntSpawn,strike,onKill:null,onLand:null,onFlush:null,onCall:null,
   setQuality(t){density=Math.min(1,t.fauna??t.particles);D.mesh.castShadow=!!t.detail;},
-  reset(){for(const k of ALL){for(const c of k.pool)c.on=false;k.mesh.count=0;}now=0;travel=0;nextPass=range(120,220);chunkZ=[];tally.kills=0;
+  reset({empty=false}={}){for(const k of ALL){for(const c of k.pool)c.on=false;k.mesh.count=0;}now=0;travel=0;nextPass=range(120,220);chunkZ=[];tally.kills=0;if(empty)return;
    for(const chunk of jungle.chunks){const cz=chunk.group.position.z;if(cz>-70&&cz<70)populate(chunk,.5);}},
   perch,pass,kill,
   /**
@@ -237,10 +267,10 @@ export function createFlyers(scene,{jungle}){
   /** A big noise (a roar, a crash, a blast) flushes every perched one within r. */
   alarm(p,r=20){for(const c of D.pool)if(c.on&&c.state==='perch'&&c.p.distanceToSquared(p)<r*r)flush(c,range(.1,.8));},
   /** A blast kills every pterosaur within radius and flushes the rest near it. */
-  blast(p,radius=5){const out=[];for(const k of ALL)for(const c of k.pool){if(!c.on||c.state==='dead')continue;const d=c.p.distanceTo(p);if(d<radius+k.hitR*c.scale){if(kill(c,o.subVectors(c.p,p).normalize(),1.5))out.push(k.name);}else if(d<radius*3)flush(c,range(.05,.3));}return out;},
+  blast(p,radius=5){const out=[];for(const k of ALL)for(const c of k.pool){if(!c.on||c.state==='dead')continue;const d=c.p.distanceTo(p);if(d<radius+k.hitR*c.scale){if(strike(c,o.subVectors(c.p,p).normalize(),1.5,4))out.push(k.name);}else if(d<radius*3)flush(c,range(.05,.3));}return out;},
   stats(){const count=(k,st)=>k.pool.filter(c=>c.on&&(!st||c.state===st)).length;return{pteranodon:count(P),dimorphodon:count(D),perched:count(D,'perch'),flying:count(D,'fly')+count(P,'glide'),dead:count(P,'dead')+count(D,'dead'),kills:tally.kills};},
   /** Live pterosaurs of a species (for aiming checks). */
-  live(name){const k=ALL.find(k=>k.name===name);return k.pool.filter(c=>c.on&&c.state!=='dead').map(c=>({x:c.p.x,y:c.p.y,z:c.p.z,state:c.state}));},
+  live(name){const k=ALL.find(k=>k.name===name);return k.pool.filter(c=>c.on&&c.state!=='dead').map(c=>({x:c.p.x,y:c.p.y,z:c.p.z,hp:c.hp,state:c.state}));},
   /**
    * @param spawn allow roosting Dimorphodon and passing Pteranodon (not in the opening or after the chase)
    * @param rex {x,z} of her body in the Jeep frame, or null

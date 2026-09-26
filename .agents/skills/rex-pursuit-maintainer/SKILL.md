@@ -25,6 +25,7 @@ Read its `AGENTS.md` and `docs/HANDOFF.md`, then inspect current source and Git 
 | Combat/creature particles, flock | `src/chase/effects.js`, `birds.js` |
 | Compies, lizards, insects, brachiosaur; track clutter | `src/chase/critters.js`, `insects.js`, `brachio.js`; clutter in `environment.js`, `foliage.js` |
 | Shooting wildlife and the bag: compy, lizard and Gallimimus kills (`critters.js` kinds, `herd`, `stream`), pterosaurs on trunk roosts and in the corridor (`flyers.js`; roosts from `foliage.js`/`environment.js`), birds (`birds.js`), the brachiosaur's rear-up (`brachio.js`); routing, tally and results line in `src/chase.js`, `bag` in `combat.js` | see the Living jungle reference |
+| Safari Run: rules, streaks, ranks and cookie (`safari-rules.js`); spawning and the title parade (`safari-director.js`); HUD, field guide, results (`safari-ui.js`, `safari.css`); world kill points and tags (`safari-fx.js`); baked sculpts (`scripts/build-safari.mjs`, `safari-models.js`, `BAKED` in `critters.js`); mode switch and title scene in `src/chase.js` | `src/chase/safari-*.js`; see the handoff |
 | River ford: channel, layout slot, water, spray, wet ground | `src/chase/river.js`, `ford.js`; ford layout and ground shader in `environment.js`; splash and river sounds in `audio.js`; `scripts/prepare-ford-audio.cjs` |
 | Mud and wetness the Rex gathers over the chase | `src/chase/rex-coat.js` (drawn in `rex-skin.js`) |
 | Brachiosaur shape and baked High/Low meshes | `scripts/build-brachio.mjs`, `public/models/brachio.bin`, `public/models/brachio-low.bin` |

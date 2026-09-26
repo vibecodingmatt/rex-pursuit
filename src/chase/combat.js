@@ -1,13 +1,15 @@
 import {targetSequence} from './target-sites.js';
 import {AMBUSH,ambushPose} from './ambush.js';
+import {SafariRound} from './safari-rules.js';
 export const RULES={health:5600,magazine:80,reload:2.6,fireInterval:.085,grenadeCooldown:11,intro:9.4,roarAt:3.25,deadline:90,bodyDamage:10,headDamage:14,explosiveDamage:190,warning:1.25,retreat:3.05,debrisFlight:[1.8,1.5,1.25]};
 export class Encounter {
  constructor(random=Math.random){this.random=random;this.reset();}
- reset(){Object.assign(this,{time:0,fightTime:0,remaining:RULES.deadline,introDuration:RULES.intro,health:RULES.health,jeep:100,ammo:RULES.magazine,reload:0,heat:0,overheated:false,grenade:0,shotTimer:0,phase:'intro',phaseTime:0,distance:18,stagger:0,hits:0,headshots:0,shots:0,interrupts:0,result:null,events:[],attackNumber:0,objective:null,objectivesCleared:0,objectivesMissed:0,challengeNumber:0,attackCommitted:false,lossReason:null,introCues:new Set(),previousOrder:[],debris:null,debrisNumber:0,debrisCleared:0,debrisMissed:0,bag:{},nextDebris:12,ambushPlayed:false,ambush:null,defeat:null,victory:null});}
+ reset(){Object.assign(this,{safari:null,time:0,fightTime:0,remaining:RULES.deadline,introDuration:RULES.intro,health:RULES.health,jeep:100,ammo:RULES.magazine,reload:0,heat:0,overheated:false,grenade:0,shotTimer:0,phase:'intro',phaseTime:0,distance:18,stagger:0,hits:0,headshots:0,shots:0,interrupts:0,result:null,events:[],attackNumber:0,objective:null,objectivesCleared:0,objectivesMissed:0,challengeNumber:0,attackCommitted:false,lossReason:null,introCues:new Set(),previousOrder:[],debris:null,debrisNumber:0,debrisCleared:0,debrisMissed:0,bag:{},nextDebris:12,ambushPlayed:false,ambush:null,defeat:null,victory:null});}
+ startSafari(){this.reset();this.safari=new SafariRound();this.phase='safari';this.distance=24;}
  get tier(){return Math.min(2,Math.max(Math.floor(this.fightTime/30),this.health<=RULES.health*.35?2:this.health<=RULES.health*.7?1:0));}
  // The gun is live everywhere but the opening and the final overrun, including the
  // detour, when the compies bolting across the road are the targets.
- get weaponsLocked(){return ['intro','execution'].includes(this.phase);}
+ get weaponsLocked(){return !!this.safari?.ready||['intro','execution'].includes(this.phase);}
  /** In the detour she is out of sight behind the understory from the moment contact is lost until she crashes out. */
  get concealed(){return this.phase==='flank'&&this.phaseTime>=AMBUSH.vanish&&this.phaseTime<AMBUSH.crashAt;}
  get ambushDue(){return !this.ambushPlayed&&(this.fightTime>=45||this.health<=RULES.health*.5);}
@@ -25,6 +27,7 @@ export class Encounter {
   if(this.result)return;const wasIntro=this.phase==='intro';this.time+=dt;this.phaseTime+=dt;
   this.shotTimer=Math.max(0,this.shotTimer-dt);this.grenade=Math.max(0,this.grenade-dt);this.heat=Math.max(0,this.heat-dt*.19);if(this.heat<.33)this.overheated=false;
   if(this.reload>0){this.reload=Math.max(0,this.reload-dt);if(this.reload===0){this.ammo=RULES.magazine;this.events.push('loaded');}}
+  if(this.safari){this.safari.tick(dt);this.fightTime=this.safari.elapsed;this.remaining=RULES.deadline-this.fightTime;if(this.safari.complete){this.result='safari';this.events.push('safari-complete');}return;}
   if(wasIntro){
    for(const [cue,at]of [['jungle-crash',1.25],['opening-roar',RULES.roarAt],['jeep-launch',this.introDuration-3.2]])if(this.phaseTime>=at&&!this.introCues.has(cue)){this.introCues.add(cue);this.events.push(cue);}
    if(this.phaseTime>=this.introDuration){this.distance=21;this.transition('pursuit');}return;
@@ -65,11 +68,11 @@ export class Encounter {
  fire(){if(this.result||this.weaponsLocked||this.shotTimer>0||this.reload>0||this.overheated)return false;if(this.ammo===0){this.startReload();return false;}this.ammo--;this.shots++;this.shotTimer=RULES.fireInterval;this.heat=Math.min(1,this.heat+.029);if(this.heat>=1){this.overheated=true;this.events.push('overheat');}return true;}
  startReload(){if(this.result||this.phase==='execution'||this.reload>0||this.ammo===RULES.magazine)return false;this.reload=RULES.reload;this.events.push('reload');return true;}
  launch(){if(this.result||this.weaponsLocked||this.grenade>0)return false;this.grenade=RULES.grenadeCooldown;return true;}
- damage(amount){if(this.result||this.phase==='execution')return;
+ damage(amount){if(this.safari||this.result||this.phase==='execution')return;
   // Rounds that catch her as she breaks off still wound her, but she only goes down on the road, not in the trees.
   this.health=Math.max(this.phase==='flank'&&this.phaseTime<AMBUSH.fireAt?Math.min(1,this.health):0,this.health-amount);if(this.health===0){this.result='won';if(this.objective?.status==='active')this.objective.status='cancelled';if(this.debris)this.debris.status='cancelled';this.events.push('won');}}
  hit(head=false,explosive=false){
-  if(this.result||this.phase==='execution'||this.concealed)return 0;const amount=explosive?RULES.explosiveDamage:head?RULES.headDamage:RULES.bodyDamage;this.damage(amount);this.hits++;if(head)this.headshots++;
+  if(this.safari||this.result||this.phase==='execution'||this.concealed)return 0;const amount=explosive?RULES.explosiveDamage:head?RULES.headDamage:RULES.bodyDamage;this.damage(amount);this.hits++;if(head)this.headshots++;
   // Ordinary headshot staggers still work outside a committed arcade attack.
   if(!this.result&&this.phase==='charge'&&!this.attackCommitted&&(head||explosive)){this.stagger+=explosive?7:1;if(this.stagger>=10){this.interrupts++;this.transition('stunned');}}
   return amount;

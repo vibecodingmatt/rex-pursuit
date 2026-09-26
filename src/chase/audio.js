@@ -41,7 +41,7 @@ export class ChaseAudio {
   const settings=resolveAudioSettings(this.catalog,saved);this.roles=settings.roles;this.labels=settings.labels;
  }
  async loadClips(){
-  const ids=[...new Set([...Object.values(this.roles),3,4,5,6,9,18,27,11,12,14,30,31])];
+  const ids=[...new Set([...Object.values(this.roles),3,4,5,6,9,10,13,18,27,11,12,14,30,31])];
   await Promise.all(ids.filter(n=>!this.buffers.has(n)).map(async n=>{try{const r=await fetch(`./audio/clip-${String(n).padStart(2,'0')}.wav`);if(!r.ok)throw Error(r.status);const buffer=await this.context.decodeAudioData(await r.arrayBuffer());this.buffers.set(n,buffer);this.envelopes.set(n,clipEnvelope(buffer));}catch(e){console.warn('Audio clip unavailable',n,e.message);}}));
  }
  async init(){
@@ -174,9 +174,22 @@ export class ChaseAudio {
  /** A shot animal's death call: raptor clips pitched to its size (the compy's is the chirp pitched higher still). */
  death(kind,at){
   if(!this.context||this.context.currentTime-(this.lastDeath||0)<.07)return;this.lastDeath=this.context.currentTime;const r=Math.random();
-  const call={compy:[r<.5?14:12,.1,2.8+r*.5],lizard:[14,.05,3.6+r*.4],gallimimus:[11,.22,1.55+r*.2],dimorphodon:[13,.1,2.1+r*.3],pteranodon:[13,.26,1.2+r*.15],bird:[14,.06,3.3+r*.4]}[kind];
+  kind=({ghostRaptor:'raptor',goldenCompy:'compy'})[kind]||kind;
+  const call={compy:[r<.5?14:12,.1,2.8+r*.5],lizard:[14,.05,3.6+r*.4],gallimimus:[11,.22,1.55+r*.2],dimorphodon:[13,.1,2.1+r*.3],pteranodon:[13,.26,1.2+r*.15],bird:[14,.06,3.3+r*.4],
+   raptor:[13,.2,1.35+r*.15],dilophosaurus:[13,.22,1.05+r*.1],pachycephalosaurus:[11,.24,1.25+r*.15],parasaurolophus:[31,.3,1.2+r*.1],triceratops:[30,.34,.72+r*.08],stegosaurus:[31,.32,.78+r*.08],quetzalcoatlus:[13,.3,.85+r*.1]}[kind];
   if(call)this.play(call[0],call[1],call[2],{vocal:false,at,wet:.15});
  }
+ /** A Safari animal breaking cover: each species its own call, pitched from the recorded dinosaur set. */
+ call(kind,at){
+   if(!this.context||this.context.currentTime-(this.lastCall||0)<.35)return;this.lastCall=this.context.currentTime;const r=Math.random();
+   const c={compy:[12,.06,2.2+r*.3],goldenCompy:[14,.09,3+r*.3],lizard:null,gallimimus:[11,.18,1.5+r*.25],raptor:[11,.24,1.12+r*.12],ghostRaptor:[10,.3,.95+r*.08],pachycephalosaurus:[11,.22,1.32+r*.15],dilophosaurus:[13,.2,1.25+r*.1],
+    parasaurolophus:[31,.36,1.3+r*.08],triceratops:[30,.4,.66+r*.06],stegosaurus:[31,.34,.7+r*.06]}[kind];
+   if(c)this.play(c[0],c[1],c[2],{vocal:false,at,wet:.4});
+  }
+ /** A rare animal sighted: a rising three-note horn (legendary: four, brighter). Interface cue, synthesized. */
+ rare(legendary=false){if(!this.context)return;const c=this.context,t=c.currentTime,notes=legendary?[392,523,659,784]:[330,415,494];
+   notes.forEach((f,i)=>{const o=c.createOscillator(),o2=c.createOscillator(),g=c.createGain(),at=t+i*.09;o.type='triangle';o2.type='sine';o.frequency.value=f;o2.frequency.value=f*2.005;
+    g.gain.setValueAtTime(0,at);g.gain.linearRampToValueAtTime(.07,at+.02);g.gain.exponentialRampToValueAtTime(.001,at+(i===notes.length-1?.55:.2));o.connect(g);o2.connect(g);g.connect(this.master);o.start(at);o2.start(at);o.stop(at+.6);o2.stop(at+.6);o.onended=()=>{o.disconnect();o2.disconnect();g.disconnect();};});}
  /** A Gallimimus herd breaking cover: honking calls. */
  herd(at){this.play(11,.2,1.5+Math.random()*.25,{vocal:false,at,wet:.3});}
  /** Pteranodon passing overhead: a distant screech. */

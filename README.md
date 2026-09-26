@@ -1,6 +1,6 @@
 # Rex: Pursuit
 
-A playable jungle chase: stand at a mounted .50-cal in an open Jeep while a T. rex runs after you. Switch between first person and an external camera during the same fight.
+Two jungle game modes from the mounted gun of a moving Jeep: survive the T. rex in **Rex Pursuit**, or chase a high score in **Safari Run**. Switch between first person and an external camera in either mode.
 
 **Play:** https://vibecodingmatt.github.io/rex-pursuit/
 
@@ -34,6 +34,40 @@ The Rex's eyes aim independently at a shared player position with a damped respo
 - `/sound-library.html` — audition and name the 34 cuts from the supplied audio reference; assign opening, charge, growl, and pain calls; export a named JSON catalog.
 
 ## Play
+
+Choose **Rex Pursuit** or **Safari Run** in the main menu; the choice is remembered. The title screen follows it: the Rex and the brachiosaur for the chase, and for Safari no Rex at all, just the roster crossing the road and the sky while the gunner tracks the biggest animal. Pause and results both offer a return to the mode picker.
+
+### Safari Run
+
+A three-second ready countdown leads into **90 seconds of active play**. The Jeep keeps driving; animals cross the road, flush from the edge trees and fly down the canopy gap. Nothing attacks or damages you. Pause/backgrounding stops the clock. The run ends immediately at zero; only completed runs are recorded.
+
+| Animal | Base points | Bullet hits | Frequency |
+| --- | ---: | ---: | --- |
+| Compy | 100 | 1 | Common |
+| Jungle bird | 125 | 1 | Common |
+| Lizard | 150 | 1 | Common |
+| Gallimimus | 200 | 2 | Common |
+| Dimorphodon | 250 | 1 | Uncommon |
+| Pteranodon | 300 | 2 | Uncommon |
+| Velociraptor | 450 | 3 | Uncommon |
+| Pachycephalosaurus | 550 | 3 | Uncommon |
+| Dilophosaurus | 700 | 4 | Rare |
+| Parasaurolophus | 900 | 6 | Rare |
+| Stegosaurus | 1,000 | 9 | Rare |
+| Triceratops | 1,200 | 10 | Rare |
+| Quetzalcoatlus | 1,800 | 8 | Legendary |
+| Ghost raptor | 2,500 | 9 | Legendary |
+| Golden compy | 3,000 | 1 | Legendary |
+
+Common crossings arrive every one to two seconds and get denser in the last 30; pterosaurs pass every few seconds. One rare encounter is rolled every 12–17 seconds, with a horn sting, a banner and a tag over the animal; each legendary has about a 4–5% chance per roll, so none is guaranteed in a run. The golden compy is tiny and zigzags at 11 m/s; the ghost raptor is the fastest runner. At 13 seconds left a stampede of Gallimimus and compies pours across. The jungle's own life, roosting Dimorphodon, basking lizards and packs flushed by the Jeep, runs underneath as a bonus.
+
+Kill again within **4 seconds** to extend the streak: **×2** from the 3rd kill, **×3** from the 6th, **×4** from the 10th and **×5** from the 15th. Points are awarded once, on the kill, and rise from the body; a wounded or announced animal carries a tag with its remaining hits. Big animals flinch and run harder when hit. Grenades deal four hits within their blast, so the biggest animals can survive one. Ranks: Trail rookie, Field scout (3,000), Expert marksman (9,000), Master tracker (18,000), Jungle legend (30,000). Reloads, heat, camera controls, weather and the flashlight work in both modes.
+
+Results count the score up and show points by species, the best trophy, the next rank, animals bagged, best streak and the **local top five**. The field guide lists all 15 species and marks every one this browser has bagged. The versioned `rex_safari_v1` cookie (top five, run count, species bagged) lasts one year, scoped to this game's path, with SameSite=Lax and Secure on HTTPS. Local storage is a fallback if cookies are unavailable; if both are blocked the results say so. Records belong to this browser profile, are not an online leaderboard, and disappear when its site data is cleared. Sharing a Safari result includes its score and bag count.
+
+The six large ground species (Velociraptor, Dilophosaurus, Pachycephalosaurus, Parasaurolophus, Triceratops, Stegosaurus) are original sculpts baked from signed distance fields into High and Low meshes (`npm run art:safari` rebuilds `public/models/safari-runners.bin`, 3.6 MB, about 2.1 MB gzipped as served). They share the critter rig: bipeds swing their legs about the hips; the quadrupeds trot on diagonal pairs and roll onto their side when they die. Hit spheres run nose to tail, so a nine-metre animal can be hit anywhere along its body. Low quality reduces shadows, mesh detail and environment effects without reducing scoring opportunities. Safari skips the unused Rex rig, cinematic work and scenic brachiosaur, and costs less per frame than the chase. `npm run test:safari` covers its rules and focused browser flow; pure rules also run in CI through `test:logic`.
+
+### Controls and Rex Pursuit
 
 | Control | Action |
 | --- | --- |

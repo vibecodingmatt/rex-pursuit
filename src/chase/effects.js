@@ -160,6 +160,11 @@ export function createEffects(scene,dustMap){
    launch(mist,mistId++,p,{life:.45+rnd()*.2,size:.16*scale,growth:.9*scale,opacity:.6,velocity:tmp.copy(dir).multiplyScalar(1.4*k).setY(.35),color:0x4a0906,drag:3});
    for(let i=0;i<10*k*particleScale;i++)emit(p,cone(dir,.7).multiplyScalar((1.5+rnd()*2.5)*k).add(tmp.set(0,.8+rnd(),0)),[.11+rnd()*.06,.012,.008],(.016+rnd()*.018)*k,.4+rnd()*.3);
   },
+  /** The golden compy going down: a hot glint and a shower of gold sparks. */
+  glint(p){
+   launch(fire,fireId++,p,{life:.14,size:.55,growth:1.4,opacity:1,color:0xffe08a,hdr:7});
+   for(let i=0;i<28*particleScale;i++)emit(p,tmp.set(rnd()-.5,rnd()*.9+.35,rnd()-.5).normalize().multiplyScalar(2+rnd()*4.5),[4.2,2.9,.8],.018+rnd()*.022,.55+rnd()*.55);
+  },
   casing(){},
   /** Roar exhalation: warm breath condensing in the humid air, with saliva. */
   breath(origin,direction,strength=1){

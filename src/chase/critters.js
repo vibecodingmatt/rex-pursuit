@@ -1,6 +1,8 @@
 import * as T from 'three';
 import {mergeGeometries} from 'three/addons/utils/BufferGeometryUtils.js';
 import {WET} from './weather-state.js';
+import {SPECIES} from './safari-rules.js';
+import {loadSafariModels} from './safari-models.js';
 // Small ground life that reacts to the chase. Compies forage in loose packs on the
 // track and verges; lizards bask on verge rocks. Positions are in the Jeep's frame,
 // where the ground slides past at +speed along z, so a creature standing still rides
@@ -127,22 +129,32 @@ const GAIT=lizard=>`
   // Bird-like legs swing about the hip in antiphase, lifting the foot on the forward swing.
   // Dead (aPose.w), the legs draw up toward the chest, the head falls back and the tail curls.
   float dead=aPose.w;
-  if(part>2.5){float a=amp*sin(ph)*.72+dead*(1.15+side*.2);q.zy=vec2(cos(a)*q.z-sin(a)*q.y,sin(a)*q.z+cos(a)*q.y);q.y+=max(0.,cos(ph))*w*w*amp*.07*(1.-dead);}
+  if(part>2.5){float a=amp*sin(ph)*.72+dead*(lead<0.?-.7:1.15+side*.2);q.zy=vec2(cos(a)*q.z-sin(a)*q.y,sin(a)*q.z+cos(a)*q.y);q.y+=max(0.,cos(ph))*w*w*amp*.07*(1.-dead);}
   // Neck and head dip to peck and nod with each stride; the tail counter-sways.
   if(part>.5&&part<1.5){float a=-aPose.z*1.05-amp*.07*sin(th*2.)+dead*.75;q.zy=vec2(cos(a)*q.z-sin(a)*q.y,sin(a)*q.z+cos(a)*q.y);}
   if(part>1.5&&part<2.5){float a=amp*.22*w*sin(th)+dead*.45*w;q.xz=vec2(cos(a)*q.x-sin(a)*q.z,sin(a)*q.x+cos(a)*q.z);q.y+=w*w*amp*.03*cos(th*2.);}
   transformed=pivot+q;
   if(part<2.5)transformed.y+=amp*.018*cos(th*2.);`}
  }`;
-function critterMaterial(lizard){
+function critterMaterial(lizard,detail=false){
  const m=new T.MeshStandardMaterial({vertexColors:true,roughness:lizard?.55:.7});
- const vertex=s=>{s.vertexShader=s.vertexShader.replace('#include <common>','#include <common>\nattribute vec4 rig;attribute vec3 pivot;attribute vec4 aPose;').replace('#include <begin_vertex>','#include <begin_vertex>'+GAIT(lizard));};
+ const vertex=s=>{s.vertexShader=s.vertexShader.replace('#include <common>','#include <common>\nattribute vec4 rig;attribute vec3 pivot;attribute vec4 aPose;').replace('#include <begin_vertex>','#include <begin_vertex>'+GAIT(lizard)+(detail?'\ntransformed=mix(position,transformed,smoothstep(0.,.24,rig.y));':''));};
  m.onBeforeCompile=s=>{s.uniforms.uWet=WET;vertex(s);
+  if(detail){
+   s.vertexShader=s.vertexShader.replace('#include <common>','#include <common>\nvarying vec3 vHide;').replace('#include <begin_vertex>','#include <begin_vertex>\nvHide=position;');
+   s.fragmentShader=s.fragmentShader.replace('#include <common>','#include <common>\nvarying vec3 vHide;');
+   s.fragmentShader=s.fragmentShader.replace('#include <roughnessmap_fragment>',`#include <roughnessmap_fragment>
+    vec3 cell=fract(vHide*155.);float scaleBump=smoothstep(.15,.48,length(cell-.5));roughnessFactor=clamp(roughnessFactor+scaleBump*.12,.55,.92);`);
+   s.fragmentShader=s.fragmentShader.replace('#include <normal_fragment_maps>',`#include <normal_fragment_maps>
+    vec3 dx=dFdx(vViewPosition),dy=dFdy(vViewPosition);float h=length(fract(vHide*155.)-.5)*.00055;
+    vec3 r1=cross(dy,normal),r2=cross(normal,dx);float det=dot(dx,r1);
+    normal=normalize(abs(det)*normal-sign(det)*(dFdx(h)*r1+dFdy(h)*r2));`);
+  }
   // Rain darkens the hide a little and gives it a wet sheen.
   s.fragmentShader=s.fragmentShader.replace('#include <common>','#include <common>\nuniform float uWet;').replace('#include <color_fragment>','#include <color_fragment>\ndiffuseColor.rgb*=1.-uWet*.25;').replace('#include <roughnessmap_fragment>','#include <roughnessmap_fragment>\nroughnessFactor*=1.-uWet*.5;');};
- m.customProgramCacheKey=()=>`rex-critter-${lizard?'lizard':'compy'}-v3`;
+ m.customProgramCacheKey=()=>`rex-critter-${lizard?'lizard':'compy'}-${detail}-v4`;
  // Shadows step with the legs too.
- const depth=new T.MeshDepthMaterial({depthPacking:T.RGBADepthPacking});depth.onBeforeCompile=vertex;depth.customProgramCacheKey=()=>`rex-critter-depth-${lizard?'lizard':'compy'}-v3`;
+ const depth=new T.MeshDepthMaterial({depthPacking:T.RGBADepthPacking});depth.onBeforeCompile=vertex;depth.customProgramCacheKey=()=>`rex-critter-depth-${lizard?'lizard':'compy'}-${detail}-v4`;
  return{material:m,depth};
 }
 
@@ -161,20 +173,50 @@ export function createCritters(scene,{jungle}){
   galli:{name:'gallimimus',label:'Gallimimus herd',geometry:gallimimusGeometry(),max:MAX_GALLI,...critterMaterial(false),centre:.31,hitR:.21,gravity:11,heavy:true,lean:.08,stride:[2.2,.16],fullRun:12,accel:18,swerve:.12,
    hull:hull([[.055,-.31,.05],[-.055,-.31,.05],[0,-.09,0],[0,.1,0],[0,.215,.33],[0,.2,.395],[0,.01,-.62],[.075,0,0],[-.075,0,0],[0,.14,.22],[.06,-.11,.08],[-.06,-.11,.08]])},
  };
+ // Baked Safari sculpts (safari-models.js), on the same rig. Centre, hull and hit spheres come
+ // with the models; these are the running characters. Quadrupeds swing their legs less.
+ const BAKED={
+  raptor:{max:8,stride:[1.5,.15],swerve:.3,accel:22},
+  dilophosaurus:{max:4,stride:[1.9,.16],swerve:.14},
+  parasaurolophus:{max:4,stride:[2.4,.16],swerve:.1,accel:15},
+  pachycephalosaurus:{max:4,stride:[1.8,.15],swerve:.5,accel:20},
+  triceratops:{max:3,stride:[2.6,.2],swerve:.05,accel:10,lean:.015,swing:.62,quad:true,fullRun:9},
+  stegosaurus:{max:3,stride:[2.4,.2],swerve:.05,accel:9,lean:.01,swing:.56,quad:true,fullRun:8},
+ };
+ for(const [name,o]of Object.entries(BAKED))kinds[name]={...kinds.galli,name,label:SPECIES[name].name,geometry:new T.BufferGeometry(),...critterMaterial(false,true),hitR:.2,...o,baked:true};
  for(const [name,k]of Object.entries(kinds)){
   k.pose=new T.InstancedBufferAttribute(new Float32Array(k.max*4),4);k.pose.setUsage(T.DynamicDrawUsage);k.geometry.setAttribute('aPose',k.pose);
   k.mesh=new T.InstancedMesh(k.geometry,k.material,k.max);k.mesh.customDepthMaterial=k.depth;k.mesh.instanceMatrix.setUsage(T.DynamicDrawUsage);
   k.mesh.castShadow=true;k.mesh.receiveShadow=true;k.mesh.frustumCulled=false;k.mesh.count=0;k.mesh.name=k.label;
   k.mesh.setColorAt(0,new T.Color(1,1,1));scene.add(k.mesh);
-  k.pool=Array.from({length:k.max},()=>({on:false,p:new T.Vector3(),v:new T.Vector3(),want:new T.Vector3(),yaw:0,roll:0,phase:0,peck:0,peckTime:0,state:'idle',timer:0,run:6,cover:10,startle:9,dir:1,jink:0,scale:1,fade:1,tint:new T.Color(),pack:0,alarmAt:-1,perchY:0,onRock:false,hop:0,
+  k.swing??=1;k.pool=Array.from({length:k.max},()=>({on:false,flinch:0,flinchSide:1,p:new T.Vector3(),v:new T.Vector3(),want:new T.Vector3(),yaw:0,roll:0,phase:0,peck:0,peckTime:0,state:'idle',timer:0,run:6,cover:10,startle:9,dir:1,jink:0,scale:1,fade:1,tint:new T.Color(),pack:0,alarmAt:-1,perchY:0,onRock:false,hop:0,
    goal:null,vy:0,q:new T.Quaternion(),spin:new T.Vector3(),curl:0,twitch:0,age:0,grounded:false,landed:false,kind:k}));
  }
- const C=kinds.compy,L=kinds.lizard,G=kinds.galli,ALL=[C,L,G],alarms=[],queue=[],m=new T.Matrix4(),q=new T.Quaternion(),e=new T.Euler(0,0,0,'YXZ'),s=new T.Vector3(),pos=new T.Vector3();
+ const C=kinds.compy,L=kinds.lizard,G=kinds.galli,ALL=Object.values(kinds),alarms=[],queue=[],m=new T.Matrix4(),q=new T.Quaternion(),e=new T.Euler(0,0,0,'YXZ'),s=new T.Vector3(),pos=new T.Vector3();
  const centre=new T.Vector3(),push=new T.Vector3(),turn=new T.Quaternion(),axis=new T.Vector3(),probe=new T.Vector3(),settle=new T.Quaternion(),toCentre=new T.Vector3();
  let travel=0,nextPack=40,nextHerd=300,packId=0,density=1,now=0,chunkZ=[],api;
  const tally={kills:0};
+ let modelTier='high',models=null,modelError=null;
+ function selectModels(){if(!models)return;for(const name of Object.keys(BAKED)){const k=kinds[name];k.mesh.geometry=models[name][modelTier];k.geometry=k.mesh.geometry;}}
+ const modelLoad=loadSafariModels().then(loaded=>{models=loaded.models;for(const name of Object.keys(BAKED)){const k=kinds[name],sp=loaded.species[name];k.geometry.dispose();for(const g of Object.values(models[name]))g.setAttribute('aPose',k.pose);
+   k.centre=sp.centre;k.hull=hull(sp.hull);k.spheres=sp.spheres.map(([x,y,z,r])=>({p:new T.Vector3(x,y,z),r}));k.hitR=sp.spheres[0][3];}selectModels();}).catch(e=>{modelError=e;});
+ // Safari names that share a kind: the ghost raptor and the golden compy are rare colourings.
+ const ALIAS={ghostRaptor:'raptor',goldenCompy:'compy'},SIZE={compy:1.5,goldenCompy:1.35,lizard:2.4,gallimimus:5.5,raptor:3.8,ghostRaptor:4.1,dilophosaurus:5.2,parasaurolophus:7.5,pachycephalosaurus:4.6,triceratops:7.8,stegosaurus:8.5},
+  RUN={compy:6,goldenCompy:11.5,lizard:4.3,gallimimus:9.8,raptor:10.3,ghostRaptor:13.5,dilophosaurus:8.8,parasaurolophus:8.4,pachycephalosaurus:9.2,triceratops:7.4,stegosaurus:6.4};
 
- function free(k){return k.pool.find(c=>!c.on);}
+ function free(k){const c=k.pool.find(c=>!c.on);if(c){c.hp=1;c.species=k.name;c.swerveMax=null;c.base=0;c.flinch=0;}return c;}
+ function huntSpawn(name,side,z){
+  const k=ALL.find(k=>k.name===(ALIAS[name]||name)),c=k&&free(k);if(!c)return null;const run=RUN[name];
+  // Big animals slant harder toward the Jeep, so they hold their distance while they cross.
+  Object.assign(c,{on:true,species:name,hp:SPECIES[name].hp,state:'flee',timer:0,run,base:run,cover:13,startle:0,dir:-side,jink:.3,swerve:0,swerveMax:name==='goldenCompy'?.8:null,scale:SIZE[name]*range(.94,1.06),fade:1,pack:-3,alarmAt:-1,peck:0,peckTime:0,phase:rnd(),yaw:Math.atan2(-side,-.8),roll:0,onRock:false,hop:0,verge:true,cross:false,stopAt:0,goal:-side*(k.quad?14:12),away:k.quad?-3.4:-2.7,curl:0,stride:1,flinch:0});
+  c.p.set(side*(k.quad?9:7.5),0,z);c.v.set(-side*run*.78,0,-run*.63);c.tint.setRGB(1,1,1);
+  if(name==='ghostRaptor')c.tint.setRGB(2.8,3.6,4.5);
+  if(name==='goldenCompy')c.tint.setRGB(4.2,3.1,.9);
+  if(api.onCall)api.onCall(c.p,name);else(k===C||k===L?api.onScatter:api.onHerd)?.(c.p);return c;
+ }
+ /** A round that does not kill: the animal flinches away from the shot and runs harder. */
+ function strike(c,dir,power=1,damage=1){if(!c?.on||c.state==='dead'||c.state==='hide')return false;c.hp=(c.hp??1)-damage;
+  if(c.hp>0){c.peckTime=.12;c.flinch=1;c.flinchSide=Math.sign(Math.sin(c.yaw)*dir.z-Math.cos(c.yaw)*dir.x)||1;if(c.base)c.run=Math.min(c.base*1.3,c.run*1.07);return false;}return kill(c,dir,power);}
  function spawnPack(x,z,n=5,{flee=false,cross=false,verge=Math.abs(x)>4.3}={}){
   const id=++packId,base=range(3,8),out=[];
   for(let i=0;i<n;i++){const c=free(C);if(!c)break;
@@ -212,7 +254,12 @@ export function createCritters(scene,{jungle}){
   // Track the body centre from here on; the pose tumbles about it.
   e.set(-(c.stride||0)*k.lean,c.yaw,c.roll);c.q.setFromEuler(e);c.p.y+=k.centre*c.scale;
   const h=Math.hypot(dir.x,dir.z)||1;
-  if(k.heavy){
+  if(k.quad){
+   // A heavy quadruped's legs go: it drops, rolls onto its side and ploughs on a little.
+   const sp=Math.hypot(c.v.x,c.v.z)||1,fx=c.v.x/sp,fz=c.v.z/sp,side=rnd()<.5?-1:1;
+   c.v.set(c.v.x*.7+dir.x/h*.5*power,0,c.v.z*.7+dir.z/h*.5*power);c.vy=.4+rnd()*.35;
+   c.spin.set(fx,0,fz).multiplyScalar(side*(1.4+rnd()*.7)).add(axis.set(fz,0,-fx).multiplyScalar(.35));
+  }else if(k.heavy){
    // A galloping animal keeps its momentum: it pitches forward onto its chest and rolls
    // head over heels down its own path; the round only nudges it.
    const sp=Math.hypot(c.v.x,c.v.z)||1,fx=c.v.x/sp,fz=c.v.z/sp,nudge=1.2*power;
@@ -224,8 +271,8 @@ export function createCritters(scene,{jungle}){
    // End over end about the push, with some wobble.
    c.spin.set(dir.z/h,0,-dir.x/h).multiplyScalar((10+rnd()*9)*(rnd()<.5?-1:1)*Math.min(1.5,power)).add(axis.set(rnd()-.5,rnd()-.5,rnd()-.5).multiplyScalar(6));
   }
-  Object.assign(c,{state:'dead',age:0,grounded:false,landed:false,curl:0,twitch:1,fade:1,peck:0,peckTime:0,stopAt:0,goal:null,alarmAt:-1,onRock:false,hop:0});
-  tally.kills++;api.onKill?.(pos.copy(c.p),k.name);return true;
+  Object.assign(c,{state:'dead',age:0,grounded:false,landed:false,curl:0,twitch:1,fade:1,peck:0,peckTime:0,stopAt:0,goal:null,alarmAt:-1,onRock:false,hop:0,flinch:0});
+  tally.kills++;api.onKill?.(pos.copy(c.p),c.species||k.name);return true;
  }
  function stepDead(c,dt,speed){
   c.age+=dt;const ground=jungle.groundAt(c.p.x,c.p.z);
@@ -293,7 +340,8 @@ export function createCritters(scene,{jungle}){
    if(c.peckTime>0){c.peckTime-=dt;const u=1-c.peckTime/(k===C?.34:.9);c.peck=k===C?Math.sin(Math.min(1,u)*Math.PI):Math.max(0,Math.sin(u*TAU*2))*(u<1?1:0);}else c.peck=Math.max(0,c.peck-dt*6);
   }else{
    c.timer+=dt;c.jink-=dt;c.peck=Math.max(0,c.peck-dt*8);
-   if(c.jink<=0){c.jink=range(.18,.45);c.swerve=range(-k.swerve,k.swerve);}
+   if(c.jink<=0){c.jink=range(.18,.45);const sw=c.swerveMax??k.swerve;c.swerve=range(-sw,sw);}
+   c.flinch=Math.max(0,c.flinch-dt*3.5);
    const lat=c.dir,fwd=c.away*.3;let ax=lat*Math.cos(c.swerve||0)-fwd*Math.sin(c.swerve||0),az=lat*Math.sin(c.swerve||0)+fwd*Math.cos(c.swerve||0);const l=Math.hypot(ax,az)||1;
    c.want.set(ax/l*c.run,0,az/l*c.run);
    // A crosser is done once it reaches the far verge; others once they are clear of the track.
@@ -323,26 +371,31 @@ export function createCritters(scene,{jungle}){
    const sc=c.scale*Math.max(0,Math.min(1,c.fade));
    // A dead one turns about its body centre (c.p), which sits k.centre (scaled) above the mesh origin.
    if(c.state==='dead'){q.copy(c.q);pos.copy(c.p).sub(toCentre.set(0,k.centre*sc,0).applyQuaternion(q));}
-   else{e.set(-(c.stride||0)*k.lean,c.yaw,c.roll);q.setFromEuler(e);pos.set(c.p.x,c.p.y,c.p.z);}
+   else{const fl=c.flinch*c.flinch;e.set(-(c.stride||0)*k.lean-fl*.08,c.yaw+fl*.22*c.flinchSide,c.roll+fl*.3*c.flinchSide);q.setFromEuler(e);pos.set(c.p.x,c.p.y,c.p.z);}
    m.compose(pos,q,s.setScalar(sc));k.mesh.setMatrixAt(n,m);k.mesh.setColorAt(n,c.tint);
-   P[n*4]=c.phase;P[n*4+1]=c.stride||0;P[n*4+2]=c.peck;P[n*4+3]=c.curl||0;n++;}
-  k.mesh.count=n;if(n){k.mesh.instanceMatrix.needsUpdate=true;k.mesh.instanceColor.needsUpdate=true;k.pose.needsUpdate=true;}
+   P[n*4]=c.phase;P[n*4+1]=(c.stride||0)*k.swing;P[n*4+2]=c.peck+c.flinch*.35;P[n*4+3]=c.curl||0;n++;}
+  // An empty pool issues no draw (a zero-instance draw still binds its program).
+  k.mesh.count=n;k.mesh.visible=k.visible!==false&&n>0;if(n){k.mesh.instanceMatrix.needsUpdate=true;k.mesh.instanceColor.needsUpdate=true;k.pose.needsUpdate=true;}
  }
 
  api={
-  compies:C.mesh,lizards:L.mesh,gallimimus:G.mesh,onScatter:null,onKill:null,onLand:null,onHerd:null,
-  setQuality(t){density=Math.min(1,t.fauna??t.particles);for(const k of ALL)k.mesh.castShadow=!!t.detail;},
+  compies:C.mesh,lizards:L.mesh,gallimimus:G.mesh,meshes:ALL.map(k=>k.mesh),huntSpawn,strike,onScatter:null,onKill:null,onLand:null,onHerd:null,
+  async ready(){await modelLoad;if(modelError)throw modelError;},
+  setQuality(t){density=Math.min(1,t.fauna??t.particles);for(const k of ALL)k.mesh.castShadow=!!t.detail;modelTier=t.detail?'high':'low';selectModels();},
   /** The world is already alive when a scene begins: lizards on nearby rocks and a pack foraging in view. */
-  reset({intro=false}={}){for(const k of ALL){for(const c of k.pool)c.on=false;k.mesh.count=0;}travel=0;nextPack=range(20,45);nextHerd=range(280,420);alarms.length=0;queue.length=0;chunkZ=[];tally.kills=0;
+  reset({intro=false,empty=false}={}){for(const k of ALL){for(const c of k.pool)c.on=false;k.mesh.count=0;}travel=0;nextPack=range(20,45);nextHerd=range(280,420);alarms.length=0;queue.length=0;chunkZ=[];tally.kills=0;if(empty)return;
    for(const chunk of jungle.chunks){const z=chunk.group.position.z;if(z>-70&&z<70)populatePerches(chunk,.45*density);}
    // In the opening, a pack pecks on the shoulder in view until her roar scatters it.
    if(intro)spawnPack(-2,9,Math.max(3,Math.round(5*density)));else spawnPack(2.4,4,4);},
   /** Startle anything within radius of a point (footfalls, bullet strikes, blasts). */
   alarm(p,r=8){if(alarms.length<16)alarms.push({x:p.x,z:p.z,r});},
   spawnPack,spawnRunner,spawnLizardNear(x,z){const c=jungle.chunks.flatMap(ch=>(ch.perches||[]).map(p=>({x:p.x,y:p.y,z:p.z+ch.group.position.z}))).sort((a,b)=>Math.hypot(a.x-x,a.z-z)-Math.hypot(b.x-x,b.z-z))[0];return c?spawnLizard(c.x,c.y,c.z):false;},
-  stats(){return{compies:C.mesh.count,lizards:L.mesh.count,gallimimus:G.mesh.count,dead:ALL.reduce((n,k)=>n+k.pool.filter(c=>c.on&&c.state==='dead').length,0),kills:tally.kills};},
+  stats(){return{compies:C.mesh.count,lizards:L.mesh.count,gallimimus:G.mesh.count,big:Object.keys(BAKED).reduce((n,name)=>n+kinds[name].mesh.count,0),dead:ALL.reduce((n,k)=>n+k.pool.filter(c=>c.on&&c.state==='dead').length,0),kills:tally.kills};},
   /** Body centres of the live animals of a species (for aiming checks). */
-  live(name='compy'){const k=ALL.find(k=>k.name===name);return k.pool.filter(c=>c.on&&c.state!=='dead'&&c.state!=='hide'&&c.fade>=.6).map(c=>({x:c.p.x,y:c.p.y+k.centre*c.scale,z:c.p.z,crossing:c.goal!==null}));},
+  /** The biggest live animal crossing in front of the gun (z from 6 to 45 m): its body centre, for the menu gunner to track. */
+  showcase(out){let best=null,size=0;for(const k of ALL)for(const c of k.pool)if(c.on&&c.state==='flee'&&c.fade>.8&&c.p.z>6&&c.p.z<45&&Math.abs(c.p.x)<13&&c.scale>size){best=c;size=c.scale;}
+   if(!best)return null;return out.set(best.p.x+best.v.x*.25,best.p.y+best.kind.centre*best.scale,best.p.z+best.v.z*.25);},
+  live(name='compy'){return ALL.flatMap(k=>k.pool.filter(c=>c.on&&(c.species||k.name)===name&&c.state!=='dead'&&c.state!=='hide'&&c.fade>=.6).map(c=>({x:c.p.x,y:c.p.y+k.centre*c.scale,z:c.p.z,hp:c.hp,crossing:c.goal!==null})));},
   /**
    * The nearest live compy on a ray (world space), or null. Each is a sphere about its
    * body that never shrinks below `minAngle` radians as seen from the gun, so a small
@@ -351,16 +404,27 @@ export function createCritters(scene,{jungle}){
   hit(ray,far=Infinity,minAngle=0){
    let best=null;
    for(const k of ALL)for(const c of k.pool){if(!c.on||c.state==='dead'||c.state==='hide'||c.fade<.6)continue;
+    if(k.spheres){
+     const cy=Math.cos(c.yaw),sy=Math.sin(c.yaw);
+     k.spheres.forEach((sp,i)=>{centre.set(c.p.x+(sp.p.x*cy+sp.p.z*sy)*c.scale,c.p.y+sp.p.y*c.scale,c.p.z+(-sp.p.x*sy+sp.p.z*cy)*c.scale);
+      const along=push.subVectors(centre,ray.origin).dot(ray.direction);if(along<=0||along>far)return;
+      const r=i?sp.r*c.scale:Math.max(sp.r*c.scale,along*minAngle),d2=ray.distanceSqToPoint(centre);if(d2>r*r)return;
+      const t=along-Math.sqrt(r*r-d2);if(best&&t>=best.distance)return;best={critter:c,kind:c.species||k.name,distance:t,point:ray.at(t,new T.Vector3())};});
+     continue;
+    }
     centre.set(c.p.x,c.p.y+k.centre*c.scale,c.p.z);const along=push.subVectors(centre,ray.origin).dot(ray.direction);if(along<=0||along>far)continue;
     const r=Math.max(k.hitR*c.scale,along*minAngle);if(ray.distanceSqToPoint(centre)>r*r||best&&along>=best.distance)continue;
-    best={critter:c,kind:k.name,distance:along,point:centre.clone()};
+    best={critter:c,kind:c.species||k.name,distance:along,point:centre.clone()};
    }
    return best;
   },
   /** A round (direction `dir`) kills a compy; `power` scales the throw. */
   kill,
   /** A blast kills every compy whose body is within `radius` of it (an airburst high over the road spares them) and throws it outward. */
-  blast(p,radius=5){const out=[];for(const k of ALL)for(const c of k.pool){if(!c.on||c.state==='dead'||c.fade<.6)continue;const dx=c.p.x-p.x,dz=c.p.z-p.z,d=Math.hypot(dx,dz);if(Math.hypot(d,c.p.y+k.centre*c.scale-p.y)>radius+(k.heavy?1.5:0))continue;const f=Math.max(0,1-d/radius);if(kill(c,push.set(dx/(d||1),0,dz/(d||1)),1.3+f*1.4)){c.vy+=(k.heavy?2:4)*f;out.push(k.name);}}return out;},
+  blast(p,radius=5){const out=[];for(const k of ALL)for(const c of k.pool){if(!c.on||c.state==='dead'||c.fade<.6)continue;const dx=c.p.x-p.x,dz=c.p.z-p.z,d=Math.hypot(dx,dz);
+   // A big sculpt is caught if the blast reaches most of its length (hit spheres run nose to tail).
+   const reach=k.spheres?(k.spheres[0].r+.35)*c.scale:k.heavy?1.5:0;
+   if(Math.hypot(d,c.p.y+k.centre*c.scale-p.y)>radius+reach)continue;const f=Math.max(0,1-d/radius);if(strike(c,push.set(dx/(d||1),0,dz/(d||1)),1.3+f*1.4,4)){c.vy+=(k.heavy?2:4)*f;out.push(c.species||k.name);}}return out;},
   /** A Gallimimus herd galloping out of the forest on `side` and across the road behind the Rex. */
   herd(side,{count=Math.round(range(6,9)),delay=0,over=1.8,z=[22,32]}={}){for(let i=0;i<count;i++)queue.push({at:now+delay+over*i/Math.max(1,count-1)+range(-.08,.08),side,z:range(z[0],z[1]),call:i===0||i===Math.floor(count/2),kind:'galli'});},
   /** A file of `count` compies flushed out of the verge on `side` (+x or -x), crossing the road
@@ -371,7 +435,7 @@ export function createCritters(scene,{jungle}){
    * @param rex {x,z} of her body in the Jeep frame, or null
    */
   update(dt,{speed=0,rex=null,visible=true,spawn=true,herds=false}={}){
-   now+=dt;for(const k of ALL)k.mesh.visible=visible;
+   now+=dt;for(const k of ALL){k.visible=visible;k.mesh.visible=visible&&k.mesh.count>0;}
    if(!visible||dt<=0){alarms.length=0;return;}
    if(spawn){
     // Packs turn up per distance travelled, just beyond the bumper's view ahead.

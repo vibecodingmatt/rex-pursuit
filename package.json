@@ -12,7 +12,8 @@
                     "test:smoke": "node scripts/smoke.cjs",
                     "test:touch": "node scripts/test-touch.mjs && node scripts/verify-touch.cjs",
                     "test:gaze": "node scripts/verify-gaze.cjs",
-                    "test:logic": "node scripts/test-combat.mjs && node scripts/test-defeat.mjs && node scripts/test-ambush.mjs && node scripts/test-touch.mjs && node scripts/test-victory.mjs",
+                    "test:logic": "node scripts/test-combat.mjs && node scripts/test-defeat.mjs && node scripts/test-ambush.mjs && node scripts/test-touch.mjs && node scripts/test-victory.mjs && node scripts/test-safari.mjs",
+                    "test:safari": "node scripts/test-safari.mjs && node scripts/verify-safari.cjs",
                     "test:release": "node scripts/test-release.mjs",
                     "test:pages": "node scripts/verify-pages.cjs",
                     "social:render": "node scripts/create-social.cjs",
@@ -33,6 +34,7 @@
                     "test:vision": "node scripts/test-defeat.mjs && node scripts/verify-defeat-vision.cjs",
                     "test:victory": "node scripts/test-victory.mjs && node scripts/verify-victory.cjs",
                     "art:brachio": "node scripts/build-brachio.mjs",
+                    "art:safari": "node scripts/build-safari.mjs",
                     "test:balance":  "node scripts/simulate-pressure.mjs",
                     "audio:split":  "node scripts/split-audio.cjs",
                     "art:export":  "node scripts/export-model.cjs"

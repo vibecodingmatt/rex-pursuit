@@ -29,6 +29,10 @@ import {createBrachio} from './chase/brachio.js';
 import {createFlyers} from './chase/flyers.js';
 import {createFord} from './chase/ford.js';
 import {createRexCoat} from './chase/rex-coat.js';
+import {SPECIES,isRare} from './chase/safari-rules.js';
+import {createSafariDirector} from './chase/safari-director.js';
+import {createSafariUI} from './chase/safari-ui.js';
+import {createSafariFx} from './chase/safari-fx.js';
 const $=s=>document.querySelector(s),canvas=$('#scene');
 installAtmosphericFog();
 const renderer=new T.WebGLRenderer({canvas,antialias:false,powerPreference:'high-performance'});renderer.shadowMap.enabled=true;renderer.shadowMap.type=T.PCFSoftShadowMap;renderer.toneMapping=T.ACESFilmicToneMapping;renderer.toneMappingExposure=1.13;renderer.info.autoReset=false;
@@ -88,8 +92,17 @@ night=createNight(scene,{jeep,weather,renderer});
 // Living jungle: compies, lizards and Gallimimus herds that flee the chase, pterosaurs in the
 // trees and the sky, insects, a passing brachiosaur. All but the insects can be shot.
 const critters=createCritters(scene,{jungle}),flyers=createFlyers(scene,{jungle}),insects=createInsects(scene,{night}),brachio=createBrachio(scene,{jungle});
+const safariDirector=createSafariDirector({critters,flyers,birds,vector:new T.Vector3()});
+const safariFx=createSafariFx($('#safari-fx'),camera);
+// The picked mode is remembered, and the title screen follows it: the Rex (and the brachiosaur) for
+// the chase, the Safari roster crossing the road for Safari.
+const MODE_KEY='rex-pursuit-mode';
+function storedMode(){try{return localStorage.getItem(MODE_KEY)==='safari'?'safari':'pursuit';}catch{return 'pursuit';}}
+function menuScene(){if(mode!=='menu')return;const safari=safariUI.selected==='safari';if(rex)rex.actor.visible=!safari;if(safari)safariDirector.resetParade();}
+const safariUI=createSafariUI({state,director:safariDirector,reducedMotion,onSelect:picked=>{try{localStorage.setItem(MODE_KEY,picked);}catch{}menuScene();}});
+let lastNotice=null;
 critters.onScatter=p=>audio.chirp(p);critters.onHerd=p=>audio.herd(p);brachio.onCall=p=>audio.brachio(p);flyers.onFlush=p=>audio.flush(p);flyers.onCall=p=>audio.screech(p);
-critters.onKill=flyers.onKill=birds.onKill=(p,kind)=>audio.death(kind,p);
+critters.onKill=flyers.onKill=birds.onKill=(p,kind)=>audio.death(kind,p);critters.onCall=(p,kind)=>audio.call(kind,p);
 // A shot Gallimimus or pterosaur hitting the ground throws up dirt.
 critters.onLand=(p,s)=>{effects.bodyImpact(p,.45*s);audio.groundImpact(.2*s,p);};flyers.onLand=(p,s)=>{effects.bodyImpact(p,.35*s);audio.groundImpact(.12*s,p);};
 // Dropping back onto her forefeet from a rear-up: dust, a ground-shaking thud, and everything small bolts.
@@ -127,21 +140,28 @@ $('#credits-open').onclick=()=>$('#credits').showModal();$('#credits-close').onc
 async function start(){
  if(!rex)return;controls.reset();$('#start').disabled=true;$('#start-label').textContent='STARTING THE ENGINE';
  try{await audio.init();}catch(e){console.warn('Audio initialization failed',e.message);}
- audio.stopCalls();state.reset();
+ audio.stopCalls();state.reset();if(safariUI.selected==='safari')state.startSafari();safariDirector.reset();safariUI.reset();
  state.introDuration=Math.max(RULES.intro,RULES.roarAt+(audio.buffers.get(audio.roles.opening)?.duration||3.64)/.95+1.5);
- rex.reset();coat.reset();effects.reset();night.reset();updateLightButton();mud.reset();skid.reset();ford.reset();birds.reset();jeep.reset();jungle.reset();critters.reset({intro:true});flyers.reset();insects.reset();brachio.reset();opening.reset();ambushScenery.reset();targets?.reset();debris.reset();swallow.reset();visitorCenter.reset();sharing.reset();
- jungleRoot.visible=true;rex.actor.visible=true;jungleLighting();canopy.reset();
+ rex.reset();coat.reset();effects.reset();night.reset();updateLightButton();mud.reset();skid.reset();ford.reset();birds.reset();jeep.reset();jungle.reset();critters.reset({intro:!state.safari});flyers.reset();safariFx.reset();lastNotice=null;insects.reset();brachio.reset();opening.reset();ambushScenery.reset();targets?.reset();debris.reset();swallow.reset();visitorCenter.reset();sharing.reset();
+ jungleRoot.visible=true;rex.actor.visible=!state.safari;jungleLighting();canopy.reset();
  $('#arrival-caption').style.opacity=0;
- time=0;endTime=0;shake=0;stomp=stompVel=stompOffset=0;damageFlash=0;firing=false;pointer.set(0,.08);moveReticle();
+ time=0;endTime=0;shake=0;stomp=stompVel=stompOffset=0;damageFlash=0;hitTime=0;hud.hit.style.opacity=hud.hitLabel.style.opacity=0;firing=false;pointer.set(0,.08);moveReticle();
  $('#fatal-blood').style.opacity=$('#fatal-black').style.opacity=0;jeep.root.visible=true;updateVision();
- camera.position.set(.06,2.4,-.45);cameraLook.set(-10,3.2,16);camera.lookAt(cameraLook);
+ camera.position.set(.06,2.4,-.45);cameraLook.set(state.safari?0:-10,3.2,16);camera.lookAt(cameraLook);
  $('#start-screen').hidden=true;$('#end-screen').hidden=true;$('#pause-screen').hidden=true;setMode('playing');updateHud();
 }
 $('#start').onclick=start;$('#restart').onclick=start;
+function showMenu(){
+ controls.reset();audio.pause(false);audio.stopCalls();audio.update(0,0,false,false);audio.river(0,null,0);state.reset();rex.reset();coat.reset();effects.reset();mud.reset();skid.reset();ford.reset();birds.reset();jungle.reset();critters.reset();flyers.reset();brachio.reset();opening.reset();ambushScenery.reset();targets.reset();debris.reset();swallow.reset();visitorCenter.reset();jeep.reset();safariFx.reset();
+ jungleRoot.visible=rex.actor.visible=jeep.root.visible=true;jungleLighting();canopy.reset();time=endTime=shake=stomp=stompVel=stompOffset=damageFlash=0;
+ $('#fatal-blood').style.opacity=$('#fatal-black').style.opacity=$('#arrival-caption').style.opacity=0;document.body.dataset.cinematic='';hud.warning.style.opacity=0;arcade.clock.hidden=arcade.card.hidden=true;$('#safari-hud').hidden=true;
+ $('#end-screen').hidden=$('#pause-screen').hidden=true;$('#start-screen').hidden=false;$('#start').disabled=false;setMode('menu');safariUI.select(safariUI.selected);$('#start').focus({preventScroll:true});
+}
+document.querySelectorAll('[data-menu]').forEach(b=>b.onclick=showMenu);
 const sharing=setupSharing({button:$('#share-game'),copyButton:$('#copy-game-link'),status:$('#share-status'),fallback:$('#share-fallback'),input:$('#share-link'),getState:()=>state});
 // World point under the reticle: Rex proxy, else the ground, else far down range.
 const groundPlane=new T.Plane(new T.Vector3(0,1,0),0);
-function aimPoint(out){if(!state.concealed&&rex?.aimHit(raycaster.ray,out))return out;if(raycaster.ray.intersectPlane(groundPlane,out)&&out.distanceTo(raycaster.ray.origin)<90)return out;return raycaster.ray.at(80,out);}
+function aimPoint(out){if(rex?.actor.visible&&!state.concealed&&rex?.aimHit(raycaster.ray,out))return out;if(raycaster.ray.intersectPlane(groundPlane,out)&&out.distanceTo(raycaster.ray.origin)<90)return out;return raycaster.ray.at(80,out);}
 function getHit(){scene.updateMatrixWorld(true);raycaster.setFromCamera(pointer,camera);raycaster.far=170;return rex.actor.visible&&!state.concealed?raycaster.intersectObjects(rex.meshes,false)[0]:undefined;}
 function weaponHit(hit,explosive){const rest=rex.damage.add(hit,explosive),head=rest?rest.z>4.75:false;state.hit(head,explosive);rex.hit();effects.burst(hit.point,true,explosive);showHit(explosive?'EXPLOSIVE HIT':'HIT');}
 function showHit(label,color='#eee8c9'){
@@ -155,20 +175,28 @@ function targetHit(index,explosive=false){
 // Small ones have a hit sphere that never drops below about 12 px (18 on touch).
 function wildlifeHit(far){
  const px=innerHeight/(2*Math.tan(T.MathUtils.degToRad(camera.fov/2))),min=(matchMedia('(pointer:coarse)').matches?18:12)/px,ray=raycaster.ray;
- let best=null;for(const h of [critters.hit(ray,far,min),flyers.hit(ray,far,min),birds.hit(ray,far,min),brachio.hit(ray)])if(h&&h.distance<far&&(!best||h.distance<best.distance))best=h.kind?h:{...h,kind:'brachio'};
+ let best=null;for(const h of [critters.hit(ray,far,min),flyers.hit(ray,far,min),birds.hit(ray,far,min),state.safari?null:brachio.hit(ray)])if(h&&h.distance<far&&(!best||h.distance<best.distance))best=h.kind?h:{...h,kind:'brachio'};
  return best;
 }
 const WILDLIFE={compy:['COMPY','compies',1],lizard:['LIZARD','lizards',.6],gallimimus:['GALLIMIMUS','gallimimus',2.4],dimorphodon:['DIMORPHODON','dimorphodons',1],pteranodon:['PTERANODON','pteranodons',2],bird:['BIRD','birds',.7]};
 /** Tally a kill and show it with the running count. */
-function bag(kind){showHit(`${WILDLIFE[kind][0]} DOWN · ${state.bagged(kind)}`,'#f3c89a');}
+function bag(kind,point){if(state.result||state.safari?.ready)return;state.bagged(kind);const points=state.safari?.award(kind);
+ if(!points){showHit(`${WILDLIFE[kind]?.[0]||SPECIES[kind]?.name||kind} DOWN · ${state.bagTotal}`,'#f3c89a');return;}
+ safariFx.pop(point||aimTarget,points,kind,state.safari.multiplier);showHit('','#f3c89a');
+ if(kind==='goldenCompy'&&point)effects.glint(point);
+ if(isRare(kind)){safariUI.flash(`${SPECIES[kind].name.toUpperCase()} BAGGED`,SPECIES[kind].rarity==='Legendary'?'legendary':'trophy');audio.rare(SPECIES[kind].rarity==='Legendary');}}
+// Blood by body size for the Safari animals (the chase wildlife sizes are in WILDLIFE).
+const PUFF={raptor:1.8,ghostRaptor:1.8,dilophosaurus:2.2,pachycephalosaurus:2,parasaurolophus:2.8,triceratops:3,stegosaurus:3,quetzalcoatlus:2.6,goldenCompy:1};
 function wildlifeStrike(b,explosive=false){
  const dir=raycaster.ray.direction;
  if(b.kind==='brachio'){if(!explosive)effects.burst(b.point,true);brachio.startle();showHit('');return;}
- const power=explosive?2.4:1,killed=b.kind==='bird'?birds.kill(b.index,dir,power):b.target?flyers.kill(b.target,dir,power):critters.kill(b.critter,dir,power);
- if(killed){effects.critter(b.point,dir,WILDLIFE[b.kind][2]);bag(b.kind);}
+ const power=explosive?2.4:1,killed=b.kind==='bird'?birds.kill(b.index,dir,power):b.target?flyers.strike(b.target,dir,power,explosive?4:1):critters.strike(b.critter,dir,power,explosive?4:1);
+ const puff=WILDLIFE[b.kind]?.[2]||PUFF[b.kind]||2;
+ if(killed){effects.critter(b.point,dir,puff);bag(b.kind,b.point);}
+ else if(state.safari){effects.critter(b.point,dir,puff*.4);safariFx.focus(b.target||b.critter,b.kind);showHit('');}
 }
 /** Everything a blast kills: tallied, with the last shown. */
-function blastWildlife(p,radius){const dead=[...critters.blast(p,radius),...flyers.blast(p,radius),...birds.blast(p,radius)];for(const k of dead)bag(k);return dead.length;}
+function blastWildlife(p,radius){const dead=[...critters.blast(p,radius),...flyers.blast(p,radius),...birds.blast(p,radius)],at=new T.Vector3();dead.forEach((k,i)=>bag(k,at.set(p.x+(i%3-1)*1.3,p.y+1.2+Math.floor(i/3)*.9,p.z)));return dead.length;}
 function debrisHit(hit,explosive=false){if(!state.hitDebris(hit.id,explosive))return;effects.burst(hit.point,false,explosive);showHit(state.debris.status==='cleared'?'DEBRIS CLEARED':'DEBRIS HIT','#ffb38e');}
 function shoot(){
  if(mode!=='playing'||!state.fire())return false;
@@ -192,7 +220,7 @@ function grenade(){
  // A round aimed at the road bursts on it, not 40 m down the line of sight below the surface.
  const road=raycaster.ray.intersectPlane(groundPlane,new T.Vector3()),open=road&&road.distanceTo(raycaster.ray.origin)<40?road:raycaster.ray.at(40,new T.Vector3());
  const point=threat?threat.point:hit?hit.point:target>=0?targets.targets[target].world:beast?beast.point:open;
- effects.trace(origin,point);if(threat)debrisHit(threat,true);else if(hit)weaponHit(hit,true);else{effects.burst(point,false,true);if(beast)wildlifeStrike(beast,true);if(point.y<.8&&ford.impact(point,true))audio.splash('blast',point);if(target>=0)state.hit(false,true);}
+ effects.trace(origin,point);if(threat)debrisHit(threat,true);else if(hit)weaponHit(hit,true);else{effects.burst(point,false,true);if(beast?.kind==='brachio')wildlifeStrike(beast,true);if(point.y<.8&&ford.impact(point,true))audio.splash('blast',point);if(target>=0)state.hit(false,true);}
  blastWildlife(point,5.5);
  targetHit(target,true);audio.impact(true);critters.alarm(point,16);flyers.alarm(point,18);shake=.2;return !!threat||!!hit||target>=0||!!beast;
 }
@@ -236,6 +264,7 @@ function updateHud(){
  hud.warningTitle.textContent=title;hud.warningTip.textContent=tip;hud.warning.style.opacity=title&&mode==='playing'?1:0;hud.warning.classList.toggle('danger',['charge','bite','ram','execution'].includes(state.phase));
 }
 function handleEvents(){for(const event of state.drainEvents()){
+ if(event==='safari-complete'){controls.reset();state.reload=0;audio.cue(true);finish();}
  if(event==='flank')audio.stopCalls();
  if(event==='contact-lost'){audio.stopCalls();critters.stream(1,{count:6,delay:.35,over:1.3});critters.stream(1,{count:7,delay:2,over:1.6});}
  if(event==='ambush-rustle')audio.woodBreak(.35);
@@ -283,6 +312,7 @@ function handleMotionEvents(playing,speed){for(const e of rex.drainMotionEvents(
  if(e.type==='exhale')skid.exhale(e);
 }}
 function finish(){
+ if(state.safari){safariFx.reset();setMode('ended');audio.stopCalls();audio.update(0,0,false,false);audio.river(0,null,0);$('#end-screen').hidden=false;hud.warning.style.opacity=0;arcade.card.hidden=true;safariUI.finish();sharing.reset();$('#restart').focus({preventScroll:true});return;}
  setMode('ended');audio.stopCalls();$('#end-screen').hidden=false;const won=state.result==='won',timeout=state.lossReason==='timeout';
  $('#end-eyebrow').textContent=won?'VISITOR CENTER REACHED':timeout?'ESCAPE WINDOW CLOSED':'JEEP LOST';$('#end-title').textContent=won?'You made it.':timeout?'Time ran out.':'Too close.';
  $('#end-copy').textContent=won?'The Jeep is safe at the Visitor Center. Take a breath. You earned it.':timeout?'She caught the Jeep. Take her down before the 90-second clock reaches zero.':'Break her attacks with the numbered targets. Shoot incoming debris—or save a grenade to clear it.';
@@ -315,6 +345,9 @@ function updateCamera(dt){
  if(menu){cameraPos.set(-4+Math.sin(time*.11)*.7,3+Math.sin(time*.17)*.22,-1.3+Math.sin(time*.07)*.5);cameraTarget.set(2.2,2.65+Math.sin(time*.13)*.12,17);fov=48;}
  else if(third){cameraPos.set(-3.6,4.6,-8.4);cameraTarget.set(0,2.6,10);fov=58;}
  else{cameraPos.set(.06,2.40,-.45);cameraTarget.set(0,3.16,18);}
+ // In Safari the road is the subject: look over the receiver so tiny crossers
+ // remain visible, especially on portrait screens. Chase framing stays intact.
+ if(state.safari&&!menu&&!third){cameraPos.y=3.05;cameraTarget.set(0,2.5,24);fov=60;}
  if(intro){const p=openingPose(state.phaseTime,state.introDuration),look=T.MathUtils.smoothstep(state.phaseTime,.8,3.3);cameraPos.set(.06,2.45,-.45);cameraTarget.set(T.MathUtils.lerp(-10,0,look),T.MathUtils.lerp(3.1,3.9,look),16+2*p.launch);fov=T.MathUtils.lerp(64,54,look);}
  else if(challenge){cameraPos.set(...(third?[-2.4,3.55,-5.8]:[.06,2.52,-.40]));cameraTarget.set(0,3.35,13);fov=third?54:52;}
  if(!menu&&state.phase==='flank'){
@@ -370,7 +403,8 @@ function frame(now){
  if(quality==='auto'&&governor.strained&&ORDER.indexOf(autoTier)>0){autoTier=ORDER[ORDER.indexOf(autoTier)-1];applyQuality();}
  if(mode==='paused'||mode==='ended'||freeze){renderFrame(now);return;}
  time+=dt;const playing=mode==='playing',menu=mode==='menu'||mode==='loading';
- if(playing&&!state.result)state.tick(dt);if(playing)handleEvents();
+ // The Safari clock uses real active time even if a slow frame caps the physics step.
+ if(playing&&!state.result)state.tick(state.safari?raw/1000:dt);if(playing)handleEvents();if(mode==='ended'){renderFrame(now);return;}
  let speed=playing?state.phase==='intro'?openingPose(state.phaseTime,state.introDuration).speed:state.phase==='execution'?Math.max(1,10-state.phaseTime*6):10:menu?2.2:5;
  if(playing&&state.result){
   endTime+=dt;
@@ -392,7 +426,7 @@ function frame(now){
  const ambushTime=state.ambush?state.time-state.ambush.startedAt+endTime:0,breakoutTime=ambushTime-(AMBUSH.crashAt-1.28);
  ambushScenery.update(dt,breakoutTime,speed,playing&&!!state.ambush&&breakoutTime>0&&breakoutTime<6);
  const vocal=audio.vocalPose(dt);
- if(rex){const actorState=menu?{phase:'pursuit',phaseTime:0,distance:20,result:null}:state;rex.update(dt,actorState,time,speed,vocal);if(state.victory?.arrival)rex.actor.visible=false;handleMotionEvents(playing,speed);
+ if(rex&&(!state.safari||menu)&&!(menu&&!rex.actor.visible)){const actorState=menu?{phase:'pursuit',phaseTime:0,distance:20,result:null}:state;rex.update(dt,actorState,time,speed,vocal);if(state.victory?.arrival)rex.actor.visible=false;handleMotionEvents(playing,speed);
   if(state.result==='won'&&rex.death.active&&!state.victory?.arrival){const contacts=rex.death.contacts;skid.contacts(contacts,dt,speed,rex.death.heading);let scrape=0,at=null;for(const c of contacts)if(!c.kind.startsWith('foot')&&c.slip*Math.min(1,c.load)>scrape){scrape=c.slip*Math.min(1,c.load);at=c.position;}if(playing)audio.skid(Math.min(1,scrape/7),at,dt);}
   skid.update(dt,speed,jungleRoot.visible&&!state.victory?.arrival);
   // Humid-air breath and saliva stream from the jaws while she roars.
@@ -402,14 +436,18 @@ function frame(now){
  // Lens beads only where there is a real lens: third person, menu and exterior cinematics.
  post.final.lensRain.value=(view==='third'||menu||state.result==='won')&&jungleRoot.visible?weather.value:0;post.final.lensTime.value+=dt;
  mud.update(dt,speed,camera,renderer,jungleRoot.visible);mud.tint(weather.rain.material.uniforms.tint.value);visitorCenter.update(time);birds.update(dt,time,speed);
- const wild=menu||(playing&&state.phase!=='intro'&&!state.result);
- critters.update(dt,{speed,rex:rex?.actor.visible?rex.actor.position:null,visible:jungleRoot.visible,spawn:wild,herds:playing&&!state.result&&!['intro','flank'].includes(state.phase)});flyers.update(dt,{speed,visible:jungleRoot.visible,spawn:wild,rex:rex?.actor.visible&&!state.result?rex.actor.position:null});insects.update(dt,{speed,visible:jungleRoot.visible});brachio.update(dt,{speed,visible:jungleRoot.visible});
+ // The jungle's own life runs in both modes; in Safari it is a bonus layer under the director's crossings.
+ const wild=menu||(playing&&state.phase!=='intro'&&!state.result&&!(state.safari?.ready>0)),safariMenu=menu&&mode==='menu'&&safariUI.selected==='safari';
+ if(playing&&state.safari){safariDirector.update(dt,state.safari);const n=safariDirector.notice;if(n&&n!==lastNotice&&n.points)audio.rare(n.rarity==='Legendary');lastNotice=n;safariFx.update(dt,{speed,notice:n});}
+ if(safariMenu)safariDirector.parade(dt);
+ critters.update(dt,{speed,rex:rex?.actor.visible?rex.actor.position:null,visible:jungleRoot.visible,spawn:wild,herds:playing&&!state.safari&&!state.result&&!['intro','flank'].includes(state.phase)});flyers.update(dt,{speed,visible:jungleRoot.visible,spawn:wild,rex:rex?.actor.visible&&!state.result?rex.actor.position:null});insects.update(dt,{speed,visible:jungleRoot.visible});brachio.update(dt,{speed:state.safari?0:speed,visible:jungleRoot.visible&&!state.safari&&!safariMenu});
  if(state.result==='lost'&&state.defeat)swallow.update(state.defeat.time,camera,rex.mouthPosition(),reducedMotion);
- if(rex&&state.result!=='won')rex.gaze.update(dt,view==='third'&&!menu?new T.Vector3(.06,2.4,-.45):camera.position);
+ if(rex?.actor.visible&&state.result!=='won')rex.gaze.update(dt,view==='third'&&!menu?new T.Vector3(.06,2.4,-.45):camera.position);
  raycaster.setFromCamera(pointer,camera);aimPoint(aimTarget);
  if(state.victory?.arrival)aimTarget.copy(jeep.root.position).add(new T.Vector3(0,2.4,18));
  // At night the menu gunner holds the beam on her face, so the eyes shine back.
  else if(menu&&night.active&&rex?.actor.visible){aimTarget.copy(rex.headPosition());aimTarget.y-=.5;}
+ else if(safariMenu)critters.showcase(aimTarget);
  const exterior=state.result==='won'?state.victory?.exterior||state.victory?.time>VICTORY.pullback+.25:menu||(view==='third'&&state.phase!=='intro');
  jeep.update(dt,time,speed,aimTarget,exterior,state);night.update(dt,{time,speed,camera,rex,ground:jungleRoot.visible});
  ford.update(dt,{speed,pursuit:playing&&state.phase!=='intro'&&!state.result,state,jeep,rex:rex?.actor.visible&&state.result!=='won'?rex:null,tint:weather.rain.material.uniforms.tint.value,sun,beam:weather.rainUniforms,renderer,visible:jungleRoot.visible});
@@ -419,7 +457,7 @@ function frame(now){
  // Mud and water she gathers: the river rinses and soaks her, and she streams water for a while after.
  if(coat){coat.update(dt,{active:playing&&!state.result});if(ford.rexWet.inWater)coat.wade(.42);
   if(coat.soak>.25&&rex.actor.visible&&!ford.rexWet.inWater){for(let i=0;i<drips.length;i++)drips[i].bone.getWorldPosition(drips[i].p).y-=drips[i].drop;ford.drip(drips.map(d=>d.p),coat.soak*coat.soak*.3);}}effects.update(dt,speed);targets?.update(state);debris.update(dt,state,speed);
- if(playing){if(firing)shoot();handleEvents();updateHud();}audio.update(speed,dt,mode==='playing'&&(!state.result||state.result==='won'&&endTime<VICTORY.fade||(state.result==='lost'&&endTime<DEFEAT.spinEnd)),!state.result&&!['intro','flank'].includes(state.phase));
+ if(playing){if(firing)shoot();handleEvents();updateHud();safariUI.update(won=>audio.cue(won));}audio.update(speed,dt,mode==='playing'&&(!state.result||state.result==='won'&&endTime<VICTORY.fade||(state.result==='lost'&&endTime<DEFEAT.spinEnd)),!state.result&&!['intro','flank'].includes(state.phase));
  shake=Math.max(0,shake-dt*1.8);stompVel+=(stomp*40-stompOffset*260-stompVel*26)*dt;stompOffset=Math.max(0,stompOffset+stompVel*dt);stomp=Math.max(0,stomp-dt*6);gunKick=Math.max(0,gunKick-dt*.4);hitTime=Math.max(0,hitTime-dt);damageFlash=Math.max(0,damageFlash-dt*.65);
  hud.hit.style.opacity=hitTime>0?1:0;hud.hitLabel.style.opacity=hitTime>0?1:0;hud.flash.style.opacity=damageFlash;
  post.final.flash.value.setRGB(1,.78,.5).multiplyScalar(effects.flash*.28);weather.addFlash(post.final.flash.value);
@@ -429,9 +467,9 @@ ${tierName()} · scale ${Math.round(governor.scale*100)}% · ${renderer.info.ren
 }
 requestAnimationFrame(frame);
 const boot=(stage,fraction)=>{$('#boot-stage').textContent=stage;$('#boot-fill').style.transform=`scaleX(${fraction})`;$('#boot-percent').textContent=`${Math.round(fraction*100)}%`;};boot('Waking the predator',.12);
-try{rex=await createRex(scene,p=>{const f=p.total?p.loaded/p.total:0;$('#loading-status').textContent=p.total?`Creature ${Math.round(f*100)}%`:'Preparing the creature…';boot('Waking the predator',.12+f*.66);});boot('Compiling light and shadow',.82);targets=createTargets(rex,camera,$('#target-layer'));skid.attachCoat(rex.hide.uniforms.uRexFallMud);coat=createRexCoat(rex.hide.uniforms);
+try{rex=await createRex(scene,p=>{const f=p.total?p.loaded/p.total:0;$('#loading-status').textContent=p.total?`Creature ${Math.round(f*100)}%`:'Preparing the creature…';boot('Waking the predator',.12+f*.66);});boot('Compiling light and shadow',.82);await critters.ready();targets=createTargets(rex,camera,$('#target-layer'));skid.attachCoat(rex.hide.uniforms.uRexFallMud);coat=createRexCoat(rex.hide.uniforms);
  // Where river water streams off her: belly, thighs, shins, feet and the underside of the tail.
- drips.push(...[['back_02_',1.1],['back_03_',1.2],['tail_02_',.7],['tail_05_',.45],['leg_02_L_',.5],['leg_02_R_',.5],['leg_03_L_',.2],['leg_03_R_',.2],['foot_02_01_L_',.1],['foot_02_01_R_',.1]].map(([n,drop])=>({bone:rex.bones.find(b=>b.name.startsWith(n)),drop,p:new T.Vector3()})).filter(d=>d.bone));rex.gait.ground=(x,z)=>jungle.fordDip(x,z);rex.gait.water=(x,z)=>jungle.waterDepth(x,z);skid.prepare(true);await renderer.compileAsync(scene,camera);skid.prepare(false);await swallow.prepare();boot('Ready',1);setMode('menu');$('#start').disabled=false;$('#start-label').textContent='START THE CHASE';$('#loading-status').textContent='Headphones recommended · First / third person';}
+ drips.push(...[['back_02_',1.1],['back_03_',1.2],['tail_02_',.7],['tail_05_',.45],['leg_02_L_',.5],['leg_02_R_',.5],['leg_03_L_',.2],['leg_03_R_',.2],['foot_02_01_L_',.1],['foot_02_01_R_',.1]].map(([n,drop])=>({bone:rex.bones.find(b=>b.name.startsWith(n)),drop,p:new T.Vector3()})).filter(d=>d.bone));rex.gait.ground=(x,z)=>jungle.fordDip(x,z);rex.gait.water=(x,z)=>jungle.waterDepth(x,z);skid.prepare(true);await renderer.compileAsync(scene,camera);skid.prepare(false);await swallow.prepare();boot('Ready',1);setMode('menu');$('#start').disabled=false;safariUI.select(storedMode());$('#loading-status').textContent='Headphones recommended · First / third person';}
 catch(e){console.error(e);$('#loading-status').textContent='The creature could not load. Refresh to try again.';$('#start-label').textContent='LOAD FAILED';}
 // Exposed for local visual and interaction verification; no network or remote state.
-window.rexChase={scene,camera,renderer,post,birds,critters,flyers,insects,brachio,ford,get coat(){return coat;},sky,canopy,weather,night,setConditions,toggleFlashlight,mud,governor,sun,lights:{hemi,rim,fill},jungle,get quality(){return{setting:quality,tier:tierName(),detected:detected.tier,gpu:detected.gpu,scale:governor.scale,frameMs:governor.frameMs};},setQuality,jeep,effects,opening,ambushScenery,debris,swallow,visitorCenter,get targets(){return targets;},get rex(){return rex;},state,audio,start,setView,shoot,grenade,get mode(){return mode;},get view(){return view;},get frames(){return frameCount;},set freeze(v){freeze=v;},get freeze(){return freeze;},aimAt(world){pointer.copy(world.clone().project(camera));moveReticle();},snapshot(){return{mode,view,health:state.health,jeep:state.jeep,phase:state.phase,ammo:state.ammo,wounds:rex?.damage.count,damageStage:rex?.damage.stage,persistentImpacts:rex?.damage.totalImpacts,headshots:state.headshots,drawCalls:renderer.info.render.calls,triangles:renderer.info.render.triangles,audioClips:audio.buffers.size,remaining:state.remaining,objectives:state.objectivesCleared,debrisCleared:state.debrisCleared,debrisMissed:state.debrisMissed};}};
+window.rexChase={safariDirector,safariUI,safariFx,scene,camera,renderer,post,birds,critters,flyers,insects,brachio,ford,get coat(){return coat;},sky,canopy,weather,night,setConditions,toggleFlashlight,mud,governor,sun,lights:{hemi,rim,fill},jungle,get quality(){return{setting:quality,tier:tierName(),detected:detected.tier,gpu:detected.gpu,scale:governor.scale,frameMs:governor.frameMs};},setQuality,jeep,effects,opening,ambushScenery,debris,swallow,visitorCenter,get targets(){return targets;},get rex(){return rex;},state,audio,start,setView,shoot,grenade,get mode(){return mode;},get view(){return view;},get frames(){return frameCount;},set freeze(v){freeze=v;},get freeze(){return freeze;},aimAt(world){pointer.copy(world.clone().project(camera));moveReticle();},snapshot(){return{mode,view,safari:state.safari?{score:state.safari.score,kills:state.safari.kills,ready:state.safari.ready}:null,health:state.health,jeep:state.jeep,phase:state.phase,ammo:state.ammo,wounds:rex?.damage.count,damageStage:rex?.damage.stage,persistentImpacts:rex?.damage.totalImpacts,headshots:state.headshots,drawCalls:renderer.info.render.calls,triangles:renderer.info.render.triangles,audioClips:audio.buffers.size,remaining:state.remaining,objectives:state.objectivesCleared,debrisCleared:state.debrisCleared,debrisMissed:state.debrisMissed};}};
