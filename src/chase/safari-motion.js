@@ -66,20 +66,20 @@ export const SAFARI_GAIT_GLSL=`
   n=normalize(mix(n,critterRoll(critterPitch(n,-aBody.y),-aBody.z),weight));
  }
  void safariPose(inout vec3 p,inout vec3 n){
-  float part=rig.x,w=rig.y,side=rig.z,lead=rig.w,th=aPose.x*6.2831853,amp=aPose.y,dead=aPose.w;
+  float part=rig.x,w=rig.y,side=rig.z,lead=rig.w,th=aPose.x*6.2831853,amp=aPose.y,dead=max(0.,aPose.w),attack=max(0.,-aPose.w);
   float blend=smoothstep(0.,.24,w),ph=th+(side*lead>0.?0.:3.1415927);
   vec3 rest=p,q=p-pivot;
   if(part>2.5&&part<3.5){
-   float a=(amp*sin(ph)*.72+dead*(lead<0.?-.7:1.15+side*.2))*blend;
+   float a=(amp*sin(ph)*.72+dead*(lead<0.?-.7:1.15+side*.2)+attack*.85)*blend;
    q=critterPitch(q,-a);n=critterPitch(n,-a);p=pivot+q;
    // Remove the pendulum's artificial lift, then clear the road on the return.
    float toe=smoothstep(.3,.9,w),lift=max(0.,cos(ph))*amp*.08;
-   p.y+=toe*(rest.y-p.y+lift)*(1.-dead);
-   critterSupport(p,n,toe*(1.-dead));
+   p.y+=toe*(rest.y-p.y+lift)*(1.-max(dead,attack));
+   critterSupport(p,n,toe*(1.-max(dead,attack)));
   }else{
    if(part>3.5){
     // Loose forearms lag the shoulder and counter the same-side hind leg.
-    float a=(amp*(.23*sin(ph-.65)+.065*sin(th*2.-.4))+dead*.65)*blend;
+    float a=(amp*(.23*sin(ph-.65)+.065*sin(th*2.-.4))+dead*.65-attack*.85)*blend;
     q=critterPitch(q,a);n=critterPitch(n,a);
     float sway=side*amp*.035*sin(th*2.-.6)*blend*(1.-dead);
     q=critterRoll(q,sway);n=critterRoll(n,sway);

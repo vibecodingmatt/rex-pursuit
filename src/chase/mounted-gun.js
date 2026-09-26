@@ -10,15 +10,15 @@ const pulse=(x,a,b,c,d)=>smooth(x,a,b)*(1-smooth(x,c,d));
 
 // The belt and the two ejecta streams are driven by accepted game shots.
 // No time-based scrolling: releasing the trigger leaves the belt in its new position.
-export function createMountedGun(body,scene,mats,character){
+export function createMountedGun(body,scene,mats,character,{mountZ=1.43}={}){
  const {black,steel}=mats;
  const finish=new T.MeshStandardMaterial({color:0x202724,metalness:.52,roughness:.59,map:steel.map,bumpMap:steel.bumpMap,bumpScale:.001});
  const worn=new T.MeshStandardMaterial({color:0x525950,metalness:.7,roughness:.47});
  const brass=new T.MeshStandardMaterial({color:0xb39857,metalness:.78,roughness:.32});
  const copper=new T.MeshStandardMaterial({color:0x87634a,metalness:.76,roughness:.37});
  const canPaint=new T.MeshStandardMaterial({color:0x697057,metalness:.28,roughness:.68});
- cyl(body,steel,.065,.11,1.15,[0,1.29,1.43],[0,0,0]);cyl(body,black,.22,.22,.09,[0,.79,1.43],[0,0,0]);
- const yaw=new T.Group();yaw.position.set(0,1.93,1.43);body.add(yaw);
+ cyl(body,steel,.065,.11,1.15,[0,1.29,mountZ],[0,0,0]);cyl(body,black,.22,.22,.09,[0,.79,mountZ],[0,0,0]);
+ const yaw=new T.Group();yaw.position.set(0,1.93,mountZ);body.add(yaw);
  const gun=new T.Group();yaw.add(gun);
  const receiver=new T.Group();gun.add(receiver);
  box(gun,finish,[.35,.075,.3],[0,-.185,.10]);
@@ -117,7 +117,7 @@ export function createMountedGun(body,scene,mats,character){
   if(flight.landed){flight.velocity.x*=Math.exp(-dt*3);flight.velocity.z*=Math.exp(-dt*3);flight.spin.multiplyScalar(Math.exp(-dt*4));}
  }
  function shoot(){feedFrom=feed;feedTarget+=PITCH;shotAge=0;beltJiggle=1;pending.push(.023);stats.shots++;flash.rotation.z=random()*Math.PI*2;}
- function reset(){body.add(yaw);yaw.position.set(0,1.93,1.43);yaw.rotation.set(0,0,0);gun.rotation.set(0,0,0);hands.visible=true;detached=false;flight.age=0;flight.landed=false;shotAge=10;feed=feedFrom=feedTarget=0;reloading=false;reloadProgress=0;beltVisibility=1;beltJiggle=0;pending.length=0;cover.rotation.x=0;can.position.set(.59,-.20,.04);can.rotation.set(0,0,0);charging.position.z=-.13;receiver.position.z=0;barrel.position.z=0;flash.visible=false;light.intensity=0;for(const k of Object.keys(stats))stats[k]=0;for(const p of [cases,links]){p.cursor=0;for(const item of p.items)item.age=-1;updatePool(p,0);}}
+ function reset(){body.add(yaw);yaw.position.set(0,1.93,mountZ);yaw.rotation.set(0,0,0);gun.rotation.set(0,0,0);hands.visible=true;detached=false;flight.age=0;flight.landed=false;shotAge=10;feed=feedFrom=feedTarget=0;reloading=false;reloadProgress=0;beltVisibility=1;beltJiggle=0;pending.length=0;cover.rotation.x=0;can.position.set(.59,-.20,.04);can.rotation.set(0,0,0);charging.position.z=-.13;receiver.position.z=0;barrel.position.z=0;flash.visible=false;light.intensity=0;for(const k of Object.keys(stats))stats[k]=0;for(const p of [cases,links]){p.cursor=0;for(const item of p.items)item.age=-1;updatePool(p,0);}}
  function update(dt,time,speed,aim,third,state){
   if(state.result==='lost'&&state.defeat?.time>=DEFEAT.ram&&!detached)detach();
   if(detached){tumble(dt,speed);updatePool(cases,dt);updatePool(links,dt);return;}

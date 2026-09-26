@@ -1,6 +1,6 @@
 # Rex: Pursuit
 
-Two jungle game modes from the mounted gun of a moving Jeep: survive the T. rex in **Rex Pursuit**, or chase a high score in **Safari Run**. Switch between first person and an external camera in either mode.
+Three jungle encounters from a Jeep's mounted gun: survive the T. rex in **Rex Pursuit**, chase a high score in **Safari Run**, or hold a trapped vehicle through **Containment Breach**. Each has first-person and external cameras.
 
 **Play:** https://vibecodingmatt.github.io/rex-pursuit/
 
@@ -25,18 +25,29 @@ The `main` branch publishes through `.github/workflows/pages.yml`. CI installs t
 
 The game has static Open Graph and X large-image metadata, canonical URL, VideoGame structured data, favicon/app icons and a manifest. The 1200×630 JPEG at `public/social/rex-pursuit-v4.jpg` uses the approved, text-free promotional artwork. `npm run social:render` packages it from the preserved source in `art/rex-pursuit-keyart-v3.png` using Chrome, without a running game. See [art provenance](art/rex-pursuit-keyart-v3.md). Social services decide when to refresh cached previews; keep Open Graph, X and structured data on the same versioned image URL when changing artwork.
 
-Before publishing, run `npm run test:logic`, `npm run build`, `npm run test:release` and `npm run test:pages`. The last command serves only the built files under `/rex-pursuit/`, checks gameplay and all three pages, and rejects missing or incorrectly rooted assets. Set `TEST_URL` to the public URL to repeat that browser check against the live deployment. `npm run test:gaze` checks pupil tracking and saves eye closeups locally.
+Before publishing, run `npm run test:logic`, `npm run build`, `npm run test:release` and `npm run test:pages`. The last command serves only the built files under `/rex-pursuit/`, checks gameplay and every entry page, and rejects missing or incorrectly rooted assets. Set `TEST_URL` to the public URL to repeat that browser check against the live deployment. `npm run test:gaze` checks pupil tracking and saves eye closeups locally.
 
 The Rex's eyes aim independently at a shared player position with a damped response. The irises move across the original eye surfaces without moving the sockets or corneas; constrained angles and an optical offset account for the deep brow. First-person and menu views follow the viewer; third-person follows the gunner. Gaze holds when the Rex dies and resets with a new encounter.
 
-- `/` — playable chase.
+- `/` — Pursuit / Safari and the mode picker.
+- `/breach.html` — Containment Breach, a two-minute compound holdout.
 - `/model-lab.html` — preserved creature study, camera presets, exported clips, and original damage slider.
 - `/creature-lab.html` — TEST ONLY catalogue of all 20 creature models, including rare variants and insects. Orbit/zoom, camera presets, High/Low meshes, pause/speed, rest poses, wireframe, and a manual or random Dilophosaurus frill display. Linked from the local menu; the production build strips that menu shortcut. `npm run test:creature-lab` checks every entry and both mesh tiers.
 - `/sound-library.html` — audition and name the 34 cuts from the supplied audio reference; assign opening, charge, growl, and pain calls; export a named JSON catalog.
 
 ## Play
 
-Choose **Rex Pursuit** or **Safari Run** in the main menu; the choice is remembered. The title screen follows it: the Rex and the brachiosaur for the chase, and for Safari no Rex at all, just the roster crossing the road and the sky while the gunner tracks the biggest animal. Pause and results both offer a return to the mode picker.
+Choose **Rex Pursuit**, **Safari Run**, or **Containment** in the main menu. Pursuit/Safari remember their selection and have their own title scenes; Containment opens its compound briefing. Pause and results offer a return to the mode picker.
+
+### Containment Breach
+
+The Jeep is stopped at a failed service exit during a night storm. Hold for **two minutes**, then escape through the opening gate. Three escalating raptor waves approach through the yard, crouch before leaping, and land on the lowered tailgate. A landed raptor waits 1.4 seconds before its first strike. Five bullets or one grenade repel it; a bite removes 14% of the Jeep's integrity.
+
+Shoot either glowing blue electrical switch when a pack enters the yard. Both switches share an **18-second recharge**; the discharge clears its marked approach area, with bonus points for caught animals. It cannot reach a raptor already on the Jeep. During the finale it also staggers a Rex within the yard.
+
+At 94 seconds the power fails and the Rex is revealed. She breaks the outer fence at 99 seconds and advances while the exit motors recover. Sustained fire builds stagger; head hits count double and grenades contribute ten hits. Each stagger drives her back. Survive until the gate opens fully at 120 seconds for the getaway. The Rex reaching the vehicle, or raptors reducing integrity to zero, ends the run.
+
+Gun, reload, grenade, camera, flashlight and pause controls match Pursuit. The mode has its own score and browser-local best (`rex-breach-best-v1`), and its fixed night storm does not overwrite the Pursuit/Safari weather preference. `npm run test:breach` checks the pure rules and a complete browser win/loss, real aimed hits, trap, restart, pause and mobile controls. The future River Escape encounter is detailed in [the roadmap](docs/ROADMAP.md#river-escape--future-zone-requested-not-scheduled).
 
 ### Safari Run
 

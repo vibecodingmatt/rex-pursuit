@@ -1,0 +1,23 @@
+<!doctype html>
+<html lang="en"><head>
+ <meta charset="UTF-8"><meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover"><meta name="theme-color" content="#09120f">
+ <title>Containment Breach — Rex: Pursuit</title><meta name="description" content="Hold the maintenance compound. Repel the raptors. Survive the Rex until the gate opens.">
+ <link rel="icon" href="./favicon.svg"><link rel="stylesheet" href="/src/breach/style.css">
+ <script type="importmap">{"imports":{"three":"/node_modules/three/build/three.module.js","three/addons/":"/node_modules/three/examples/jsm/"}}</script>
+</head><body data-state="loading">
+ <canvas id="scene" aria-label="Containment compound. Aim with the mouse, or drag to aim above your thumb."></canvas><div class="vignette"></div><div id="damage-flash"></div><div id="transition"></div>
+ <header><a class="wordmark" href="./">REX<span>:</span>PURSUIT</a><span class="sector">SECTOR 07 <i>●</i> LOCKDOWN</span><div><button id="sound" aria-label="Mute sound">SOUND ON</button><button id="pause" aria-label="Pause encounter">Ⅱ</button></div></header>
+ <section id="objective" class="playing"><div class="eyebrow" id="stage">RESTORE THE EXIT</div><div class="objective-line"><h1 id="objective-title">Hold the compound.</h1><strong id="clock">2:00</strong></div><div class="track"><i id="gate-progress"></i></div><p id="objective-detail">SERVICE EXIT REBOOTING</p></section>
+ <div id="radio" role="status" aria-live="polite"><b>CONTROL</b><span id="radio-copy"></span></div>
+ <div id="warning" class="playing" hidden><strong id="warning-title">RAPTOR PREPARING TO LEAP</strong><span id="warning-copy">Interrupt it before it reaches the Jeep.</span></div>
+ <div id="target" hidden aria-hidden="true"><i></i><span id="target-label">LEAP</span></div>
+ <div id="reticle" class="playing" aria-hidden="true"><i></i><i></i><i></i><i></i></div><div id="hit-marker" aria-hidden="true">×</div>
+ <section id="rex-meter" class="playing" hidden><span>REPEL THE CHARGE</span><div class="track"><i id="stagger-progress"></i></div><small>SUSTAIN FIRE · GRENADES STAGGER FASTER</small></section>
+ <div id="grid-status" class="playing"><b id="grid-label">GRID READY</b><span id="grid-tip">Shoot either blue switch to electrify the yard.</span></div>
+ <section id="bottom" class="playing"><div class="integrity"><span>JEEP INTEGRITY</span><strong id="integrity">100<small>%</small></strong><div class="track"><i id="integrity-bar"></i></div><b id="score">0 PTS · 0 REPELLED</b></div><div class="keyboard-hint">HOLD TO FIRE <i>·</i> R RELOAD <i>·</i> SPACE GRENADE<br>V CAMERA <i>·</i> F LIGHT <i>·</i> ESC PAUSE</div><div class="weapon"><span>MOUNTED .50 CAL</span><strong id="ammo">080<small>/ 080</small></strong><div class="track"><i id="heat"></i></div><b id="weapon-status">READY</b></div></section>
+ <div id="touch-controls" class="playing"><button id="reload">RELOAD</button><button id="grenade">GRENADE<small id="grenade-state">READY</small></button><button id="light">LIGHT</button><button id="view">VIEW</button><button id="fire">FIRE<small>HOLD</small></button></div>
+ <section id="start-screen" class="screen"><div class="intro"><div class="eyebrow">NEW ENCOUNTER / SECTOR 07</div><h2>Containment<br><em>breach.</em></h2><p>The gate has no power.<br>The fences won't hold.</p><ul><li>Hold the Jeep for two minutes.</li><li>Shoot leaping raptors off the vehicle.</li><li>Hit a blue grid switch to catch a pack.</li><li>Repel the Rex until the exit opens.</li></ul><button id="start" class="primary" disabled>PREPARING THE COMPOUND…</button><p id="loading-status" role="status">Loading the creatures and compound.</p><div class="settings"><label for="quality">GRAPHICS</label><select id="quality"><option value="auto">Auto</option><option value="low">Low</option><option value="medium">Medium</option><option value="high">High</option><option value="ultra">Ultra</option></select></div><p class="best" id="best"></p><a href="./">← Return to Pursuit / Safari</a></div></section>
+ <section id="pause-screen" class="screen modal" hidden><div class="card"><div class="eyebrow">HOLD YOUR POSITION</div><h2>Breach paused.</h2><p>The clock and creatures are paused.</p><button id="resume" class="primary">BACK TO THE COMPOUND ↗</button><a href="./">Choose another mode</a></div></section>
+ <section id="end-screen" class="screen modal" hidden><div class="card"><div class="eyebrow" id="end-eyebrow">CONTAINMENT BREACH</div><h2 id="end-title">You made it.</h2><p id="end-copy"></p><div id="end-stats"></div><p id="end-best"></p><button id="restart" class="primary">RUN IT AGAIN ↗</button><a href="./">Choose another mode</a></div></section>
+ <script type="module" src="/src/breach/main.js"></script>
+</body></html>

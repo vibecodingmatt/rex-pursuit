@@ -131,7 +131,7 @@ export function createWeather(scene,{renderer,sky,makeEnvironment,reducedMotion=
    // The grade is never set by a location, so its base is recorded only once.
    if(!('exposure' in base))Object.assign(base,{exposure:post.final.exposure.value,saturation:post.final.saturation.value,contrast:post.final.contrast.value,vol:post.final.volStrength.value,bloom:post.final.bloomStrength.value,volColor:post.volume.sunColor.value.clone(),shadowTint:post.final.shadowTint.value.clone()});
   },
-  set(kind,{instant=false}={}){if(!CONDITIONS.includes(kind))return;target=kind.includes('storm')?1:0;nightTarget=kind.startsWith('night')?1:0;storeConditions(api.kind);envFor(api.kind);if(instant){value=target;night=nightTarget;}},
+  set(kind,{instant=false,persist=true}={}){if(!CONDITIONS.includes(kind))return;target=kind.includes('storm')?1:0;nightTarget=kind.startsWith('night')?1:0;if(persist)storeConditions(api.kind);envFor(api.kind);if(instant){value=target;night=nightTarget;}},
   setQuality(t){splashQuality=Math.min(1,t.particles);rain.mesh.geometry.instanceCount=Math.floor(RAIN_MAX*Math.min(1,t.particles));splash.mesh.geometry.instanceCount=Math.floor(SPLASH_MAX*Math.min(1,t.particles));},
   reset(){flash=0;strike=null;bolt.visible=false;nextStrike=3.5;},
   /** Advance rain, wind and lightning. `shelter` 0..1 fades rain (inside the jaws). */

@@ -41,7 +41,7 @@ roughnessFactor=mix(roughnessFactor,.82,grimeMud);roughnessFactor=mix(roughnessF
  };
  material.customProgramCacheKey=()=>`rex-jeep-grime-v2-${key}`;
 }
-export function createJeep(scene){
+export function createJeep(scene,{gunOffset=0}={}){
  const jeep=new T.Group(),body=new T.Group();jeep.add(body);scene.add(jeep);
  const paint=new T.MeshPhysicalMaterial({color:0xc2b388,metalness:.12,roughness:.52,clearcoat:.35,clearcoatRoughness:.4});
  const edge=new T.MeshStandardMaterial({color:0x788070,metalness:.65,roughness:.4});
@@ -78,8 +78,8 @@ export function createJeep(scene){
  grime(paint,{mud:1,dust:1,key:'paint'});grime(accent,{mud:1,dust:.8,key:'accent'});grime(black,{mud:.9,dust:.9,key:'black'});grime(rubber,{mud:.7,dust:1.3,key:'rubber'});grime(edge,{mud:.8,dust:.8,key:'edge'});
  const mats={paint,accent,edge,black,rubber,steel,fabric,glass};addParkLivery(body,mats);
  const driver=createParkDriver(body,mats);
- const character=createPlayerCharacter(body),gunner=character.root;
- const weapon=createMountedGun(body,scene,mats,character),{gun,yaw,muzzle,flash}=weapon;
+ const character=createPlayerCharacter(body),gunner=character.root;gunner.position.z+=gunOffset;
+ const weapon=createMountedGun(body,scene,mats,character,{mountZ:1.43+gunOffset}),{gun,yaw,muzzle,flash}=weapon;
  mergeStatic(body);
  function reset(){jeep.position.set(0,0,0);jeep.rotation.set(0,0,0);body.position.set(0,0,0);body.rotation.set(0,0,0);weapon.reset();character.reset();}
  function pose(time,speed,state){

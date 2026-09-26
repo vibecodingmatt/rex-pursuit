@@ -363,7 +363,7 @@ export function createCritters(scene,{jungle,camera=null}){
    // End over end about the push, with some wobble.
    c.spin.set(dir.z/h,0,-dir.x/h).multiplyScalar((10+rnd()*9)*(rnd()<.5?-1:1)*Math.min(1.5,power)).add(axis.set(rnd()-.5,rnd()-.5,rnd()-.5).multiplyScalar(6));
   }
-  Object.assign(c,{state:'dead',age:0,grounded:false,landed:false,curl:0,twitch:1,fade:1,peck:0,peckTime:0,stopAt:0,goal:null,alarmAt:-1,onRock:false,hop:0,flinch:0});
+  Object.assign(c,{state:'dead',age:0,grounded:false,landed:false,curl:Math.min(0,c.curl),twitch:1,fade:1,peck:0,peckTime:0,stopAt:0,goal:null,alarmAt:-1,onRock:false,hop:0,flinch:0});
   tally.kills++;api.onKill?.(pos.copy(c.p),c.species||k.name);return true;
  }
  function stepDead(c,dt,speed){
@@ -477,6 +477,11 @@ export function createCritters(scene,{jungle,camera=null}){
  api={
   compies:C.mesh,lizards:L.mesh,gallimimus:G.mesh,meshes:ALL.map(k=>k.mesh),huntSpawn,strike,onScatter:null,onKill:null,onLand:null,onHerd:null,
   async ready(){await modelLoad;if(modelError)throw modelError;},
+  /** Authored encounters own the live animals' transforms/stride. Keep the
+   * shared material, hits and physical death falls, without Safari steering. */
+  updateDirected(dt,{speed=0}={}){
+   for(const k of ALL){k.visible=true;for(const c of k.pool)if(c.on){if(c.state==='dead')stepDead(c,dt,speed);else{c.flinch=Math.max(0,c.flinch-dt*3.5);if(k.name==='dilophosaurus')stepFrill(c,dt,rnd);}}write(k);}
+  },
   setQuality(t){density=Math.min(1,t.fauna??t.particles);for(const k of ALL)k.mesh.castShadow=!!t.detail;modelTier=t.detail?'high':'low';SKIN.value=t.detail?1:0;selectModels();},
   /** The world is already alive when a scene begins: lizards on nearby rocks and a pack foraging in view. */
   reset({intro=false,empty=false}={}){for(const k of ALL){for(const c of k.pool)c.on=false;k.mesh.count=0;}travel=0;nextPack=range(20,45);nextHerd=range(280,420);alarms.length=0;queue.length=0;chunkZ=[];tally.kills=0;if(empty)return;

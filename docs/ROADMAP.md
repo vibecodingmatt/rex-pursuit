@@ -193,6 +193,58 @@ Pause, then Photo:
 
 This is Rex's version of his parameter UI, and it makes the upgrades shareable.
 
+## Containment Breach — active gameplay expansion
+
+Requested 2026-09-26. A separate two-minute survival mode at a storm-battered maintenance compound, reached from the main menu. The Jeep is trapped while the service exit reboots. The first playable version contains one compound, three raptor approach routes, a shootable electrical trap, and a Rex finale. The existing Pursuit and Safari rules remain separate.
+
+**First playable built locally:** `breach.html`, reached through **Containment** in the main menu. The authored compound, waves, leap/board attacks, grid cooldown, Rex breach, gate escape, results, local best and touch controls are implemented on `containment-breach`. See [the handoff](HANDOFF.md#containment-breach-first-playable-2026-09-26-local) for the code map and checks. Next checkpoint is player feedback on difficulty and encounter feel before release.
+
+- **Player loop:** read a raptor's approach and crouch, interrupt its leap or shoot it off the Jeep, reload during the gaps, and time a transformer discharge to catch a pack. Escalating waves culminate in a power failure, lightning reveal, fence breach and Rex charge. Hold her back until the exit opens, then escape.
+- **Presentation:** wet concrete, containment fences, hazard stripes, a guard station, utility equipment, emergency lamps and floodlights. Threats stay in the gun's forward arc; portrait players receive the same attack warning and response time as desktop players. A projected marker identifies the animal preparing to jump.
+- **Implementation:** reuse the game Jeep/gun, runtime dinosaur rigs, audio, storm, effects and mobile pointer controls. Keep wave rules and timings in a pure module and compound scenery in its own module. Authored approach paths avoid a navigation-mesh dependency. Limit active attackers and reuse pools.
+- **First-version acceptance:** a full win and loss, restarts, pause/background freeze, correctly aimed hits and grenades, working trap cooldown, readable close attacks on phones, tiered graphics, and no changes to the existing two modes. Commit locally; publish only on a new release instruction.
+- **Follow-ups after the loop feels good:** Dilophosaurus ranged support with a short localized spit obstruction; a mounted shotgun alternative; additional wave compositions; more compound damage and recorded control-room dialogue. None is needed to finish the first version.
+
+## River Escape — future zone (requested, not scheduled)
+
+**Pitch:** the Jeep makes a desperate run through a flooded river corridor. Water climbs over the wheels, predators run along the banks, floating timber blocks the route, and a collapsing crossing forces a final burst through spray. Keep the gunner controls familiar while the environment changes the decisions. This is a complete escape encounter, distinct from the existing short river ford.
+
+**Proposed structure, approximately 2–3 minutes:**
+
+1. **The washout:** an establishing view reveals that the road is submerged. The Jeep descends into axle-deep water; bow waves and an engine note change establish the new conditions. Introduce a single floating obstacle with a generous warning and show that shooting it clears the route.
+2. **River corridor:** raptors run along alternating banks, occasionally crossing over fallen trunks. Water channels funnel them into readable ambush positions. Let the player choose between a nearby attacker and a log that will soon strike the Jeep.
+3. **Flood surge:** rising water carries fresh debris into the corridor. A scheduled surge briefly pushes the Jeep sideways and pitches the camera; aim assistance and telegraph timing must account for that movement. A dilophosaur on a raised bank is a possible later complication.
+4. **The crossing:** a damaged timber bridge or maintenance trestle starts to collapse. Shoot its hanging obstructions while the Rex enters the shallows behind. Her footfalls send coherent splash sheets and waves outward.
+5. **Escape:** the driver commits to a shallow spillway or gravel ramp. The camera stays playable through the final threat, then briefly widens as the Jeep climbs clear and water drains from the chassis. Failure has its own flooded-vehicle ending rather than automatically reusing the dry-road swallow sequence.
+
+**Gameplay and replayability:**
+
+- Retain aim/fire/reload/grenade and both familiar camera views. The driver handles steering along an authored spline; do not make steering and shooting compete for mobile thumbs in the first release.
+- Introduce a bounded vehicle-integrity penalty for log impacts and attacks. Keep essential dangers distinguishable: obstacle silhouette, approach direction, time-to-impact and a clear successful-break reaction.
+- Schedule a small set of encounter variations within fixed safe windows: alternate bank attacks, log clusters, a fallen tree or a trestle obstruction. Use a seeded director for reproducible balancing. Water level is authored, not random per frame.
+- Score accurate obstacle breaks, attacks repelled and surviving vehicle integrity. A first version needs one complete route and a local best result; branching routes and additional vehicles are stretch work.
+
+**Reusable foundations:** `river.js` / `ford.js` already provide a crossing profile, water treatment, spray and wading hooks; `mud.js` and `rex-coat.js` provide wetness; the Jeep has ground-height sampling, wheel motion and suspension; debris, audio, weather, wildlife and the Containment Breach attacker states provide the rest of the encounter vocabulary. Audit these modules before extending them: a short ford assumes a very different duration and camera exposure from a whole river level.
+
+**New work and technical limits:**
+
+- Build modular channel sections: shallow/deep-looking water surfaces, banks, roots, boulders, log jams and one hero crossing. Reserve a clear central aiming corridor and readable banks at phone aspect ratios.
+- Use an authored height/current field and scrolling normals, not a general fluid simulation. Bound shader clocks and world coordinates for mobile precision. Fake depth through material gradients, foam and submerged geometry before considering refraction.
+- Derive Jeep buoyancy-like heave/pitch/roll from sampled water height plus the underlying bed, with strict angle and acceleration limits. Wheels should remain supported on shallow sections; use a separate authored traversal for the brief surge.
+- Attach a bow wave to the moving hull and leave a pooled, fading wake in the river frame. Rex splash events should follow planted feet and displaced volume, not arbitrary particle bursts. Use capped instanced debris and spray pools; logs need simple swept collisions, not a full rigid-body solver.
+- Keep water shading, rain, transparent spray and reflections within the measured frame budget. Low retains silhouettes, hazards, timing and target counts while reducing foam/spray/detail. Avoid stacking several full-screen reflection/refraction passes.
+- New recordings would improve water-on-metal, sustained wading, current, log impacts and the bridge collapse. Reuse existing licensed sounds for the first prototype; document provenance for any additions.
+
+**Suggested milestones:**
+
+1. Greybox one complete channel and a stable driver/camera traversal; prove phone readability and a return to the main menu.
+2. Build one convincing 15–20-second water section with Jeep bow wave, wake, suspension and sound. Measure it on High and a physical phone before expanding the route.
+3. Add obstacle collision/breaking, bank attacks, damage, win/loss and the seeded director. Balance with placeholder scenery.
+4. Author the collapsing crossing and Rex-in-water finale. Confirm foot contacts, splash origins and camera continuity.
+5. Dress the route, finish audio and results, add tier fallbacks, then perform visual/gameplay verification and user playtesting before release.
+
+**Acceptance:** a complete repeatable escape; no invisible collisions, unavoidable hazards or spawning inside the view; stable suspension through section transitions; accurate aiming while the camera heaves; water effects freeze on pause; no shader shimmer/precision failures on physical mobile hardware; readable threats in portrait/landscape; coherent win/loss/restart; existing Pursuit, Safari and Breach behavior preserved. Defer open-world boating, swimming controls, underwater gameplay, general destruction and multiplayer.
+
 ## Backlog (not scheduled)
 
 - A custom lens flare for the sun in the menu and third person, and an anamorphic muzzle-flash streak.
@@ -204,6 +256,7 @@ This is Rex's version of his parameter UI, and it makes the upgrades shareable.
 
 | Drop | Status | Date | Notes |
 | --- | --- | --- | --- |
+| Containment Breach + River Escape plan | First playable, local | 2026-09-26 | Compound holdout with raptor leaps, grid trap and Rex/gate finale; desktop/touch and complete outcomes checked. River Escape detailed above for a future session. |
 | Off-roadmap: Safari Run | released | 2026-09-26 | User request; built by Codex on 2026-09-25, finished by Claude. Separate 90-second wildlife score attack, no player damage. 15 species (new baked Pachycephalosaurus, Triceratops and Stegosaurus; reworked Velociraptor and Dilophosaurus heads; golden compy and ghost raptor legendaries; Quetzalcoatlus), multi-hit animals with hit-sphere chains, flinch and quadruped deaths, x2-x5 streaks, rare rolls with stings and tags, a final stampede, world-anchored kill points, field guide with bagged species, cookie-backed local top five, and a Rex-free Safari title screen where the roster parades. Checks: test:logic, test:safari, test:smoke, test:wildlife, build, test:release, test:pages; perf Safari 7.3/6.9 ms vs chase 9.4/9.9 ms (Low/High). See the handoff. |
 | Off-roadmap: more wildlife, kill count | local, branch `wildlife-targets` | 2026-09-25 | User request. A per-species bag (hit label running count, results line). New targets: a Gallimimus herd galloping across behind the Rex, Dimorphodon roosting on the leaning edge trees (flushed by near misses, noise, the Jeep and the Rex), Pteranodon flocks down or across the corridor, shootable lizards and birds. New `flyers.js`; per-species `critters.js`; trunk roosts in `foliage.js`/`environment.js`. Checks: test:logic, test:smoke, `npm test`, test:cinematic, test:arcade, extended test:wildlife, perf-tiers within noise. |
 | Off-roadmap: shootable wildlife, live gun in the detour | local, branch `wildlife-targets` | 2026-09-25 | User request. The gun fires everywhere except the opening and the overrun. In the detour, rounds cannot find the hidden Rex and she cannot die in the trees. Her plunge flushes two files of compies across the road behind the Jeep. Compies can be shot anywhere: they tumble, land on their side with legs drawn up and ride the road away; grenades take out everything within 5.5 m. A shot brachiosaur trumpets, rears up on her hind legs (0.75 rad about the hips, hind feet planted, forelegs hanging, neck reaching over the road, tail as a prop) and stomps back down with dust and a ground shake. Details in the handoff. Checks: test:logic, test:smoke, `npm test`, test:cinematic, new test:wildlife. Captures in `art/review/wildlife/`. |
