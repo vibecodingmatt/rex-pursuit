@@ -12,7 +12,7 @@ export const PRESSURE={
 const clamp=(v,a,b)=>Math.max(a,Math.min(b,v));
 export class BreachRound{
  constructor(){this.reset();}
- reset(){Object.assign(this,{time:0,phase:'hold',result:null,jeep:100,ammo:80,reload:0,heat:0,shotTimer:0,grenade:0,trap:0,kills:0,shots:0,hits:0,trapKills:0,saves:0,staggers:0,score:0,rexDistance:43,rexCharge:0,rexRecoil:0,escapeTime:0,events:[],_revealed:false,_broken:false,_opening:false});}
+ reset(){Object.assign(this,{cheated:false,infiniteAmmo:false,time:0,phase:'hold',result:null,jeep:100,ammo:80,reload:0,heat:0,shotTimer:0,grenade:0,trap:0,kills:0,shots:0,hits:0,trapKills:0,saves:0,staggers:0,score:0,rexDistance:43,rexCharge:0,rexRecoil:0,escapeTime:0,events:[],_revealed:false,_broken:false,_opening:false});}
  get wave(){return waveAt(this.time);}
  get gate(){return clamp((this.time-BREACH.gateAt)/(BREACH.duration-BREACH.gateAt),0,1);}
  get remaining(){return Math.max(0,BREACH.duration-this.time);}
@@ -29,8 +29,8 @@ export class BreachRound{
   if(this._broken){const step=this.time-Math.max(previous,BREACH.breach);this.rexDistance-=Math.max(0,step)*(this.rexRecoil>0?1.7:2.08);if(this.rexDistance<=7)this.damage(100,'rex');}
   if(!this.result&&this.time>=BREACH.duration){this.phase='escape';this.events.push({type:'escape'});}
  }
- shoot(){if(this.result||this.phase!=='hold'||this.shotTimer>0||this.reload>0||!this.ammo||this.heat>=.98)return false;this.ammo--;this.shots++;this.heat=Math.min(1,this.heat+.027);this.shotTimer=BREACH.fireInterval;if(!this.ammo)this.startReload();return true;}
- startReload(){if(this.result||this.phase!=='hold'||this.reload>0||this.ammo===BREACH.magazine)return false;this.reload=BREACH.reload;this.events.push({type:'reload'});return true;}
+ shoot(){if(this.result||this.phase!=='hold'||this.shotTimer>0||this.reload>0||(!this.ammo&&!this.infiniteAmmo)||this.heat>=.98)return false;if(!this.infiniteAmmo)this.ammo--;this.shots++;this.heat=Math.min(1,this.heat+.027);this.shotTimer=BREACH.fireInterval;if(!this.ammo&&!this.infiniteAmmo)this.startReload();return true;}
+ startReload(){if(this.infiniteAmmo||this.result||this.phase!=='hold'||this.reload>0||this.ammo===BREACH.magazine)return false;this.reload=BREACH.reload;this.events.push({type:'reload'});return true;}
  launchGrenade(){if(this.result||this.phase!=='hold'||this.grenade>0)return false;this.grenade=BREACH.grenadeCooldown;return true;}
  discharge(){if(this.result||this.phase!=='hold'||this.trap>0)return false;this.trap=BREACH.trapCooldown;this.events.push({type:'trap'});return true;}
  damage(amount,source='raptor'){if(this.result||this.phase!=='hold')return;this.jeep=Math.max(0,this.jeep-amount);this.events.push({type:'damage',source,amount});if(!this.jeep){this.result='lost';this.events.push({type:'lost',source});}}

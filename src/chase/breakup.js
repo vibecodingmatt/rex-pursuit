@@ -3,15 +3,17 @@ import * as T from 'three';
 // Split the existing sculpt into bounded, reusable head/torso/limb/tail pieces.
 // Each piece freezes the *same* pose shader and instance transform as its living
 // source, so the explosion does not snap the animal into a rest pose first.
-export function createBreakup(scene){
+export function createBreakup(scene,{surface=(x,z)=>Math.abs(x)<1.02&&z>1.75&&z<3.26?1.075:0,deck=true}={}){
  const cache=new Map(),matrix=new T.Matrix4(),dummy=new T.Object3D(),origin=new T.Vector3(),rotation=new T.Quaternion(),scale=new T.Vector3(),axis=new T.Vector3(),turn=new T.Quaternion();
  const stats={bursts:0,pieces:0};let detail=true;
  const patch=(s,pivot)=>{s.uniforms.uBreakPivot={value:pivot};s.vertexShader=s.vertexShader.replace('#include <common>','#include <common>\nuniform vec3 uBreakPivot;').replace('#include <project_vertex>','transformed-=uBreakPivot;\n#include <project_vertex>');};
- function prepare(source){
+ function prepare(source,generic=false){
   const g=source.geometry;if(cache.has(g))return cache.get(g);
   const pos=g.attributes.position,index=g.index,groups=Array.from({length:9},()=>[]),low=pos.count<20000;
+  g.computeBoundingBox();const bounds=g.boundingBox,extent=bounds.getSize(new T.Vector3()),mid=bounds.getCenter(new T.Vector3());
   for(let i=0;i<(index?.count??pos.count);i+=3){
    const ids=[0,1,2].map(j=>index?index.getX(i+j):i+j);let x=0,y=0,z=0;for(const id of ids){x+=pos.getX(id)/3;y+=pos.getY(id)/3;z+=pos.getZ(id)/3;}
+   if(generic){x=(x-mid.x)/Math.max(.01,extent.x)*.3;y=(y-bounds.min.y)/Math.max(.01,extent.y)*.6;z=(z-mid.z)/Math.max(.01,extent.z)*1.3;}
    const part=z<-.48?0:z<-.19?1:y>.34&&z>.17?2:y<.265?(x<0?3:4):!low&&Math.abs(x)>.078&&z>.035?(x<0?5:6):x<0?7:8;groups[part].push(...ids);
   }
   const pieces=groups.filter(ids=>ids.length).map(ids=>{
@@ -31,7 +33,7 @@ export function createBreakup(scene){
  function burst(c,dir){
   const k=c.kind,source=k.mesh;let slot=0;for(const candidate of k.pool){if(candidate===c)break;if(candidate.on)slot++;}
   source.getMatrixAt(slot,matrix);matrix.premultiply(source.matrixWorld);matrix.decompose(origin,rotation,scale);
-  for(const piece of prepare(source)){
+  for(const piece of prepare(source,!['raptor','pachycephalosaurus'].includes(k.name))){
    const i=piece.next++%3,b=piece.entries[i],g=piece.mesh.geometry;b.life=6;b.p.copy(piece.pivot).applyMatrix4(matrix);b.q.copy(rotation);b.size=c.scale;b.landed=b.deck=false;
    axis.subVectors(b.p,origin).setY(.15+Math.random()*.6).normalize();b.v.copy(c.v).multiplyScalar(.3).addScaledVector(axis,4+Math.random()*5).addScaledVector(dir,2);b.v.y=3+Math.random()*5;
    b.spin.set(Math.random()-.5,Math.random()-.5,Math.random()-.5).multiplyScalar(10);
@@ -45,8 +47,8 @@ export function createBreakup(scene){
    const b=piece.entries[i];dummy.scale.setScalar(0);
    if(b.life>0){b.life=Math.max(0,b.life-dt);count=i+1;
     if(!b.landed){const previous=b.p.y;b.v.y-=dt*11;b.p.addScaledVector(b.v,dt);b.v.multiplyScalar(Math.exp(-dt*.35));b.p.z+=speed*dt;
-     const floor=Math.abs(b.p.x)<1.02&&b.p.z>1.75&&b.p.z<3.26&&previous>1.075?1.075:0,radius=piece.radius*b.size;
-     if(b.p.y<floor+radius){b.p.y=floor+radius;b.deck=floor>0;if(b.v.y<-2){b.v.y*=-.25;b.v.x*=.45;b.v.z*=.45;b.spin.multiplyScalar(.5);}else{b.landed=true;b.v.set(0,0,0);}}
+     const ground=surface(b.p.x,b.p.z),floor=deck&&previous<ground?0:ground,radius=piece.radius*b.size;
+     if(b.p.y<floor+radius){b.p.y=floor+radius;b.deck=deck&&floor>0;if(b.v.y<-2){b.v.y*=-.25;b.v.x*=.45;b.v.z*=.45;b.spin.multiplyScalar(.5);}else{b.landed=true;b.v.set(0,0,0);}}
      const w=b.spin.length();if(w>0){turn.setFromAxisAngle(axis.copy(b.spin).divideScalar(w),w*dt);b.q.premultiply(turn);}
     }else if(!b.deck)b.p.z+=speed*dt;
     dummy.position.copy(b.p);dummy.quaternion.copy(b.q);dummy.scale.setScalar(b.size*Math.min(1,b.life/.7));

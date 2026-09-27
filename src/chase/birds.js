@@ -39,7 +39,7 @@ export function createBirds(scene,{count=28}={}){
     const r=Math.max(.35*b.size,t*minAngle);if(ray.distanceSqToPoint(b.p)<=r*r)best={index:i,kind:'bird',distance:t,point:b.p.clone()};}
    return best;},
   kill,
-  blast(p,radius=5){const out=[];for(let i=0;i<active;i++)if(alive(birds[i])&&birds[i].p.distanceTo(p)<radius&&kill(i,w.subVectors(birds[i].p,p).normalize(),1.5))out.push('bird');return out;},
+  blast(p,radius=5,onHit=null,exclude=null){const out=[];for(let i=0;i<active;i++)if(i!==exclude&&alive(birds[i])&&birds[i].p.distanceTo(p)<radius){const at=birds[i].p.clone(),dir=at.clone().sub(p).normalize();if(kill(i,dir,1.5)){out.push('bird');onHit?.(at,dir,{kind:'bird',dead:true});}}return out;},
   stats(){return{flying:birds.slice(0,active).filter(alive).length,kills:tally.kills};},
   /** Positions of the live birds (for aiming checks). */
   live(){return birds.slice(0,active).filter(alive).map(b=>({x:b.p.x,y:b.p.y,z:b.p.z}));},

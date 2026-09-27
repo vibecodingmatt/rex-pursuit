@@ -22,7 +22,7 @@ export const CHAIN=[[15,5],[10,4],[6,3],[3,2]],CHAIN_SECONDS=4;
 export const chainMultiplier=chain=>CHAIN.find(([n])=>chain>=n)?.[1]||1;
 export const isRare=kind=>['Rare','Legendary'].includes(SPECIES[kind]?.rarity);
 export class SafariRound{
- constructor(){Object.assign(this,{ready:3,elapsed:0,score:0,kills:0,rare:0,chain:0,bestChain:0,lastKill:-Infinity,lastAward:0,breakdown:{},complete:false});}
+ constructor(){Object.assign(this,{cheated:false,ready:3,elapsed:0,score:0,kills:0,rare:0,chain:0,bestChain:0,lastKill:-Infinity,lastAward:0,breakdown:{},complete:false});}
  tick(dt){
   if(this.complete)return;
   const step=Math.max(0,dt),waiting=Math.min(this.ready,step);this.ready-=waiting;
@@ -47,6 +47,7 @@ export function safariRank(score){return RANKS.find(([n])=>score>=n)[1];}
 // Scores are local to this browser. Keep the cookie comfortably below 4 KB and
 // treat imported/corrupt values as data, never markup. No identity or network.
 export const SCORE_COOKIE='rex_safari_v1';
+export const CHEAT_SCORE_COOKIE='rex_safari_cheaters_v1';
 // `seen` lists every species this browser has ever bagged, for the field guide.
 export function parseScores(raw){
  try{const data=JSON.parse(raw);if(data.v!==1||!Array.isArray(data.top))return {v:1,runs:0,top:[],seen:[]};
@@ -54,22 +55,23 @@ export function parseScores(raw){
   return {v:1,runs:valid(data.runs)?data.runs:0,top:data.top.filter(r=>r&&valid(r.score)&&valid(r.kills)&&valid(r.rare)&&Number.isSafeInteger(r.at)&&r.at>0).sort((a,b)=>b.score-a.score).slice(0,5).map(({score,kills,rare,at})=>({score,kills,rare,at})),seen};
  }catch{return {v:1,runs:0,top:[],seen:[]};}
 }
-export function readScores(doc=globalThis.document,storage){
+export function readScores(doc=globalThis.document,storage,cheated=false){
+ const key=cheated?CHEAT_SCORE_COOKIE:SCORE_COOKIE;
  try{storage??=globalThis.localStorage;}catch{}
- try{const value=doc.cookie.split('; ').find(c=>c.startsWith(SCORE_COOKIE+'='));if(value)return parseScores(decodeURIComponent(value.slice(SCORE_COOKIE.length+1)));}catch{}
- try{return parseScores(storage.getItem(SCORE_COOKIE));}catch{return parseScores('');}
+ try{const value=doc.cookie.split('; ').find(c=>c.startsWith(key+'='));if(value)return parseScores(decodeURIComponent(value.slice(key.length+1)));}catch{}
+ try{return parseScores(storage.getItem(key));}catch{return parseScores('');}
 }
 export function saveScore(round,doc=globalThis.document,storage){
  // Access to storage itself can throw in privacy modes.
  try{storage??=globalThis.localStorage;}catch{}
- const board=readScores(doc,storage),previous=board.top[0]?.score||0;
+ const cheated=!!round.cheated,key=cheated?CHEAT_SCORE_COOKIE:SCORE_COOKIE,board=readScores(doc,storage,cheated),previous=board.top[0]?.score||0;
  const row={score:round.score,kills:round.kills,rare:round.rare,at:Date.now()};
  board.runs++;board.seen=[...new Set([...board.seen,...Object.keys(round.breakdown||{})])];board.top.push(row);board.top.sort((a,b)=>b.score-a.score||b.at-a.at);board.top=board.top.slice(0,5);
  const value=JSON.stringify(board);let saved=false;
  try{const path=new URL('.',globalThis.location?.href||'https://local.invalid/').pathname;
-  doc.cookie=`${SCORE_COOKIE}=${encodeURIComponent(value)}; Max-Age=31536000; Path=${path}; SameSite=Lax${globalThis.location?.protocol==='https:'?'; Secure':''}`;
-  saved=doc.cookie.split('; ').some(c=>c===`${SCORE_COOKIE}=${encodeURIComponent(value)}`);
+  doc.cookie=`${key}=${encodeURIComponent(value)}; Max-Age=31536000; Path=${path}; SameSite=Lax${globalThis.location?.protocol==='https:'?'; Secure':''}`;
+  saved=doc.cookie.split('; ').some(c=>c===`${key}=${encodeURIComponent(value)}`);
  }catch{}
- if(!saved)try{storage.setItem(SCORE_COOKIE,value);saved=storage.getItem(SCORE_COOKIE)===value;}catch{}
- return {board,saved,record:round.score>previous};
+ if(!saved)try{storage.setItem(key,value);saved=storage.getItem(key)===value;}catch{}
+ return {board,saved,cheated,record:round.score>previous};
 }

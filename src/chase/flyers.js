@@ -284,7 +284,7 @@ export function createFlyers(scene,{jungle,camera=null}){
   /** A big noise (a roar, a crash, a blast) flushes every perched one within r. */
   alarm(p,r=20){for(const c of D.pool)if(c.on&&c.state==='perch'&&c.p.distanceToSquared(p)<r*r)flush(c,range(.1,.8));},
   /** A blast kills every pterosaur within radius and flushes the rest near it. */
-  blast(p,radius=5){const out=[];for(const k of ALL)for(const c of k.pool){if(!c.on||c.state==='dead')continue;const d=c.p.distanceTo(p);if(d<radius+k.hitR*c.scale){if(strike(c,o.subVectors(c.p,p).normalize(),1.5,4))out.push(k.name);}else if(d<radius*3)flush(c,range(.05,.3));}return out;},
+  blast(p,radius=5,onHit=null,exclude=null){const out=[];for(const k of ALL)for(const c of k.pool){if(c===exclude||!c.on||c.state==='dead')continue;const d=c.p.distanceTo(p);if(d<radius+k.hitR*c.scale){const dir=c.p.clone().sub(p).normalize(),at=c.p.clone(),dead=strike(c,dir,1.5,4);if(dead)out.push(k.name);onHit?.(at,dir,{kind:k.name,dead});}else if(d<radius*3)flush(c,range(.05,.3));}return out;},
   stats(){const count=(k,st)=>k.pool.filter(c=>c.on&&(!st||c.state===st)).length;return{pteranodon:count(P),dimorphodon:count(D),perched:count(D,'perch'),flying:count(D,'fly')+count(P,'glide'),dead:count(P,'dead')+count(D,'dead'),kills:tally.kills};},
   /** Live pterosaurs of a species (for aiming checks). */
   live(name){const k=ALL.find(k=>k.name===name);return k.pool.filter(c=>c.on&&c.state!=='dead').map(c=>({x:c.p.x,y:c.p.y,z:c.p.z,hp:c.hp,state:c.state}));},

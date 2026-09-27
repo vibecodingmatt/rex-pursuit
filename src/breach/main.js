@@ -15,7 +15,10 @@ import {ChaseAudio} from '../chase/audio.js';
 import {BREACH,BreachRound} from './rules.js';
 import {createCompound} from './world.js';
 import {createBreachDirector} from './director.js';
-import {createCombatFX} from './combat-fx.js';
+import {createCombatFX} from '../chase/combat-fx.js';
+import {createScreenBlood} from '../chase/screen-blood.js';
+import {activateCheat,createCheatInput,createCheatBadge} from '../chase/cheats.js';
+import {createScoreboard,readBoard,saveRun} from '../chase/scoreboard.js';
 const $=id=>document.getElementById(id),reduced=matchMedia('(prefers-reduced-motion: reduce)').matches;
 installAtmosphericFog();
 const renderer=new T.WebGLRenderer({canvas:$('scene'),antialias:false,powerPreference:'high-performance'});renderer.shadowMap.enabled=true;renderer.shadowMap.type=T.PCFSoftShadowMap;renderer.toneMapping=T.ACESFilmicToneMapping;renderer.toneMappingExposure=1.13;renderer.info.autoReset=false;
@@ -29,6 +32,9 @@ const rim=new T.DirectionalLight(0xa5ceda,.9);rim.position.set(-6,13,34);scene.a
 // leave space for an attacker on the rear deck, with the muzzle in front of it.
 const sky=createSky(scene),jeep=createJeep(scene,{gunOffset:-1.31}),effects=createEffects(scene,dustTexture()),audio=new ChaseAudio(),round=new BreachRound();
 const combatFX=createCombatFX(scene,effects);
+const screenBlood=createScreenBlood(camera,{reducedMotion:reduced}),cheatBadge=createCheatBadge();
+const cheatInput=createCheatInput({isPlaying:()=>mode==='playing'&&!round.result,activate:code=>{if(activateCheat(round,code)){cheatBadge.update(true);audio.cue(true);}}});
+const scores=createScoreboard({root:$('breach-scoreboard'),noun:'repelled',load:cheated=>readBoard('breach',cheated)});
 // A broad work lamp above the gun lights close faces without the narrow
 // flashlight's inverse-square hotspot at the end of the barrel.
 const workLamp=new T.SpotLight(0xffdfb0,28,13,.67,1,2);workLamp.position.set(0,3.6,-.35);workLamp.target.position.set(0,1.9,6);scene.add(workLamp,workLamp.target);
@@ -46,7 +52,7 @@ const director=createBreachDirector(critters,round,{
  canMove:(c,from,yaw)=>world?.obstacles.canMove(c,from,yaw)??true,
  onShatter(c,dir){critters.updateDirected(0);combatFX.shatter(c,dir);},
  onLand(p,strength){effects.bodyImpact(p,strength);audio.vehicleCrash();shake=Math.max(shake,strength*.6);},
- onHit(p,dir,options){combatFX.hit(p,dir,options);},
+ onHit(p,dir,options){combatFX.hit(p,dir,options);if(options.dead&&options.explosive)screenBlood.splash(p);},
  onCue(type,a){if(mode!=='playing')return;
   if(type==='wave'){audio.cue(false);radio(a===1?'Multiple contacts. Watch both sides of the deck.':a===2?'The packs are closing in. Use rockets and the grid.':'All lanes compromised. Break up the pack before it reaches you.');}
   if(type==='spawn'){audio.call(a.c.species,a.c.p);if(a.heavy)radio('Pachy incoming. Stop it before it rams the Jeep!',3);}
@@ -59,13 +65,13 @@ const director=createBreachDirector(critters,round,{
  }});
 critters.onLand=(p,s)=>effects.bodyImpact(p,s*.3);
 weather.onThunder=(delay,near)=>audio.thunder(delay,near);
-function setMode(value){mode=value;document.body.dataset.state=value;if(value!=='playing')controls.reset();}
+function setMode(value){mode=value;document.body.dataset.state=value;cheatInput.reset();if(value!=='playing')controls.reset();}
 function moveReticle(){const x=(aim.x*.5+.5)*innerWidth,y=(.5-aim.y*.5)*innerHeight;for(const id of ['reticle','hit-marker']){$(id).style.left=`${x}px`;$(id).style.top=`${y}px`;}}
 const controls=createPointerControls({canvas:$('scene'),fireButton:$('fire'),isPlaying:()=>mode==='playing'&&round.phase==='hold'&&!round.result,onAim:p=>{aim.set(p.x/innerWidth*2-1,1-p.y/innerHeight*2);moveReticle();},onFire:value=>firing=value,onGrenade:grenade,onContact:()=>{}});
 function resize(){controls.reset();renderer.setSize(innerWidth,innerHeight);camera.aspect=innerWidth/innerHeight;camera.fov=camera.aspect<.8?78:56;camera.updateProjectionMatrix();moveReticle();}
 addEventListener('resize',resize);
 function applyQuality(){tier=quality==='auto'?detected.tier:quality;const t=TIERS[tier];renderer.setPixelRatio(Math.min(devicePixelRatio,t.pixelRatio));governor.setRange(t.scale);governor.reset();sun.shadow.mapSize.set(t.shadow,t.shadow);sun.shadow.map?.dispose();sun.shadow.map=null;
- post.configure({scale:governor.scale,msaa:t.msaa,bloomLevels:t.bloomLevels,volumetric:null,ao:t.ao});critters.setQuality(t);effects.setQuality(t);combatFX.setQuality(t);weather.setQuality(t);night.setQuality(t);world?.setQuality(t);resize();
+ post.configure({scale:governor.scale,msaa:t.msaa,bloomLevels:t.bloomLevels,volumetric:null,ao:t.ao});critters.setQuality(t);effects.setQuality(t);combatFX.setQuality(t);screenBlood.setQuality(t);weather.setQuality(t);night.setQuality(t);world?.setQuality(t);resize();
 }
 $('quality').value=quality;$('quality').onchange=()=>{quality=$('quality').value;storeQuality(quality);applyQuality();};applyQuality();
 function pause(){if(!['playing','paused'].includes(mode))return;const paused=mode==='playing';setMode(paused?'paused':'playing');$('pause-screen').hidden=!paused;audio.pause(paused);}
@@ -74,14 +80,14 @@ $('sound').onclick=()=>{$('sound').textContent=audio.mute()?'SOUND OFF':'SOUND O
 $('reload').onclick=()=>{if(mode==='playing')round.startReload();};$('grenade').onclick=grenade;
 function changeView(){view=view==='first'?'third':'first';$('view').textContent=view==='first'?'3RD':'1ST';}function light(){night.toggleFlashlight();$('light').setAttribute('aria-pressed',night.flashlightOn);}
 $('view').onclick=changeView;$('light').onclick=light;
-addEventListener('keydown',e=>{if(e.target.matches('input,select,textarea')||e.repeat)return;if(['Space','KeyR','KeyV','KeyF','Escape','KeyP','KeyM'].includes(e.code))e.preventDefault();
+addEventListener('keydown',e=>{if(cheatInput.key(e)){e.preventDefault();return;}if(e.target.closest('input,select,textarea,[contenteditable]:not([contenteditable="false"])')||e.repeat)return;if(['Space','KeyR','KeyV','KeyF','Escape','KeyP','KeyM'].includes(e.code))e.preventDefault();
  if(e.code==='Escape'||e.code==='KeyP')pause();if(e.code==='KeyM')$('sound').click();if(mode!=='playing')return;
  if(e.code==='KeyR')round.startReload();if(e.code==='Space')grenade();if(e.code==='KeyV')changeView();if(e.code==='KeyF')light();
 });
 document.addEventListener('visibilitychange',()=>{if(document.hidden&&mode==='playing')pause();});addEventListener('blur',()=>{controls.reset();if(mode==='playing')pause();});
 async function start(){if(!ready||mode==='starting')return;setMode('starting');$('start').disabled=true;
  try{await audio.init();await audio.pause(false);}catch(e){console.warn('Breach audio unavailable:',e.message);}
- round.reset();director.reset();world.reset();rex.reset();weather.reset();effects.reset();combatFX.reset();jeep.reset();night.reset();aim.set(0,0);time=0;endAge=0;rexVisualDistance=43;shake=damageFlash=hitTime=0;view='first';preview=null;$('view').textContent='3RD';$('light').setAttribute('aria-pressed','true');
+ round.reset();cheatBadge.update(false);screenBlood.reset();director.reset();world.reset();rex.reset();weather.reset();effects.reset();combatFX.reset();jeep.reset();night.reset();aim.set(0,0);time=0;endAge=0;rexVisualDistance=43;shake=damageFlash=hitTime=0;view='first';preview=null;$('view').textContent='3RD';$('light').setAttribute('aria-pressed','true');
  $('end-screen').hidden=$('pause-screen').hidden=$('start-screen').hidden=true;$('transition').style.opacity=0;$('start').disabled=false;setMode('playing');radio('Service exit offline. Hold your position while we restore power.',6);audio.cue(false);moveReticle();
 }
 $('start').onclick=$('restart').onclick=start;
@@ -137,11 +143,12 @@ function events(){for(const e of round.drain()){
  if(e.type==='won')finish();
  }}
 function finish(){setMode('ended');audio.stopCalls();audio.update(0,0,false,false);$('end-screen').hidden=false;$('warning').hidden=$('target').hidden=true;
- const won=round.result==='won',newBest=round.score>best;best=Math.max(best,round.score);let saved=true;try{localStorage.setItem('rex-breach-best-v1',String(best));}catch{saved=false;}
+ const won=round.result==='won',newBest=!round.cheated&&round.score>best,result=saveRun('breach',round);scores.show(result);let saved=result.saved;if(!round.cheated){best=Math.max(best,round.score);try{localStorage.setItem('rex-breach-best-v1',String(best));}catch{saved=false;}}
  $('end-eyebrow').textContent=won?'SERVICE EXIT REACHED':'COMPOUND OVERRUN';$('end-title').textContent=won?'Gate cleared.':'They got through.';
+ if(round.cheated)$('end-eyebrow').textContent+=' · CHEAT RUN';
  $('end-copy').textContent=won?'The Jeep is clear. Paddock Seven belongs to the dinosaurs again.':round.time>=BREACH.breach?'Split your fire between the Rex and the pack. Save a rocket or grid discharge for her charge.':'Clear both sides of the deck. Stop charging pachys, and use rockets or the grid to thin the packs.';
  $('end-stats').textContent=`${round.score.toLocaleString()} points · ${round.kills} dinosaurs repelled · ${round.trapKills} grid kills · ${round.staggers} Rex staggers`;
- $('end-best').textContent=saved?`${newBest?'NEW BEST · ':''}PERSONAL BEST ${best.toLocaleString()}`:'Storage unavailable. Your score is shown for this visit.';$('restart').focus({preventScroll:true});
+ $('end-best').textContent=round.cheated?`CHEATERS BEST ${result.rows[0].score.toLocaleString()}`:saved?`${newBest?'NEW BEST · ':''}PERSONAL BEST ${best.toLocaleString()}`:'Storage unavailable. Your score is shown for this visit.';$('restart').focus({preventScroll:true});
 }
 function updateCamera(dt){
  const escape=round.phase==='escape',u=escape?T.MathUtils.smoothstep(round.escapeTime,0,1.5):0;
@@ -155,7 +162,7 @@ function hud(){const t=round.time,w=round.wave;const stage=t<3?'SERVICE EXIT OFF
  $('stage').textContent=stage;$('objective-title').textContent=round.phase==='escape'?'Gate clear. Move!':w===4?'Repel the Rex.':'Hold the compound.';
  const seconds=Math.ceil(round.remaining);$('clock').textContent=`${Math.floor(seconds/60)}:${String(seconds%60).padStart(2,'0')}`;
  $('gate-progress').style.transform=`scaleX(${Math.min(1,t/BREACH.duration)})`;$('objective-detail').textContent=t>=BREACH.gateAt?`EXIT OPENING · ${Math.round(round.gate*100)}%`:`EXIT REBOOT · ${Math.round(Math.min(1,t/BREACH.gateAt)*100)}%`;
- $('integrity').innerHTML=`${Math.ceil(round.jeep)}<small>%</small>`;$('integrity-bar').style.transform=`scaleX(${round.jeep/100})`;$('ammo').innerHTML=`${String(round.ammo).padStart(3,'0')}<small>/ 080</small>`;$('heat').style.transform=`scaleX(${round.heat})`;
+ $('integrity').innerHTML=`${Math.ceil(round.jeep)}<small>%</small>`;$('integrity-bar').style.transform=`scaleX(${round.jeep/100})`;$('ammo').innerHTML=`${round.infiniteAmmo?'∞':String(round.ammo).padStart(3,'0')}<small>/ 080</small>`;$('heat').style.transform=`scaleX(${round.heat})`;
  $('weapon-status').textContent=round.reload>0?`RELOADING ${round.reload.toFixed(1)}s`:round.heat>=.98?'COOLING':'READY';$('score').textContent=`${round.score.toLocaleString()} PTS · ${director.live.length} CONTACTS`;
  $('grenade-state').textContent=round.grenade>0?`${Math.ceil(round.grenade)}s`:'READY';$('grid-label').textContent=round.trap>0?`GRID RECHARGING · ${Math.ceil(round.trap)}s`:'GRID READY';$('grid-tip').textContent=round.trap>0?'Wait for the blue switch lights.':'Shoot either blue switch to electrify the yard.';
  $('rex-meter').hidden=t<BREACH.breach||round.phase==='escape';$('stagger-progress').style.transform=`scaleX(${round.rexCharge/BREACH.staggerHits})`;
@@ -186,7 +193,7 @@ function step(dt){
  const close=director.warning;if(close)night.flashlight.intensity*=T.MathUtils.clamp(((close.c.p.distanceTo(camera.position)-2)/8)**2,.035,1);
  // Ambient fill preserves readable silhouettes even during the scripted outage.
  hemi.intensity=Math.max(hemi.intensity,.3);fill.intensity=Math.max(fill.intensity,.55);scene.environmentIntensity=Math.max(scene.environmentIntensity,.17);night.tail.intensity*=.18;
- combatFX.update(sim,speed);effects.update(sim,speed);audio.listen(camera,rex?.actor.visible?rex.headPosition():null);audio.weather(playing?weather.value:0);audio.update(speed,sim,playing,false);
+ combatFX.update(sim,speed);screenBlood.update(sim);effects.update(sim,speed);audio.listen(camera,rex?.actor.visible?rex.headPosition():null);audio.weather(playing?weather.value:0);audio.update(speed,sim,playing,false);
  if(playing){if(firing)shoot();events();}hud();
 }
 function render(now){requestAnimationFrame(render);const raw=Math.max(0,(now-last)/1000),dt=Math.min(.04,raw);last=now;
@@ -205,4 +212,4 @@ async function load(){try{
  $('loading-status').textContent='Mouse: hold to fire. Touch: drag to aim, hold FIRE.';$('start').textContent='HOLD THE COMPOUND ↗';$('start').disabled=false;setMode('menu');
  }catch(error){$('loading-status').textContent=`Could not load the encounter: ${error.message}. Reload to try again.`;console.error(error);}}
 load();
-window.breach={round,director,critters,combatFX,renderer,scene,camera,jeep,weather,get world(){return world;},get rex(){return rex;},get mode(){return mode;},get ready(){return ready;},get view(){return view;},get quality(){return tier;},get freeze(){return freeze;},set freeze(v){freeze=v;},start,pause,step,shoot,grenade,triggerTrap,aimAt(p){aim.copy(p.clone().project(camera));moveReticle();},snapshot(){return{mode,time:round.time,phase:round.phase,result:round.result,jeep:round.jeep,kills:round.kills,score:round.score,rexDistance:round.rexDistance,live:director.live.length,calls:renderer.info.render.calls,triangles:renderer.info.render.triangles};}};
+window.breach={screenBlood,round,director,critters,combatFX,renderer,scene,camera,jeep,weather,get world(){return world;},get rex(){return rex;},get mode(){return mode;},get ready(){return ready;},get view(){return view;},get quality(){return tier;},get freeze(){return freeze;},set freeze(v){freeze=v;},start,pause,step,shoot,grenade,triggerTrap,aimAt(p){aim.copy(p.clone().project(camera));moveReticle();},snapshot(){return{mode,time:round.time,phase:round.phase,result:round.result,jeep:round.jeep,kills:round.kills,score:round.score,rexDistance:round.rexDistance,live:director.live.length,calls:renderer.info.render.calls,triangles:renderer.info.render.triangles};}};

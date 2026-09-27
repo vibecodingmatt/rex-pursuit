@@ -1,9 +1,12 @@
 import {SPECIES,SAFARI_SECONDS,RANKS,readScores,saveScore,safariRank} from './safari-rules.js';
+import {createScoreboard} from './scoreboard.js';
 const $=s=>document.querySelector(s),number=n=>Math.round(n).toLocaleString();
 export function createSafariUI({state,director,onSelect,reducedMotion=false}){
  let selected='pursuit',board=readScores(),best=board.top[0]?.score||0,lastCue=-1,shownScore=0,lastMultiplier=1,lastTick=performance.now(),countUp=0;
  const title=$('#start-screen h1'),copy=$('#start-screen .intro-copy>p'),originalTitle=title.innerHTML,originalCopy=copy.innerHTML;
  const guide=$('#field-guide'),list=$('#species-list'),callout=$('#safari-callout');
+ const scores=createScoreboard({root:$('#safari-scoreboard'),list:$('#safari-board'),load:cheated=>readScores(undefined,undefined,cheated).top});
+ let cheatBest=readScores(undefined,undefined,true).top[0]?.score||0;
  function renderGuide(){
   list.replaceChildren();const seen=new Set(board.seen);
   for(const [kind,s]of Object.entries(SPECIES)){
@@ -38,7 +41,7 @@ export function createSafariUI({state,director,onSelect,reducedMotion=false}){
    const s=state.safari;if(!s)return;const now=performance.now(),dt=Math.min(.1,(now-lastTick)/1000);lastTick=now;
    // The score counts up to its value rather than jumping.
    shownScore=shownScore<s.score?Math.min(s.score,shownScore+Math.max(40,(s.score-shownScore)*dt*9)):s.score;
-   $('#safari-score').textContent=number(shownScore);$('#safari-record').textContent=`BEST ${number(Math.max(best,s.score))}`;
+   $('#safari-score').textContent=number(shownScore);$('#safari-record').textContent=`${state.cheated?'CHEAT BEST':'BEST'} ${number(Math.max(state.cheated?cheatBest:best,s.score))}`;
    const m=s.multiplier;$('#safari-multiplier').textContent=`×${m}`;$('#safari-multiplier').dataset.level=String(m);
    $('#safari-chain').textContent=s.chainLeft?(s.nextStep?`${s.chain} IN A ROW · ${s.nextStep} TO ×${m+1}`:`${s.chain} IN A ROW · MAX`):'KILL WITHIN 4s TO CHAIN';
    $('#safari-streak-fill').style.transform=`scaleX(${s.chainLeft})`;
@@ -53,8 +56,9 @@ export function createSafariUI({state,director,onSelect,reducedMotion=false}){
    if(beat>=0&&beat!==lastCue){lastCue=beat;cue(beat===0);}
   },
   finish(){
-   const s=state.safari,result=saveScore(s);board=result.board;best=board.top[0]?.score||s.score;renderGuide();
-   $('#end-eyebrow').textContent=result.record?'NEW PERSONAL BEST':'SAFARI RUN COMPLETE';
+   const s=state.safari;s.cheated=state.cheated;const result=saveScore(s);
+   if(result.cheated)cheatBest=result.board.top[0]?.score||0;else{board=result.board;best=board.top[0]?.score||0;renderGuide();}
+   $('#end-eyebrow').textContent=result.cheated?'SAFARI COMPLETE · CHEAT RUN':result.record?'NEW PERSONAL BEST':'SAFARI RUN COMPLETE';
    const rank=safariRank(s.score),next=RANKS.slice().reverse().find(([n])=>n>s.score);
    const rarest=Object.keys(s.breakdown).sort((a,b)=>SPECIES[b].points-SPECIES[a].points)[0];
    $('#end-copy').textContent=`${rank}. `+(s.rare?`${s.rare} rare animal${s.rare===1?'':'s'} bagged${rarest?`; best trophy: ${SPECIES[rarest].name}`:''}.`:'The rarest creatures are still out there.')+(next?` ${number(next[0]-s.score)} more for ${next[1]}.`:'');
@@ -63,9 +67,7 @@ export function createSafariUI({state,director,onSelect,reducedMotion=false}){
    const breakdown=$('#safari-breakdown');breakdown.replaceChildren();
    for(const [kind,points]of Object.entries(s.breakdown).sort((a,b)=>b[1]-a[1])){const row=document.createElement('div'),label=document.createElement('span'),value=document.createElement('b');row.dataset.rarity=SPECIES[kind].rarity;label.textContent=`${SPECIES[kind].name} ×${state.bag[kind]}`;value.textContent=number(points);row.append(label,value);breakdown.append(row);}
    if(!s.kills)breakdown.textContent='Hold FIRE and lead the moving animals. Grenades clear clustered packs.';
-   const list=$('#safari-board');list.replaceChildren();
-   board.top.forEach(r=>{const row=document.createElement('li'),value=document.createElement('b'),detail=document.createElement('span');value.textContent=number(r.score);detail.textContent=`${r.kills} bagged · ${new Date(r.at).toLocaleDateString(undefined,{month:'short',day:'numeric'})}`;row.append(value,detail);if(r.at===board.top[0]?.at&&result.record)row.classList.add('record');list.append(row);});
-   $('#safari-save-status').textContent=result.saved?'Top five saved on this browser.':'Storage is unavailable. This score lasts for this visit.';
+   scores.show({...result,rows:result.board.top});$('#safari-save-status').textContent='';
    $('#mission-clock').hidden=true;
    // Count the final score up on the results card.
    const end=$('#end-title'),target=s.score,started=performance.now(),run=++countUp,span=reducedMotion?0:Math.min(1400,500+target/25);

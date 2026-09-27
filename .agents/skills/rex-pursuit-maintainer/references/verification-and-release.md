@@ -38,6 +38,7 @@ Read `package.json` and the selected script before running it. There is no need 
 | Breach service-passage concealment, continuous arrivals, entrance cover and phone sightlines | `npm run test:breach-arrivals` (source server only) |
 | Breach solid-object clearance, direct rocket contact and model breakup | `npm run test:breach-collisions` (source server only) |
 | Safari rules, mode picker, scoring, results, remembered records and mobile flow | `npm run test:safari` |
+| IDKFA, fair/cheater score isolation, shared wildlife gore and close explosive lens splatter | `npm run test:cheats` (source or built entry base); pure rules are also in `test:logic` |
 | Homepage mode switching, cached compound preview, loading races and return navigation | `npm run test:mode-menu` |
 | Shared Safari gait/frill, Breach leap pose, hit transforms and continuous deaths at both tiers | `npm run test:safari-motion` (source server only) |
 | Full creature catalogue, frill presets, selection races and short-menu scrolling | `npm run test:creature-lab` |

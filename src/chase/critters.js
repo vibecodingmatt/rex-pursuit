@@ -524,10 +524,10 @@ export function createCritters(scene,{jungle,camera=null,capacities={}}){
   /** A round (direction `dir`) kills a compy; `power` scales the throw. */
   kill,
   /** A blast kills every compy whose body is within `radius` of it (an airburst high over the road spares them) and throws it outward. */
-  blast(p,radius=5){const out=[];for(const k of ALL)for(const c of k.pool){if(!c.on||c.state==='dead'||c.fade<.6)continue;const dx=c.p.x-p.x,dz=c.p.z-p.z,d=Math.hypot(dx,dz);
+  blast(p,radius=5,onHit=null,exclude=null){const out=[];for(const k of ALL)for(const c of k.pool){if(c===exclude||!c.on||c.state==='dead'||c.fade<.6)continue;const dx=c.p.x-p.x,dz=c.p.z-p.z,d=Math.hypot(dx,dz);
    // A big sculpt is caught if the blast reaches most of its length (hit spheres run nose to tail).
    const reach=k.spheres?(k.spheres[0].r+.35)*c.scale:k.heavy?1.5:0;
-   if(Math.hypot(d,bodyCentre(c,centre).y-p.y)>radius+reach)continue;const f=Math.max(0,1-d/radius);if(strike(c,push.set(dx/(d||1),0,dz/(d||1)),1.3+f*1.4,4)){c.vy+=(k.heavy?2:4)*f;out.push(c.species||k.name);}}return out;},
+   if(Math.hypot(d,bodyCentre(c,centre).y-p.y)>radius+reach)continue;const at=centre.clone(),f=Math.max(0,1-d/radius),dir=new T.Vector3(dx/(d||1),0,dz/(d||1)),dead=strike(c,dir,1.3+f*1.4,4);if(dead){c.vy+=(k.heavy?2:4)*f;out.push(c.species||k.name);}onHit?.(at,dir,{kind:c.species||k.name,dead,heavy:k.heavy});}return out;},
   /** A Gallimimus herd galloping out of the forest on `side` and across the road behind the Rex. */
   herd(side,{count=Math.round(range(6,9)),delay=0,over=1.8,z=[22,32]}={}){for(let i=0;i<count;i++)queue.push({at:now+delay+over*i/Math.max(1,count-1)+range(-.08,.08),side,z:range(z[0],z[1]),call:i===0||i===Math.floor(count/2),kind:'galli'});},
   /** A file of `count` compies flushed out of the verge on `side` (+x or -x), crossing the road

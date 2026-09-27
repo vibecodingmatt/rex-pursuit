@@ -1,0 +1,17 @@
+#cheat-status{position:fixed;left:50%;bottom:9px;transform:translateX(-50%);z-index:24;padding:5px 10px;border:1px solid #dd9b6077;background:#201811df;color:#ffd49b;font:700 10px/1.4 ui-monospace,monospace;letter-spacing:1px;text-align:center;pointer-events:none;max-width:90vw;width:max-content}
+body[data-state="menu"] #cheat-status,body[data-state="ended"] #cheat-status{display:none}
+#screen-blood{position:fixed;inset:0;width:100%;height:100%;z-index:2;pointer-events:none}
+body[data-state="ended"] #screen-blood,body[data-state="menu"] #screen-blood{visibility:hidden}
+.scoreboard{text-align:left;margin:18px 0;color:#e1d7bd;font:12px/1.5 ui-monospace,monospace}
+.scoreboard h3{font-size:10px;letter-spacing:1.5px;margin:0 0 9px}
+.score-tabs{display:flex;gap:6px;margin-bottom:8px}
+.score-tabs button{flex:1;min-height:36px;padding:6px 5px;border:1px solid #bfa57855;color:#d3c3a5;background:#121a16;font:700 9px ui-monospace,monospace;letter-spacing:.7px;white-space:nowrap;cursor:pointer}
+.score-tabs button[aria-pressed="true"]{color:#211b12;background:#edc88a;border-color:#edc88a}
+.score-tabs button:focus-visible{outline:2px solid #fff;outline-offset:2px}
+.scoreboard ol{padding:0;list-style:none;margin:0}
+.scoreboard li{display:flex;justify-content:space-between;gap:10px;padding:5px 0;border-bottom:1px solid #bfa57822}
+.scoreboard li span{font-size:10px;color:#b6afa0}
+.scoreboard .score-save-status{font:10px/1.5 ui-monospace,monospace;color:#c4b69a;margin:10px 0}
+#safari-scoreboard{margin:0}#safari-board{padding-left:0}
+#end-screen.modal{padding:70px 0 20px;align-items:safe center}
+@media(max-width:600px){#cheat-status{bottom:auto;top:55px;font-size:8px;padding:3px 6px}.scoreboard{margin:12px 0}}

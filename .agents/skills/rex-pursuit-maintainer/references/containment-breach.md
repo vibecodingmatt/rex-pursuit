@@ -13,8 +13,9 @@ Containment is a third homepage button, handled by `safari-ui.js` and `chase.js`
 | `src/breach/director.js` | Three approach lanes, bounded live attackers, crouch/leap/board/bite/retreat, kills and trap/blast selection |
 | `src/breach/entries.js` | Shared service-passage dimensions and continuous arrival curves used by scenery and steering |
 | `src/breach/obstacles.js` | Registered prop bounds, swept body/head/tail clearance and projectile/blast cover |
-| `src/breach/combat-fx.js` | Breach-only pooled blood droplets, tissue fragments, yard/deck splatter and rocket flight |
-| `src/breach/breakup.js` | Pooled direct-hit model fragments preserving the source pose, hide and depth shaders |
+| `src/chase/combat-fx.js` | Shared pooled blood droplets, tissue fragments, splatter and Breach rocket flight; accepts a ground surface and deck option |
+| `src/chase/breakup.js` | Shared pooled direct-hit model fragments preserving the source pose, hide and depth shaders |
+| `src/chase/screen-blood.js` | Temporary lens droplets on close explosive kills; bounded pool and simulation-time pause/fade |
 | `src/breach/world.js` | Compound props, fences/gates, lights, electrical arcs, scenery quality and reset |
 | `src/breach/style.css`, `breach.html` | Briefing, HUD, touch controls, pause and results |
 

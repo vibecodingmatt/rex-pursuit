@@ -87,6 +87,12 @@ The seven large ground species (Velociraptor, Dilophosaurus, Pachycephalosaurus,
 
 ### Controls and Rex Pursuit
 
+Type **`idkfa`** during Pursuit, Safari Run or Containment Breach to enable infinite machine-gun ammo for that run. It fills the magazine, cancels a reload and shows **∞** plus a cheat-run badge. Heat, fire rate and explosive cooldowns still apply. The code is case-insensitive; menus, pause screens and text fields ignore it. Restarting or changing scenarios begins a clean run.
+
+Once activated, the **entire run** belongs to the **CHEATERS** leaderboard. Results have separate **FAIR PLAY / CHEATERS** top-five tabs. Safari's existing fair cookie and field-guide records remain untouched; its cheat scores use `rex_safari_cheaters_v1`. Containment keeps its existing fair personal best and adds separate top-five lists. Pursuit's new lists rank **wildlife points**, using the Safari catalogue's base points without streak multipliers. All records are local to this browser, not online. Shared results identify cheat runs.
+
+Wildlife in Pursuit and Safari now uses the shared Containment blood spray, tissue and ground splatter. A lethal direct explosive hit breaks ground creatures into posed mesh fragments; nearby splash kills and flying animals retain their falling bodies with the larger blood/tissue burst. Explosives still deal four hits in Pursuit/Safari, once per victim. Explosive kills within nine metres in front of the camera spatter droplets onto the lens for roughly three to five seconds. Ordinary bullets, surviving targets and distant explosions do not add lens blood. Pause freezes the effects; restart clears them. Low quality reduces the pools' emissions. `npm run test:cheats` covers activation, isolated score storage and the shared effects in the browser.
+
 | Control | Action |
 | --- | --- |
 | Mouse / screen drag | Aim; touch reticle stays above the thumb |

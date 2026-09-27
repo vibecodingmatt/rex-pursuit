@@ -24,6 +24,8 @@ Read its `AGENTS.md` and `docs/HANDOFF.md`, then inspect current source and Git 
 | Rainforest plants, wind shader, ground | `src/chase/foliage.js`, `environment.js` |
 | Hide finish, mouth interior, teeth, cornea | `src/chase/rex-skin.js` (composed via `damage.js`) |
 | Combat/creature particles, flock | `src/chase/effects.js`, `birds.js` |
+| Shared blood/tissue, ground splatter, direct-hit sculpt breakup and temporary camera droplets | `src/chase/combat-fx.js`, `breakup.js`, `screen-blood.js`; both game entries own update/reset/quality |
+| IDKFA input and run flags; separate browser-local fair/cheater records | `src/chase/cheats.js`, `scoreboard.js`, `safari-rules.js`, `safari-ui.js`; `combat.js`, `src/breach/rules.js` for ammo rules |
 | Compies, lizards, insects, brachiosaur; track clutter | `src/chase/critters.js`, `insects.js`, `brachio.js`; clutter in `environment.js`, `foliage.js` |
 | Shooting wildlife and the bag: compy, lizard and Gallimimus kills (`critters.js` kinds, `herd`, `stream`), pterosaurs on trunk roosts and in the corridor (`flyers.js`; roosts from `foliage.js`/`environment.js`), birds (`birds.js`), the brachiosaur's rear-up (`brachio.js`); routing, tally and results line in `src/chase.js`, `bag` in `combat.js` | see the Living jungle reference |
 | Safari Run: rules, streaks, ranks and cookie (`safari-rules.js`); spawning and the title parade (`safari-director.js`); HUD, field guide, results (`safari-ui.js`, `safari.css`); world kill points and tags (`safari-fx.js`); baked sculpts and their scale shader (`scripts/build-safari.mjs`, `safari-models.js`, `BAKED`/`SKIN_GLSL` in `critters.js`; the Gallimimus is baked there too); mode switch and title scene in `src/chase.js` | `src/chase/safari-*.js`; see the handoff |
