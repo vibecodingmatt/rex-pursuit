@@ -17,13 +17,15 @@ export function createSafariUI({state,director,onSelect,reducedMotion=false}){
  renderGuide();
  $('#guide-open').onclick=()=>guide.showModal();$('#guide-close').onclick=()=>guide.close();
  function select(value){
-  selected=value==='safari'?'safari':'pursuit';document.body.dataset.game=selected;
+  selected=['safari','containment'].includes(value)?value:'pursuit';document.body.dataset.game=selected;
+  $('#start-screen .intro-copy>.eyebrow').innerHTML='<span></span> '+(selected==='containment'?'ENCOUNTER 03 / SECTOR 07':selected==='safari'?'SAFARI RUN / THE JUNGLE ROAD':'ENCOUNTER 02 / THE JUNGLE ROAD');
   document.querySelectorAll('[data-game-mode]').forEach(b=>b.setAttribute('aria-pressed',String(b.dataset.gameMode===selected)));
-  title.innerHTML=selected==='safari'?'The jungle.<br>Your <em>high score.</em>':originalTitle;
-  copy.innerHTML=selected==='safari'?'90 seconds. A jungle full of moving targets.<br>Build a streak. Bag a legend. Beat your best.':originalCopy;
+  title.innerHTML=selected==='containment'?'Containment<br><em>breach.</em>':selected==='safari'?'The jungle.<br>Your <em>high score.</em>':originalTitle;
+  copy.innerHTML=selected==='containment'?'Hold the compound for two minutes.<br>Break the packs. Repel the Rex. Reach the exit.':selected==='safari'?'90 seconds. A jungle full of moving targets.<br>Build a streak. Bag a legend. Beat your best.':originalCopy;
   $('#safari-menu-info').hidden=selected!=='safari';$('#safari-best').textContent=best?`PERSONAL BEST ${number(best)}`:'NO DAMAGE · JUST THE HUNT';
-  if(!$('#start').disabled)$('#start-label').textContent=selected==='safari'?'START SAFARI RUN':'START THE CHASE';
-  $('#start-screen .start-tip span.mouse-copy').textContent=selected==='safari'?'Hold to fire · R reloads · Space launches a grenade.':'Gold targets repel her. Red targets stop debris. R reloads · Space launches a grenade.';
+  if(!$('#start').disabled)$('#start-label').textContent=selected==='containment'?'HOLD THE COMPOUND':selected==='safari'?'START SAFARI RUN':'START THE CHASE';
+  $('#start-screen .start-tip span.mouse-copy').textContent=selected==='containment'?'Stop leaping raptors and charging pachys. R reloads · Space fires a rocket. Shoot blue switches to electrify the yard.':selected==='safari'?'Hold to fire · R reloads · Space launches a grenade.':'Gold targets repel her. Red targets stop debris. R reloads · Space launches a grenade.';
+  $('#start-screen .conditions-picker').hidden=selected==='containment';
   onSelect?.(selected);
  }
  document.querySelectorAll('[data-game-mode]').forEach(b=>b.onclick=()=>select(b.dataset.gameMode));

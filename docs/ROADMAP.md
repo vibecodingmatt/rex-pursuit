@@ -195,6 +195,8 @@ This is Rex's version of his parameter UI, and it makes the upgrades shareable.
 
 ## Containment Breach — active gameplay expansion
 
+**Homepage integration/loading follow-up (2026-09-27):** Containment now changes the homepage selection and cached 3D preview in place. Starting its briefing is an explicit action; Game modes links remain visible in the encounter. Shader preparation now uses the HDR render target, avoiding duplicate canvas/HDR compilation. See [the handoff](HANDOFF.md#unified-homepage-and-loading-2026-09-27) for measured evidence and focused checks.
+
 **Release requested (2026-09-27):** publish all the passes below and make Rex Pursuit the default on every fresh homepage load, including returning Safari visitors. The user explicitly requested skipping the full test suite; this release uses the production build, asset validation and focused Pages smoke check. See [the release handoff](HANDOFF.md#website-default-and-release-2026-09-27). The dated local checkpoints below record the earlier implementation sequence.
 
 Requested 2026-09-26. A separate two-minute survival mode at a storm-battered maintenance compound, reached from the main menu. The Jeep is trapped while the service exit reboots. The first playable version contains one compound, three raptor approach routes, a shootable electrical trap, and a Rex finale. The existing Pursuit and Safari rules remain separate.

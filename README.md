@@ -37,7 +37,7 @@ The Rex's eyes aim independently at a shared player position with a damped respo
 
 ## Play
 
-Choose **Rex Pursuit**, **Safari Run**, or **Containment** in the main menu. Every fresh page load defaults to Rex Pursuit, including returning visitors. Pursuit and Safari have their own title scenes; Containment opens its compound briefing. Pause and results offer a return to the mode picker, keeping your choice for the current visit.
+Choose **Rex Pursuit**, **Safari Run**, or **Containment** in the main menu. All three options change the homepage preview in place; Containment reuses the loaded creatures and renderer for its cached compound scene. Every fresh page load defaults to Rex Pursuit, including returning visitors. Press **Hold the compound** to enter its briefing. Breach has a persistent **Game modes** link, mode choices on its briefing, and return links from pause/results. Returning through these links selects the relevant homepage preview; ordinary reloads still default to Pursuit.
 
 ### Containment Breach
 

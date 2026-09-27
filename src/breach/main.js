@@ -189,9 +189,10 @@ function step(dt){
  combatFX.update(sim,speed);effects.update(sim,speed);audio.listen(camera,rex?.actor.visible?rex.headPosition():null);audio.weather(playing?weather.value:0);audio.update(speed,sim,playing,false);
  if(playing){if(firing)shoot();events();}hud();
 }
-function render(now){requestAnimationFrame(render);const dt=Math.min(.04,(now-last)/1000);last=now;if(!freeze)step(dt);
+function render(now){requestAnimationFrame(render);const raw=Math.max(0,(now-last)/1000),dt=Math.min(.04,raw);last=now;
+ if(mode==='loading'||document.hidden)return;if(!freeze)step(dt);
  sky.update(camera,time);post.settings.motionBlur=0;renderer.info.reset();if(post.supported)post.render(scene,camera,{time,sun,overlay:effects.soft.render});else renderer.render(scene,camera);
- if(governor.sample(dt*1000,mode==='playing'))post.configure({scale:governor.scale});
+ if(governor.sample(raw*1000,mode==='playing'||mode==='menu'))post.configure({scale:governor.scale});
 }
 requestAnimationFrame(render);
 async function load(){try{
@@ -199,7 +200,8 @@ async function load(){try{
  // The compound lamps hit from only a few metres away. Preserve the baked hide
  // under the wet shader instead of reflecting a white hotspot over the body.
  for(const mesh of critters.meshes){mesh.material.roughness=.94;mesh.material.envMapIntensity=.45;}
- rex=loadedRex;world=createCompound(scene,branch);world.setQuality(TIERS[tier]);preview=director.spawn(0);preview.c.p.set(2.3,0,12);preview.c.yaw=Math.PI+.25;preview.c.stride=0;preview.c.fade=1;critters.updateDirected(0);ready=true;
+ rex=loadedRex;world=createCompound(scene,branch);world.setQuality(TIERS[tier]);preview=director.spawn(0);preview.c.p.set(2.3,0,12);preview.c.yaw=Math.PI+.25;preview.c.stride=0;preview.c.fade=1;critters.updateDirected(0);
+ $('loading-status').textContent='Preparing light and shadow…';step(0);await post.prepare(scene,camera);ready=true;
  $('loading-status').textContent='Mouse: hold to fire. Touch: drag to aim, hold FIRE.';$('start').textContent='HOLD THE COMPOUND ↗';$('start').disabled=false;setMode('menu');
  }catch(error){$('loading-status').textContent=`Could not load the encounter: ${error.message}. Reload to try again.`;console.error(error);}}
 load();

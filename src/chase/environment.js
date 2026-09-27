@@ -337,7 +337,7 @@ export function createJungle(root,{canopy}={}){
  function thinGrass(c,z){const d=Math.max(0,Math.abs(z-6)-CHUNK/2),lod=Math.max(.12,1-Math.max(0,d-18)/70);c.grass.count=Math.min(c.grass.instanceMatrix.count,Math.ceil(c.grass.instanceMatrix.count*Math.min(1,grassFactor)*lod*1.08));}
  function positionChunks(){chunks.forEach((c,k)=>c.group.position.z=k*CHUNK+START);}
  return{
-  kit,chunks,motes,dustMap,
+  kit,chunks,motes,dustMap,branchMap,
   /** Ground height under a point in the scene's (Jeep) frame; every chunk shares one phase. */
   groundAt(x,z){if(inFord(z))return fordHeight(x,z-fordSlot.group.position.z);return groundHeight(x,z-chunks[0].group.position.z);},
   /** How far the river channel lowers the ground below the ordinary terrain there (0 elsewhere): what the rig and the Jeep follow. */

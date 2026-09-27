@@ -373,6 +373,13 @@ export function createPost(renderer){
    f.prevViewProj.value.copy(viewProj);lastEye.copy(eye);lastLook.copy(look);lastTime=time;
    renderer.autoClear=oldAutoClear;
   },
+  prepare(scene,camera,targetScene=scene){
+   // Match the HDR target used by render(). Compiling for the canvas produces
+   // different tone-mapping/output-colour variants and stalls again at first draw.
+   const old=renderer.getRenderTarget();
+   try{if(supported)renderer.setRenderTarget(sceneTarget);return renderer.compileAsync(scene,camera,targetScene);}
+   finally{renderer.setRenderTarget(old);}
+  },
   dispose(){sceneTarget.dispose();aoPrepTarget.dispose();aoTarget.dispose();aoBlurTarget.dispose();smokeTarget.dispose();volTarget.dispose();volBlur.dispose();mips.forEach(m=>m.dispose());}
  };
 }

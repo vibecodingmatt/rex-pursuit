@@ -2,6 +2,10 @@
 
 Read the sections relevant to the reported issue. Values below describe the September 2026 implementation; inspect current constants before changing timing.
 
+## Scene loading and menu switches
+
+Use `post.prepare(scene,camera,targetScene)` for scenes rendered through the HDR post pipeline. Raw `renderer.compileAsync()` against the default canvas compiles tone-mapping/output-colour variants that differ from the HDR target, causing another synchronous compilation at the first real draw. The helper sets the actual target only for synchronous shader submission and restores it immediately, before awaiting completion, so other menu choices can keep rendering. Do not render partially loaded rigs/materials during startup. Pursuit and Breach skip frames until asset/preparation work completes; hidden documents also skip rendering. For a cached compound preview, compile only visible drawables against the scene's actual lights, avoiding new compound-light variants for the hidden jungle. Preserve the full visual quality settings; this fixes redundant work rather than reducing model fidelity.
+
 ## Rig and road-relative locomotion
 
 The chase loads the brown `public/models/rex-hero.glb`. Runtime motion is procedural on the existing 130-bone rig; editing an exported clip does not automatically change the chase. `createRex()` restores rest transforms each frame and layers gait, body motion, vocals, impacts, and scripted poses. Keep bone updates in this ownership model rather than adding competing frame loops.

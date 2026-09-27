@@ -1,8 +1,7 @@
 /* Safari uses the existing typography, amber instrumentation and forest glass. */
 .mode-picker{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));width:min(450px,100%);gap:6px;margin:16px 0 0}
-.mode-picker button,.mode-picker .breach-link{min-width:0;min-height:48px;text-align:left;padding:9px 8px;border:1px solid #c3cdb235;background:#09160ddd;letter-spacing:.75px;font-size:9px;font-weight:700;text-decoration:none;color:inherit}
-.mode-picker button small,.mode-picker .breach-link small{display:block;margin-top:4px;color:#a4b49a;font-size:8px;letter-spacing:.2px;font-weight:400}
-.mode-picker .breach-link{border-color:#87c8c077;color:#b9e4d8;background:#23403966}.mode-picker .breach-link:hover{border-color:#b9e4d8;background:#234039aa}
+.mode-picker button{min-width:0;min-height:48px;text-align:left;padding:9px 8px;border:1px solid #c3cdb235;background:#09160ddd;letter-spacing:.75px;font-size:9px;font-weight:700;text-decoration:none;color:inherit}
+.mode-picker button small{display:block;margin-top:4px;color:#a4b49a;font-size:8px;letter-spacing:.2px;font-weight:400}
 .mode-picker button[aria-pressed=true]{border-color:#e8be75;color:#ffe0a5;background:#7258314a;box-shadow:inset 3px 0 #e8be75}
 #safari-menu-info{display:flex;align-items:center;gap:14px;margin-top:10px;font-size:9px;letter-spacing:1px;color:var(--amber)}
 #guide-open{font-size:9px;padding:8px 0;border-bottom:1px solid #e8be7555;color:#e2e7d9}

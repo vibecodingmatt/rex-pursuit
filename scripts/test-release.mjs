@@ -15,9 +15,9 @@ const image=await readFile(join('dist',meta('og:image').slice(root.length)));ass
 const schema=JSON.parse(html.match(/<script type="application\/ld\+json">([\s\S]*?)<\/script>/)[1]);assert.equal(schema['@type'],'VideoGame');assert.equal(schema.url,root);assert.equal(schema.isAccessibleForFree,true);assert.equal(schema.image,meta('og:image'));
 for(const path of ['models/rex-hero.glb','audio/catalog.json','audio/clip-01.wav','draco/draco_decoder.wasm','textures/jungle-branch.png','favicon.svg','icons/icon-32.png','icons/apple-touch-icon.png','icons/icon-192.png','icons/icon-512.png','site.webmanifest','robots.txt','sitemap.xml'])assert.ok((await stat(join('dist',path))).size>0,`Missing ${path}`);
 const manifest=JSON.parse(await readFile('dist/site.webmanifest','utf8'));assert.equal(manifest.name,'Rex: Pursuit');assert.equal(manifest.start_url,'./');
-assert.match(html,/href="\.\/breach\.html"/,'The mode picker links to Containment Breach');
+assert.match(html,/<button[^>]*data-game-mode="containment"/,'Containment is a homepage mode selection');
 for(const file of ['index.html','breach.html','model-lab.html','creature-lab.html','sound-library.html']){
- const page=await readFile(join('dist',file),'utf8');for(const [,url]of page.matchAll(/(?:src|href)="([^"#]+)"/g)){if(/^(https?:|data:|mailto:)/.test(url)||url==='./')continue;assert.ok(!url.startsWith('/'),`${file} has a domain-root asset: ${url}`);await stat(join('dist',url));}
+ const page=await readFile(join('dist',file),'utf8');for(const [,url]of page.matchAll(/(?:src|href)="([^"#]+)"/g)){if(/^(https?:|data:|mailto:)/.test(url)||url==='./')continue;assert.ok(!url.startsWith('/'),`${file} has a domain-root asset: ${url}`);await stat(join('dist',url.split(/[?#]/)[0]||'index.html'));}
 }
 assert.ok(!(await readdir('dist')).includes('audio_reference'));
 console.log('Release passed: static social metadata, image, structured data, icons, runtime assets and Pages-safe entrypoint links.');

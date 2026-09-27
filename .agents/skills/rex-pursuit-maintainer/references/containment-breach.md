@@ -4,7 +4,7 @@ Read for the compound encounter or when reusing its authored attacks. File paths
 
 ## Boundaries and ownership
 
-`breach.html` is a separate Vite entry reached by the main menu's Containment link. It shares renderer, Jeep, dinosaur rigs, audio, effects, weather and pointer controls with Pursuit/Safari, but does not extend their `combat.js` state machine.
+Containment is a third homepage button, handled by `safari-ui.js` and `chase.js`; selection stays on the homepage. `chase/breach-preview.js` lazily constructs one cached compound and borrows the existing renderer, Jeep, Rex, critters and weather. It saves/restores scene visibility and weather, and stops the hidden jungle simulation while active. Mode request tokens prevent an abandoned async load from taking over a newer selection. Only **Hold the compound** opens `breach.html`, the separate gameplay/briefing entry. Its explicit Game modes/briefing/pause/results links return to `./?mode=containment` (or a specific other mode). The homepage consumes this one-time query so a later reload still defaults to Pursuit. Breach gameplay shares engine modules but does not extend `combat.js`.
 
 | File | Responsibility |
 | --- | --- |
@@ -41,6 +41,8 @@ Space/ROCKET launches a visible projectile before applying area damage at impact
 - **Touch:** a landscape phone can be wider than 800 CSS pixels. Show FIRE for coarse pointers as well as narrow layouts, and let gaps in the control row pass aiming gestures through. Reuse the independent aim/fire contacts in `pointer-controls.js`.
 
 ## Verification and review
+
+`npm run test:mode-menu` covers all three homepage choices without navigation, changing selection during a delayed preview import, cached renderer/compound identity, restored weather, High desktop/Low portrait, Breach start/pause and return to Pursuit. It saves visual captures and indicative load/switch/frame measurements under ignored `art/review/mode-menu/`. The production `test:pages` also exercises the lazy preview chunk.
 
 `npm run test:breach` runs pure rules, seeded director scenarios (`test-breach-director.mjs`) and a browser playthrough: actual aimed raptor kills, shooting the switch, rocket flight/damage/gore, third-person gun alignment, complete legal-weapon win, unattended defeat, restart, local score, pause/blur, trusted simultaneous touch aim/fire, portrait/landscape and Low. Start the source server on 5188 first. `TEST_URL` can point to a root/base directory containing `breach.html`, including `http://127.0.0.1:5188/dist/`; the built-assets-only Pages check is stronger evidence of packaging. Seeded simulations establish tuning bounds, not human win-rate predictions.
 
