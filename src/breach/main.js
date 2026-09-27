@@ -52,7 +52,7 @@ const director=createBreachDirector(critters,round,{
  canMove:(c,from,yaw)=>world?.obstacles.canMove(c,from,yaw)??true,
  onShatter(c,dir){critters.updateDirected(0);combatFX.shatter(c,dir);},
  onLand(p,strength){effects.bodyImpact(p,strength);audio.vehicleCrash();shake=Math.max(shake,strength*.6);},
- onHit(p,dir,options){combatFX.hit(p,dir,options);if(options.dead&&options.explosive)screenBlood.splash(p);},
+ onHit(p,dir,options){combatFX.hit(p,dir,options);if(options.onJeep||(options.dead&&options.explosive))screenBlood.splash(p,{closeContact:options.onJeep,amount:options.dead?1:.3});},
  onCue(type,a){if(mode!=='playing')return;
   if(type==='wave'){audio.cue(false);radio(a===1?'Multiple contacts. Watch both sides of the deck.':a===2?'The packs are closing in. Use rockets and the grid.':'All lanes compromised. Break up the pack before it reaches you.');}
   if(type==='spawn'){audio.call(a.c.species,a.c.p);if(a.heavy)radio('Pachy incoming. Stop it before it rams the Jeep!',3);}

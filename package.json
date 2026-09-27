@@ -15,6 +15,7 @@
                     "test:gaze": "node scripts/verify-gaze.cjs",
                     "test:logic": "node scripts/test-combat.mjs && node scripts/test-defeat.mjs && node scripts/test-ambush.mjs && node scripts/test-touch.mjs && node scripts/test-victory.mjs && node scripts/test-safari.mjs && node scripts/test-breach.mjs && node scripts/test-cheats.mjs",
                     "test:breach": "node scripts/test-breach.mjs && node scripts/test-breach-director.mjs && node scripts/verify-breach.cjs",
+                    "test:breach-splatter": "node scripts/verify-breach-splatter.cjs",
                     "test:breach-arrivals": "node scripts/verify-breach-arrivals.cjs",
                     "test:breach-collisions": "node scripts/test-breach-obstacles.mjs && node scripts/verify-breach-collisions.cjs",
                     "test:safari": "node scripts/test-safari.mjs && node scripts/verify-safari.cjs",

@@ -6,16 +6,18 @@ export function createScreenBlood(camera,{reducedMotion=false}={}){
  const stats={splashes:0};
  function resize(){const ratio=Math.min(devicePixelRatio,1.5);canvas.width=Math.round(innerWidth*ratio);canvas.height=Math.round(innerHeight*ratio);dirty=true;}
  addEventListener('resize',resize);resize();
- function splash(point){
+ function splash(point,{closeContact=false,amount=1}={}){
   camera.updateMatrixWorld();local.copy(point).applyMatrix4(camera.matrixWorldInverse);
-  const distance=point.distanceTo(camera.position);if(distance>=9||local.z>=0)return false;
-  const strength=Math.max(0,1-distance/9),projected=point.clone().project(camera);
+  // A boarded attacker is at the player's vehicle even when the external
+  // camera sits farther back. Other hits retain the camera-distance guard.
+  const distance=point.distanceTo(camera.position);if((!closeContact&&distance>=9)||local.z>=0)return false;
+  const strength=closeContact?.85:Math.max(0,1-distance/9),projected=point.clone().project(camera);
   // Centre remains mostly clear; little satellites make it read as liquid on
   // glass instead of a red damage vignette. Stronger blasts reach farther in.
-  const count=Math.round((9+strength*20)*budget);
+  const count=Math.round((9+strength*20)*budget*amount);
   for(let i=0;i<count;i++){
    const b=drops[next++%drops.length],side=Math.random()<.5?-1:1;
-   Object.assign(b,{life:3+Math.random()*1.7,max:4.7,x:Math.max(.02,Math.min(.98,.5+side*(.19+Math.random()*.3)+projected.x*.07)),y:Math.max(.02,Math.min(.93,Math.random()*.85-projected.y*.08)),r:(i%4===0?.019:.0035+Math.random()*.006)*(1+strength*.7),stretch:1+Math.random()*.6,drip:0,phase:Math.random()*6.28});
+   Object.assign(b,{life:3+Math.random()*1.7,max:4.7,x:Math.max(.02,Math.min(.98,.5+side*(.19+Math.random()*.3)+projected.x*.07)),y:Math.max(.02,Math.min(.93,Math.random()*.85-projected.y*.08)),r:(i%4===0?.019:.0035+Math.random()*.006)*(1+strength*.7)*(.6+amount*.4),stretch:1+Math.random()*.6,drip:0,phase:Math.random()*6.28});
   }
   stats.splashes++;dirty=true;return true;
  }

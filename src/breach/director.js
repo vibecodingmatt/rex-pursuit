@@ -81,10 +81,10 @@ export function createBreachDirector(critters,round,{onCue=()=>{},onLand=()=>{},
  return {actors,stats,spawn,update,
   reset(){critters.reset({empty:true});actors.length=0;next=3;serial=0;previousWave=0;for(const k in stats)stats[k]=0;},
   hit(ray,far=Infinity){return critters.hit(ray,far,0);},
-  strike(hit,dir,damage=1){const c=hit.critter,a=actors.find(a=>a.c===c&&active(a));if(!a)return false;const dead=critters.strike(c,dir,1,damage);onHit(hit.point,dir,{dead,heavy:a.heavy});if(dead){c.v.x+=a.side*3.4;kill(a);}return dead;},
+  strike(hit,dir,damage=1){const c=hit.critter,a=actors.find(a=>a.c===c&&active(a));if(!a)return false;const dead=critters.strike(c,dir,1,damage);onHit(hit.point,dir,{dead,heavy:a.heavy,onJeep:a.phase==='board'});if(dead){c.v.x+=a.side*3.4;kill(a);}return dead;},
   blast(at,radius=5.5,{direct=null,direction=null}={}){let killed=0;for(const a of actors){if(!active(a))continue;const c=a.c,centre=c.p.clone();centre.y+=c.kind.centre*c.scale;const d=centre.distanceTo(at),shatter=c===direct;if(!shatter&&(d>radius+1||!canDamage(at,centre)))continue;
    const dir=shatter&&direction?direction.clone():centre.clone().sub(at).setY(.3).normalize();if(shatter)onShatter(c,dir);
-   const damage=shatter?Math.max(12,c.hp):d<radius?12:5,dead=critters.strike(c,dir,2.6,damage);onHit(centre,dir,{dead,explosive:true,heavy:a.heavy,direct:shatter});if(dead){c.v.addScaledVector(dir,5);c.vy+=2;kill(a);if(shatter)c.on=false;killed++;}}
+   const damage=shatter?Math.max(12,c.hp):d<radius?12:5,dead=critters.strike(c,dir,2.6,damage);onHit(centre,dir,{dead,explosive:true,heavy:a.heavy,direct:shatter,onJeep:a.phase==='board'});if(dead){c.v.addScaledVector(dir,5);c.vy+=2;kill(a);if(shatter)c.on=false;killed++;}}
    critters.updateDirected(0);return killed;},
   discharge(){let n=0;for(const a of actors){const c=a.c;if(!active(a)||c.p.z<6||c.p.z>27||Math.abs(c.p.x)>8)continue;if(critters.kill(c,new T.Vector3(a.side,.25,.3),1.5)){kill(a,true);n++;}}return n;},
   get warning(){return actors.filter(a=>active(a)&&['windup','leap','board','charge'].includes(a.phase)).sort((a,b)=>({board:0,charge:1,leap:2,windup:3}[a.phase]-{board:0,charge:1,leap:2,windup:3}[b.phase])||b.age-a.age)[0]||null;},
