@@ -1,7 +1,7 @@
 // A cheat taints the whole run, including points earned before activation.
 export function activateCheat(round,code){
  if(code!=='idkfa'||round.result||round.infiniteAmmo)return false;
- round.cheated=round.infiniteAmmo=true;round.ammo=80;round.reload=0;
+ round.cheated=round.infiniteAmmo=true;round.ammo=80;round.reload=0;round.heat=0;round.overheated=false;
  if(round.safari)round.safari.cheated=true;
  return true;
 }

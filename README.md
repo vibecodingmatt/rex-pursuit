@@ -87,7 +87,7 @@ The seven large ground species (Velociraptor, Dilophosaurus, Pachycephalosaurus,
 
 ### Controls and Rex Pursuit
 
-Type **`idkfa`** during Pursuit, Safari Run or Containment Breach to enable infinite machine-gun ammo for that run. It fills the magazine, cancels a reload and shows **∞** plus a cheat-run badge. Heat, fire rate and explosive cooldowns still apply. The code is case-insensitive; menus, pause screens and text fields ignore it. Restarting or changing scenarios begins a clean run.
+Type **`idkfa`** during Pursuit, Safari Run or Containment Breach to enable infinite machine-gun ammo with **no heat or overheating** for that run. It fills the magazine, cancels a reload, immediately clears any existing heat lock and shows **∞** plus a cheat-run badge. Fire rate and explosive cooldowns still apply. The code is case-insensitive; menus, pause screens and text fields ignore it. Restarting or changing scenarios begins a clean run.
 
 Once activated, the **entire run** belongs to the **CHEATERS** leaderboard. Results have separate **FAIR PLAY / CHEATERS** top-five tabs. Safari's existing fair cookie and field-guide records remain untouched; its cheat scores use `rex_safari_cheaters_v1`. Containment keeps its existing fair personal best and adds separate top-five lists. Pursuit's new lists rank **wildlife points**, using the Safari catalogue's base points without streak multipliers. All records are local to this browser, not online. Shared results identify cheat runs.
 

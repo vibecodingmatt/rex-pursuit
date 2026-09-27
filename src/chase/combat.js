@@ -65,7 +65,7 @@ export class Encounter {
   }
   if(this.phase==='recover'||this.phase==='stunned'){this.distance+=Math.min(6,(23-this.distance)*1.2)*dt;if(this.phaseTime>(this.phase==='stunned'?RULES.retreat:2.7))this.transition('pursuit');}
  }
- fire(){if(this.result||this.weaponsLocked||this.shotTimer>0||this.reload>0||this.overheated)return false;if(this.ammo===0&&!this.infiniteAmmo){this.startReload();return false;}if(!this.infiniteAmmo)this.ammo--;this.shots++;this.shotTimer=RULES.fireInterval;this.heat=Math.min(1,this.heat+.029);if(this.heat>=1){this.overheated=true;this.events.push('overheat');}return true;}
+ fire(){if(this.result||this.weaponsLocked||this.shotTimer>0||this.reload>0||(this.overheated&&!this.infiniteAmmo))return false;if(this.ammo===0&&!this.infiniteAmmo){this.startReload();return false;}if(this.infiniteAmmo){this.heat=0;this.overheated=false;}else{this.ammo--;this.heat=Math.min(1,this.heat+.029);if(this.heat>=1){this.overheated=true;this.events.push('overheat');}}this.shots++;this.shotTimer=RULES.fireInterval;return true;}
  startReload(){if(this.infiniteAmmo||this.result||this.phase==='execution'||this.reload>0||this.ammo===RULES.magazine)return false;this.reload=RULES.reload;this.events.push('reload');return true;}
  launch(){if(this.result||this.weaponsLocked||this.grenade>0)return false;this.grenade=RULES.grenadeCooldown;return true;}
  damage(amount){if(this.safari||this.result||this.phase==='execution')return;

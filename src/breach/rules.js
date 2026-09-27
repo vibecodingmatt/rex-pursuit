@@ -29,7 +29,7 @@ export class BreachRound{
   if(this._broken){const step=this.time-Math.max(previous,BREACH.breach);this.rexDistance-=Math.max(0,step)*(this.rexRecoil>0?1.7:2.08);if(this.rexDistance<=7)this.damage(100,'rex');}
   if(!this.result&&this.time>=BREACH.duration){this.phase='escape';this.events.push({type:'escape'});}
  }
- shoot(){if(this.result||this.phase!=='hold'||this.shotTimer>0||this.reload>0||(!this.ammo&&!this.infiniteAmmo)||this.heat>=.98)return false;if(!this.infiniteAmmo)this.ammo--;this.shots++;this.heat=Math.min(1,this.heat+.027);this.shotTimer=BREACH.fireInterval;if(!this.ammo&&!this.infiniteAmmo)this.startReload();return true;}
+ shoot(){if(this.result||this.phase!=='hold'||this.shotTimer>0||this.reload>0||(!this.ammo&&!this.infiniteAmmo)||(this.heat>=.98&&!this.infiniteAmmo))return false;if(this.infiniteAmmo)this.heat=0;else{this.ammo--;this.heat=Math.min(1,this.heat+.027);}this.shots++;this.shotTimer=BREACH.fireInterval;if(!this.ammo&&!this.infiniteAmmo)this.startReload();return true;}
  startReload(){if(this.infiniteAmmo||this.result||this.phase!=='hold'||this.reload>0||this.ammo===BREACH.magazine)return false;this.reload=BREACH.reload;this.events.push({type:'reload'});return true;}
  launchGrenade(){if(this.result||this.phase!=='hold'||this.grenade>0)return false;this.grenade=BREACH.grenadeCooldown;return true;}
  discharge(){if(this.result||this.phase!=='hold'||this.trap>0)return false;this.trap=BREACH.trapCooldown;this.events.push({type:'trap'});return true;}

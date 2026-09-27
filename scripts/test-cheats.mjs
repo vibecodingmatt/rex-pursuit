@@ -7,14 +7,16 @@ import {saveRun,readBoard,scoreKey} from '../src/chase/scoreboard.js';
 
 for(const scenario of ['pursuit','safari','breach']){
  const round=scenario==='breach'?new BreachRound():new Encounter();if(scenario==='safari'){round.startSafari();round.safari.ready=0;}else if(scenario==='pursuit')round.transition('pursuit');
- round.ammo=2;round.startReload();assert.ok(round.reload>0);assert.ok(activateCheat(round,'idkfa'));assert.equal(round.reload,0);assert.equal(round.ammo,80);assert.equal(round.cheated,true);
+ round.ammo=2;round.startReload();round.heat=1;round.overheated=true;assert.ok(round.reload>0);assert.ok(activateCheat(round,'idkfa'));assert.equal(round.reload,0);assert.equal(round.ammo,80);assert.equal(round.cheated,true);assert.equal(round.heat,0,'activation instantly clears heat');assert.equal(round.overheated,false,'activation clears an existing overheat lock');
  if(scenario==='safari')assert.equal(round.safari.cheated,true);
  assert.equal(activateCheat(round,'idkfa'),false);assert.equal(round.startReload(),false);
- for(let i=0;i<160;i++){round.shotTimer=0;round.heat=0;round.overheated=false;assert.equal(scenario==='breach'?round.shoot():round.fire(),true);}
- assert.equal(round.ammo,80);assert.equal(round.shots,160);assert.equal(scenario==='breach'?round.shoot():round.fire(),false,'fire interval stays enforced');
- round.shotTimer=0;round.heat=1;round.overheated=true;assert.equal(scenario==='breach'?round.shoot():round.fire(),false,'heat still limits firing');
+ for(let i=0;i<160;i++){round.shotTimer=0;assert.equal(scenario==='breach'?round.shoot():round.fire(),true,'sustained firing never overheats');}
+ assert.equal(round.ammo,80);assert.equal(round.heat,0);assert.equal(round.overheated,false);assert.equal(round.shots,160);assert.equal(scenario==='breach'?round.shoot():round.fire(),false,'fire interval stays enforced');
+ round.shotTimer=0;round.heat=1;round.overheated=true;assert.equal(scenario==='breach'?round.shoot():round.fire(),true,'cheat bypasses the heat gate');assert.equal(round.heat,0);
  assert.equal(scenario==='breach'?round.launchGrenade():round.launch(),true);assert.equal(scenario==='breach'?round.launchGrenade():round.launch(),false,'rocket cooldown unchanged');
  round.result='won';assert.equal(scenario==='breach'?round.shoot():round.fire(),false);round.reset();assert.equal(round.cheated,false);assert.equal(round.infiniteAmmo,false);
+ if(scenario==='safari'){round.startSafari();round.safari.ready=0;}else if(scenario==='pursuit')round.transition('pursuit');
+ let fairShots=0;for(let i=0;i<80;i++){round.shotTimer=0;if(!(scenario==='breach'?round.shoot():round.fire()))break;fairShots++;}assert.ok(fairShots>0&&fairShots<80,'a clean restart restores normal overheating');assert.ok(round.heat>=.98);
  round.result='lost';assert.equal(activateCheat(round,'idkfa'),false);
 }
 let playing=true,now=1,activations=0;const input=createCheatInput({isPlaying:()=>playing,activate:()=>activations++,clock:()=>now});
