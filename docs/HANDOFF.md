@@ -1,11 +1,15 @@
 # Rex: Pursuit handoff
 
-## Resume here (2026-09-26)
+## Resume here (2026-09-27)
 
-- **Current work:** branch `containment-breach`; the collision/direct-rocket pass below follows concealed arrivals `6ed3021`, pressure/gore `b7c21c2` and first playable `c35640d`. Ready for another local playtest at `http://127.0.0.1:5188/breach.html` while `npm start` is running. Reuse a running source server on 5188 rather than starting another. Check Git status before editing.
-- **Release checkpoint:** the last verified production deployment was `380fac5`, including the film-inspired Safari models, random Dilophosaurus frill, hidden menu scrollbar and full creature catalogue. Breach is not published. At this checkpoint `origin/main` points to `380fac5`, while local `main` is still `3532027`; do not mistake the local main branch for the latest release. No release is authorized by this documentation update. Historical entries below describe their implementation-time state.
+- **Current work:** the user requested publishing all pending changes and making Rex Pursuit the website default, without rerunning the full test suite. The release includes collision/direct-rocket breakup `0a177dc`, concealed arrivals `6ed3021`, pressure/gore `b7c21c2` and first playable `c35640d`. Reuse a running source server on 5188 rather than starting another. Check Git status before editing.
+- **Release checkpoint:** this release advances production from `380fac5` to the complete Containment Breach branch plus the default-mode fix. `build`, `test:release` and the local built-site `test:pages` pass; the latter checks an old saved Safari choice, Safari switching, reload back to Pursuit, Breach start/pause, assets and phone layout. The full suite was deliberately not rerun. GitHub Actions still runs its normal logic/build/release checks. Confirm the deployment SHA in Actions and the live hashed bundles when resuming; historical entries below describe their implementation-time state.
 - **Next work:** get player feedback on the denser mixed packs, concealed arrivals, obstacle clearance and direct-rocket breakup. Physical-phone performance remains unverified. River Escape is a detailed future roadmap item; Photo Mode remains on hold. Do not automatically start either.
 - **Where to read:** [Breach architecture and integration lessons](../.agents/skills/rex-pursuit-maintainer/references/containment-breach.md), [focused verification](../.agents/skills/rex-pursuit-maintainer/references/verification-and-release.md), [gameplay and controls](../README.md#containment-breach), and [River Escape scope](ROADMAP.md#river-escape--future-zone-requested-not-scheduled). The maintained repo skill and installed user copy are synchronized by this handoff update.
+
+## Website default and release (2026-09-27)
+
+Every fresh homepage load selects Rex Pursuit and its Rex title scene. The old `rex-pursuit-mode` value is no longer read or written, so returning Safari players also get the requested default. Mode changes and returns to the menu retain their selection during the current visit; Safari scores and other settings keep their existing persistence. The release includes all prior Breach gameplay and visual changes. No further gameplay tuning was made for this release.
 
 ## Containment Breach collisions and direct rockets (2026-09-26, local)
 

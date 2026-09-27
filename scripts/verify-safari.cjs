@@ -9,7 +9,7 @@ const base=process.env.TEST_URL||'http://127.0.0.1:5188/';
   const context=await browser.newContext({viewport:{width:1280,height:720}});p=await context.newPage();watch(p);await open(p);
   await p.locator('[data-game-mode=safari]').click();
   // The Safari title screen hides the Rex and parades the roster instead.
-  await p.waitForTimeout(3500);const menu=await p.evaluate(()=>({rex:rexChase.rex.actor.visible,crossing:['compy','gallimimus','raptor','pachycephalosaurus','dilophosaurus','parasaurolophus','triceratops','stegosaurus','ghostRaptor','goldenCompy','lizard'].reduce((n,k)=>n+rexChase.critters.live(k).length,0),mode:localStorage.getItem('rex-pursuit-mode')}));
+  await p.waitForTimeout(3500);const menu=await p.evaluate(()=>({rex:rexChase.rex.actor.visible,crossing:['compy','gallimimus','raptor','pachycephalosaurus','dilophosaurus','parasaurolophus','triceratops','stegosaurus','ghostRaptor','goldenCompy','lizard'].reduce((n,k)=>n+rexChase.critters.live(k).length,0),mode:rexChase.safariUI.selected}));
   assert.equal(menu.rex,false);assert.ok(menu.crossing>0,'Safari menu parade');assert.equal(menu.mode,'safari');
   await p.locator('#guide-open').click();assert.equal(await p.locator('.species-row').count(),15);await p.locator('#guide-close').click();await p.screenshot({path:'art/review/safari/menu.png'});
   await p.locator('#start').click();await p.waitForFunction(()=>rexChase.mode==='playing');assert.equal(await p.evaluate(()=>rexChase.rex.actor.visible),false);
@@ -44,6 +44,6 @@ const base=process.env.TEST_URL||'http://127.0.0.1:5188/';
   const fire=await phone.locator('#touch-fire').boundingBox(),session=await phone.context().newCDPSession(phone);
   await session.send('Input.dispatchTouchEvent',{type:'touchStart',touchPoints:[{x:130,y:370,id:1},{x:fire.x+fire.width/2,y:fire.y+fire.height/2,id:2}]});await phone.waitForTimeout(300);await session.send('Input.dispatchTouchEvent',{type:'touchEnd',touchPoints:[]});assert.ok(await phone.evaluate(()=>rexChase.state.ammo<80));
   await phone.screenshot({path:'art/review/safari/phone-play.png'});await phone.setViewportSize({width:844,height:390});await phone.waitForTimeout(300);await phone.screenshot({path:'art/review/safari/phone-landscape.png'});
-  assert.deepEqual(errors,[]);console.log('Safari browser passed: Rex-free Safari title parade, remembered mode, mode selection, 15-species field guide, visible wildlife, multi-hit scoring, grenade damage, pause, finish, cookie/reload, restart, chase return, simultaneous touch fire/aim, portrait and landscape.');
+  assert.deepEqual(errors,[]);console.log('Safari browser passed: Rex-free Safari title parade, mode selection, 15-species field guide, visible wildlife, multi-hit scoring, grenade damage, pause, finish, cookie/reload, restart, chase return, simultaneous touch fire/aim, portrait and landscape.');
  }catch(e){if(p&&!p.isClosed())await p.screenshot({path:'art/review/safari/failure.png'});throw e;}finally{await browser.close();}
 })().catch(e=>{console.error(e);process.exit(1);});

@@ -37,7 +37,7 @@ The Rex's eyes aim independently at a shared player position with a damped respo
 
 ## Play
 
-Choose **Rex Pursuit**, **Safari Run**, or **Containment** in the main menu. Pursuit/Safari remember their selection and have their own title scenes; Containment opens its compound briefing. Pause and results offer a return to the mode picker.
+Choose **Rex Pursuit**, **Safari Run**, or **Containment** in the main menu. Every fresh page load defaults to Rex Pursuit, including returning visitors. Pursuit and Safari have their own title scenes; Containment opens its compound briefing. Pause and results offer a return to the mode picker, keeping your choice for the current visit.
 
 ### Containment Breach
 
