@@ -90,7 +90,7 @@ The seven large ground species (Velociraptor, Dilophosaurus, Pachycephalosaurus,
 Type either code during Pursuit, Safari Run or Containment Breach:
 
 - **`idkfa`** toggles infinite machine-gun ammo with **no heat or overheating**. Enabling it fills the magazine, cancels a reload and clears any existing heat lock. The gun's firing interval stays unchanged.
-- **`idspispopd`** toggles unlimited explosives with **no cooldown**, immediately clearing any current recharge. Breach rockets can fly and hit independently when fired in rapid succession.
+- **`idspispipd`** toggles unlimited explosives with **no cooldown**, immediately clearing any current recharge. Breach rockets can fly and hit independently when fired in rapid succession.
 
 The codes work independently or together. **Type the same code again to disable it** and restore that weapon's normal rules. Active codes appear in the cheat badge, and the affected weapon shows **∞**. Codes are case-insensitive; menus, pause screens and text fields cannot activate them. Restarting or changing scenarios clears both effects.
 

@@ -1,11 +1,11 @@
-const CODES={idkfa:'infiniteAmmo',idspispopd:'infiniteRockets'};
+const CODES={idkfa:'infiniteAmmo',idspispipd:'infiniteRockets'};
 // Toggle each effect independently. Using either taints the entire run even
 // after both effects are disabled, including points earned before activation.
 export function activateCheat(round,code){
  const flag=Object.hasOwn(CODES,code)&&CODES[code];if(!flag||round.result)return false;
  round[flag]=!round[flag];round.cheated=true;
  if(round.infiniteAmmo&&code==='idkfa'){round.ammo=80;round.reload=0;round.heat=0;round.overheated=false;}
- if(round.infiniteRockets&&code==='idspispopd')round.grenade=0;
+ if(round.infiniteRockets&&code==='idspispipd')round.grenade=0;
  if(round.safari)round.safari.cheated=true;
  return true;
 }
@@ -16,7 +16,7 @@ export function createCheatInput({isPlaying,activate,clock=()=>performance.now()
   if(event.repeat)return false;
   const now=clock(),key=event.key.toLowerCase();if(now-last>2500)buffer='';last=now;
   buffer+=key;while(buffer&&!codes.some(code=>code.startsWith(buffer)))buffer=buffer.slice(1);
-  // Consume code letters even while paused so IDSPISPOPD's P characters do
+  // Consume code letters even while paused so IDSPISPIPD's P characters do
   // not resume the game. Lifecycle reset prevents carrying a partial code in.
   if(codes.includes(buffer)){const code=buffer;buffer='';if(isPlaying())activate(code);return true;}
   return buffer.length>0;

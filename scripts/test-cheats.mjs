@@ -14,18 +14,18 @@ for(const scenario of ['pursuit','safari','breach']){
  assert.equal(round.ammo,80);assert.equal(round.heat,0);assert.equal(round.overheated,false);assert.equal(round.shots,160);assert.equal(scenario==='breach'?round.shoot():round.fire(),false,'fire interval stays enforced');
  round.shotTimer=0;round.heat=1;round.overheated=true;assert.equal(scenario==='breach'?round.shoot():round.fire(),true,'cheat bypasses the heat gate');assert.equal(round.heat,0);
  assert.equal(scenario==='breach'?round.launchGrenade():round.launch(),true);assert.equal(scenario==='breach'?round.launchGrenade():round.launch(),false,'rocket cooldown unchanged');
- assert.ok(round.grenade>0);assert.ok(activateCheat(round,'idspispopd'));assert.equal(round.grenade,0,'rocket activation clears an existing cooldown');
+ assert.ok(round.grenade>0);assert.ok(activateCheat(round,'idspispipd'));assert.equal(round.grenade,0,'rocket activation clears an existing cooldown');
  for(let i=0;i<160;i++)assert.equal(scenario==='breach'?round.launchGrenade():round.launch(),true,'every rocket is accepted without advancing time');
  assert.equal(round.grenade,0);assert.equal(round.ammo,80);assert.equal(round.infiniteAmmo,true,'both codes coexist');
  assert.ok(activateCheat(round,'idkfa'));assert.equal(round.infiniteAmmo,false);assert.equal(round.infiniteRockets,true);
  round.shotTimer=0;assert.equal(scenario==='breach'?round.shoot():round.fire(),true);assert.equal(round.ammo,79);assert.ok(round.heat>0,'disabling IDKFA restores normal gun heat');assert.equal(round.startReload(),true);
  assert.equal(scenario==='breach'?round.launchGrenade():round.launch(),true,'rockets remain unlimited with gun cheat off');
- assert.ok(activateCheat(round,'idkfa'));assert.equal(round.reload,0);assert.ok(activateCheat(round,'idspispopd'));assert.equal(round.infiniteRockets,false);assert.equal(round.infiniteAmmo,true);
+ assert.ok(activateCheat(round,'idkfa'));assert.equal(round.reload,0);assert.ok(activateCheat(round,'idspispipd'));assert.equal(round.infiniteRockets,false);assert.equal(round.infiniteAmmo,true);
  assert.equal(scenario==='breach'?round.launchGrenade():round.launch(),true);assert.equal(scenario==='breach'?round.launchGrenade():round.launch(),false,'disabling rocket cheat restores cooldown');
  assert.ok(activateCheat(round,'idkfa'));assert.equal(round.infiniteAmmo,false);assert.equal(round.cheated,true,'turning both off never restores fair-run eligibility');if(round.safari)assert.equal(round.safari.cheated,true);
  // Starting with rockets alone must not refill the gun, clear heat or reload.
- round.ammo=2;round.reload=1;round.heat=.7;assert.ok(activateCheat(round,'idspispopd'));assert.equal(round.ammo,2);assert.equal(round.reload,1);assert.equal(round.heat,.7);assert.equal(round.infiniteAmmo,false);
- assert.equal(activateCheat(round,'constructor'),false);round.result='won';for(const code of ['idkfa','idspispopd'])assert.equal(activateCheat(round,code),false);
+ round.ammo=2;round.reload=1;round.heat=.7;assert.ok(activateCheat(round,'idspispipd'));assert.equal(round.ammo,2);assert.equal(round.reload,1);assert.equal(round.heat,.7);assert.equal(round.infiniteAmmo,false);
+ assert.equal(activateCheat(round,'constructor'),false);round.result='won';for(const code of ['idkfa','idspispipd'])assert.equal(activateCheat(round,code),false);
  assert.equal(scenario==='breach'?round.shoot():round.fire(),false);assert.equal(scenario==='breach'?round.launchGrenade():round.launch(),false);round.reset();assert.equal(round.cheated,false);assert.equal(round.infiniteAmmo,false);assert.equal(round.infiniteRockets,false);
  if(scenario==='safari'){round.startSafari();round.safari.ready=0;}else if(scenario==='pursuit')round.transition('pursuit');
  let fairShots=0;for(let i=0;i<80;i++){round.shotTimer=0;if(!(scenario==='breach'?round.shoot():round.fire()))break;fairShots++;}assert.ok(fairShots>0&&fairShots<80,'a clean restart restores normal overheating');assert.ok(round.heat>=.98);
@@ -37,12 +37,12 @@ type('xxiIDKFA');assert.equal(activations,1,'case-insensitive code and prefix re
 type('idkfa',{repeat:true});type('idkfa',{ctrlKey:true});type('idkfa',{metaKey:true});type('idkfa',{altKey:true});type('idkfa',{isComposing:true});type('idkfa',{target:{closest:()=>true}});assert.equal(activations,1);
 playing=false;type('idkfa');playing=true;type('id');input.reset();type('kfa');type('id');now+=3000;type('kfa');assert.equal(activations,1,'menu/pause/restart and timed-out sequences never activate');
 type('idkfa');assert.equal(activations,2);
-type('iDspISpoPD');type('idspispopd');type('idkfa');assert.equal(activations,5,'both codes can toggle repeatedly');
-for(const options of [{repeat:true},{ctrlKey:true},{metaKey:true},{altKey:true},{isComposing:true},{target:{closest:()=>true}}])type('idspispopd',options);
-assert.equal(activations,5);playing=false;type('idspispopd');playing=true;type('idspi');input.reset();type('spopd');type('idspi');now+=3000;type('spopd');assert.equal(activations,5);
+type('iDspISpiPD');type('idspispipd');type('idkfa');assert.equal(activations,5,'both codes can toggle repeatedly');
+for(const options of [{repeat:true},{ctrlKey:true},{metaKey:true},{altKey:true},{isComposing:true},{target:{closest:()=>true}}])type('idspispipd',options);
+assert.equal(activations,5);playing=false;type('idspispipd');playing=true;type('idspi');input.reset();type('spipd');type('idspi');now+=3000;type('spipd');assert.equal(activations,5);
 const codes=[],keys=createCheatInput({isPlaying:()=>true,activate:code=>codes.push(code)});
-for(const key of 'idspispopdidkfaidspispopdidkfa')assert.equal(keys.key({key}),true,'every code letter is consumed, including P pause/F flashlight');
-assert.deepEqual(codes,['idspispopd','idkfa','idspispopd','idkfa']);
+for(const key of 'idspispipdidkfaidspispipdidkfa')assert.equal(keys.key({key}),true,'every code letter is consumed, including P pause/F flashlight');
+assert.deepEqual(codes,['idspispipd','idkfa','idspispipd','idkfa']);
 
 const memory=new Map(),storage={getItem:k=>memory.get(k),setItem:(k,v)=>memory.set(k,v)},cookies=new Map();
 const doc={get cookie(){return [...cookies].map(([k,v])=>`${k}=${v}`).join('; ');},set cookie(v){const [pair]=v.split(';'),at=pair.indexOf('=');cookies.set(pair.slice(0,at),pair.slice(at+1));}};
