@@ -15,6 +15,7 @@ import {ChaseAudio} from '../chase/audio.js';
 import {BREACH,BreachRound} from './rules.js';
 import {createCompound} from './world.js';
 import {createBreachDirector} from './director.js';
+import {createCompoundPatrol} from './patrol.js';
 import {createCombatFX} from '../chase/combat-fx.js';
 import {createScreenBlood} from '../chase/screen-blood.js';
 import {activateCheat,createCheatInput,createCheatBadge} from '../chase/cheats.js';
@@ -176,7 +177,7 @@ function hud(){const t=round.time,w=round.wave;const stage=t<3?'SERVICE EXIT OFF
 function step(dt){
  const playing=mode==='playing',sim=playing?dt:0;time=(time+(mode==='paused'||mode==='ended'?0:dt))%600;
  if(playing){round.tick(dt);const speed=round.phase==='escape'?10*T.MathUtils.smoothstep(round.escapeTime,0,1):0;if(speed)world.root.position.z+=speed*dt;director.update(dt,{speed});if(round.phase==='escape')round.rexDistance+=speed*dt;}
- else if(mode==='menu'&&preview){preview.c.phase=(time*.35)%1;preview.c.peck=.03*Math.sin(time);critters.updateDirected(0);}
+ else if(mode==='menu'&&preview)preview.update(dt);
  if(mode==='ending'){endAge+=dt;$('transition').style.opacity=Math.min(.65,endAge*.4);if(endAge>1.6)finish();}
  shake=Math.max(0,shake-sim*2.5);damageFlash=Math.max(0,damageFlash-sim*2.5);hitTime=Math.max(0,hitTime-sim);radioTime=Math.max(0,radioTime-(mode==='paused'?0:dt));
  updateCamera(dt);
@@ -207,7 +208,7 @@ async function load(){try{
  // The compound lamps hit from only a few metres away. Preserve the baked hide
  // under the wet shader instead of reflecting a white hotspot over the body.
  for(const mesh of critters.meshes){mesh.material.roughness=.94;mesh.material.envMapIntensity=.45;}
- rex=loadedRex;world=createCompound(scene,branch);world.setQuality(TIERS[tier]);preview=director.spawn(0);preview.c.p.set(2.3,0,12);preview.c.yaw=Math.PI+.25;preview.c.stride=0;preview.c.fade=1;critters.updateDirected(0);
+ rex=loadedRex;world=createCompound(scene,branch);world.setQuality(TIERS[tier]);preview=createCompoundPatrol(critters);preview.reset();
  $('loading-status').textContent='Preparing light and shadow…';step(0);await post.prepare(scene,camera);ready=true;
  $('loading-status').textContent='Mouse: hold to fire. Touch: drag to aim, hold FIRE.';$('start').textContent='HOLD THE COMPOUND ↗';$('start').disabled=false;setMode('menu');
  }catch(error){$('loading-status').textContent=`Could not load the encounter: ${error.message}. Reload to try again.`;console.error(error);}}

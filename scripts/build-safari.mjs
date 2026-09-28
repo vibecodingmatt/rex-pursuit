@@ -310,8 +310,9 @@ const SPECIES={
   const {add,carve,field}=sculpt(),headY=.487,headZ=.272,H=placer({o:[0,headY,headZ],pitch:.055});
   add('body',[loft([[-.86,.354,.35,.001],[-.72,.371,.355,.007],[-.53,.371,.34,.017],[-.35,.37,.317,.028],[-.2,.399,.274,.051],[-.08,.408,.243,.071],[.045,.4,.233,.063],[.137,.381,.28,.041],[.18,.356,.314,.021]])],0,0);
   add('neck',[uprightLoft([[.325,.103,.04,.033],[.369,.139,.05,.042],[.409,.159,.047,.035],[.45,.18,.043,.034],[.48,.216,.043,.037],[.503,.238,.036,.03]])],.019,0);
-  // Shoulder blade, chest and caudofemoral muscles interrupt the old smooth barrel.
-  add('body',both(s=>[ellipsoid([s*.048,.354,.098],[.021,.044,.064],{pitch:-.38}),ellipsoid([s*.052,.318,-.12],[.027,.055,.094],{pitch:-.22})]),.014,.01);
+  // Keep the shoulder blades distinct; the torso loft already carries the
+  // tail-base muscles. Separate rear ellipsoids made two hanging rump lobes.
+  add('body',both(s=>ellipsoid([s*.048,.354,.098],[.021,.044,.064],{pitch:-.38})),.014,.01);
   const skull=raptorSkull(add,carve,H);
   runnerLegs(add,{claw:true});runnerArms(add,{shoulder:[.052,.365,.108],elbow:[.08,.3,.127],hand:[.088,.26,.205],r:[.02,.013],grasp:true});
   return {field,H,eyes:eyesOf(H,skull.eye,.0101,.35),headY,headZ,biped:true,neckBase:[0,.34,.1],neckY:[.34,.47],tail:[-.18,-.83],tailPivot:[0,.33,-.15],centre:.33,

@@ -2,10 +2,17 @@
 
 ## Resume here (2026-09-27)
 
-- **Current work:** follow-up for Containment camera blood on boarded raptors. The IDKFA/no-heat and shared gore release (`3f9a577`) is live. Reuse the source server on 5188. Check Git status before editing.
+- **Current work:** Containment menu patrol and raptor silhouette cleanup, committed locally without publishing. The IDKFA/no-heat and shared gore release (`3f9a577`) is live. Reuse the source server on 5188. Check Git status before editing.
 - **Release checkpoint:** `798e36d` was deployed and verified with the complete Breach gameplay changes and Pursuit default. This follow-up fixes navigation/loading from that release. `test:mode-menu`, `test:smoke`, `build`, `test:release` and the local built-site `test:pages` pass. The full suite remains deliberately skipped per the user's release request; GitHub Actions retains normal logic/build/release checks. Confirm the deployment SHA and live hashed bundles when resuming; historical entries below describe their implementation-time state.
 - **Next work:** player feedback on the cheat flow and shared gore, plus the recent compound changes. Physical-phone performance remains unverified. River Escape is a detailed future roadmap item; Photo Mode remains on hold. Do not automatically start either.
 - **Where to read:** [Breach architecture and integration lessons](../.agents/skills/rex-pursuit-maintainer/references/containment-breach.md), [focused verification](../.agents/skills/rex-pursuit-maintainer/references/verification-and-release.md), [gameplay and controls](../README.md#containment-breach), and [River Escape scope](ROADMAP.md#river-escape--future-zone-requested-not-scheduled). The maintained repo skill and installed user copy are synchronized by this handoff update.
+
+## Containment menu patrol and raptor silhouette (2026-09-27, local)
+
+- **Menu motion:** `src/breach/patrol.js` shares three raptors and one pachy between the homepage preview and the separate Breach briefing. They follow a continuous circuit at full scale, using speed-driven gait and broad, tangent-matched turns. The path clears the cabinets, barriers, Jeep and main gate, including the long tails. It borrows the existing critter pools and both mesh tiers; starting combat clears the patrol through the existing director reset. The homepage's portrait camera now shows moving animals above the menu copy.
+- **Anatomy:** the two visible rump bumps were separate caudofemoral ellipsoids in `scripts/build-safari.mjs`, protruding behind the thighs. Removed those added volumes; the existing torso loft supplies the smooth hip-to-tail transition. Rebuilt `public/models/safari-runners.bin` at High and Low, shared by the ordinary and ghost raptors. Other species' geometry payloads are byte-for-byte unchanged. Raptor triangles fell from 80,936/13,520 to 79,712/13,316.
+- **Verification:** `test:mode-menu` now checks actual menu movement, four actors, stable scale, prop clearance over repeated laps at 30/120 Hz and continuous positions/headings at the loop seam, alongside existing mode-switch/loading/start/return checks. Smoke and build checks pass. Comparable desktop/portrait and neutral studio High/Low captures are under ignored `art/review/containment-patrol/`. Phone checks are emulation, not physical-device performance evidence.
+- **Release:** local changes only; no push or deployment.
 
 ## Containment boarded-raptor lens blood (2026-09-27)
 
