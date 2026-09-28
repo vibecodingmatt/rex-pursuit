@@ -160,7 +160,7 @@ $('#pause').onclick=()=>['playing','paused'].includes(mode)&&pause();$('#resume'
 addEventListener('blur',()=>{controls.reset();if(mode==='playing')pause();});
 $('#credits-open').onclick=()=>$('#credits').showModal();$('#credits-close').onclick=()=>$('#credits').close();
 async function start(){
- if(safariUI.selected==='containment'){location.assign('./breach.html');return;}
+ if(safariUI.selected==='containment'){location.assign('./breach.html?start=1');return;}
  if(!rex)return;controls.reset();$('#start').disabled=true;$('#start-label').textContent='STARTING THE ENGINE';
  try{await audio.init();}catch(e){console.warn('Audio initialization failed',e.message);}
  audio.stopCalls();state.reset();cheatBadge.update(false);combatFX.reset();screenBlood.reset();$('#pursuit-scoreboard').hidden=true;if(safariUI.selected==='safari')state.startSafari();safariDirector.reset();safariUI.reset();

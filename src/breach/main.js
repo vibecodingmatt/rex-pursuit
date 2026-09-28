@@ -21,6 +21,9 @@ import {createScreenBlood} from '../chase/screen-blood.js';
 import {activateCheat,createCheatInput,createCheatBadge} from '../chase/cheats.js';
 import {createScoreboard,readBoard,saveRun} from '../chase/scoreboard.js';
 const $=id=>document.getElementById(id),reduced=matchMedia('(prefers-reduced-motion: reduce)').matches;
+// Consume the homepage CTA once; refresh and direct links keep the briefing.
+const entryURL=new URL(location.href),autoStart=entryURL.searchParams.get('start')==='1';
+if(autoStart){entryURL.searchParams.delete('start');history.replaceState(history.state,'',entryURL);}
 installAtmosphericFog();
 const renderer=new T.WebGLRenderer({canvas:$('scene'),antialias:false,powerPreference:'high-performance'});renderer.shadowMap.enabled=true;renderer.shadowMap.type=T.PCFSoftShadowMap;renderer.toneMapping=T.ACESFilmicToneMapping;renderer.toneMappingExposure=1.13;renderer.info.autoReset=false;
 const scene=new T.Scene();scene.background=new T.Color(0x334945);scene.fog=new T.FogExp2(0x334945,.011);scene.environment=createEnvironmentMap(renderer);scene.environmentIntensity=.5;
@@ -86,8 +89,16 @@ addEventListener('keydown',e=>{if(cheatInput.key(e)){e.preventDefault();return;}
  if(e.code==='KeyR')round.startReload();if(e.code==='Space')grenade();if(e.code==='KeyV')changeView();if(e.code==='KeyF')light();
 });
 document.addEventListener('visibilitychange',()=>{if(document.hidden&&mode==='playing')pause();});addEventListener('blur',()=>{controls.reset();if(mode==='playing')pause();});
-async function start(){if(!ready||mode==='starting')return;setMode('starting');$('start').disabled=true;
- try{await audio.init();await audio.pause(false);}catch(e){console.warn('Breach audio unavailable:',e.message);}
+let audioInit;
+function resumeAudio(e){
+ if(e.isTrusted&&mode==='playing'&&audio.context&&audio.context.state!=='running')audio.pause(false).catch(e=>console.warn('Breach audio unavailable:',e.message));
+}
+for(const event of ['pointerdown','keydown'])document.addEventListener(event,resumeAudio,{capture:true});
+async function start({automatic=false}={}){if(!ready||mode==='starting')return;setMode('starting');$('start').disabled=true;
+ // Navigation can lose the browser's audio activation. Start the encounter
+ // anyway; the first normal fire/key input resumes sound if it was blocked.
+ audioInit??=audio.init().then(()=>{if(mode==='paused'||mode==='ended')return audio.pause(true);}).catch(e=>console.warn('Breach audio unavailable:',e.message));
+ if(!automatic){try{const resumed=audio.pause(false);await audioInit;await resumed;}catch(e){console.warn('Breach audio unavailable:',e.message);}}
  round.reset();cheatBadge.update(false);screenBlood.reset();director.reset();world.reset();rex.reset();weather.reset();effects.reset();combatFX.reset();jeep.reset();night.reset();aim.set(0,0);time=0;endAge=0;rexVisualDistance=43;shake=damageFlash=hitTime=0;view='first';preview=null;$('view').textContent='3RD';$('light').setAttribute('aria-pressed','true');
  $('end-screen').hidden=$('pause-screen').hidden=$('start-screen').hidden=true;$('transition').style.opacity=0;$('start').disabled=false;setMode('playing');radio('Service exit offline. Hold your position while we restore power.',6);audio.cue(false);moveReticle();
 }
@@ -210,7 +221,8 @@ async function load(){try{
  for(const mesh of critters.meshes){mesh.material.roughness=.94;mesh.material.envMapIntensity=.45;}
  rex=loadedRex;world=createCompound(scene,branch);world.setQuality(TIERS[tier]);preview=createCompoundPatrol(critters);preview.reset();
  $('loading-status').textContent='Preparing light and shadow…';step(0);await post.prepare(scene,camera);ready=true;
- $('loading-status').textContent='Mouse: hold to fire. Touch: drag to aim, hold FIRE.';$('start').textContent='HOLD THE COMPOUND ↗';$('start').disabled=false;setMode('menu');
+ if(autoStart){$('start').textContent='STARTING THE ENCOUNTER…';await start({automatic:true});}
+ else{$('loading-status').textContent='Mouse: hold to fire. Touch: drag to aim, hold FIRE.';$('start').textContent='HOLD THE COMPOUND ↗';$('start').disabled=false;setMode('menu');}
  }catch(error){$('loading-status').textContent=`Could not load the encounter: ${error.message}. Reload to try again.`;console.error(error);}}
 load();
 window.breach={screenBlood,round,director,critters,combatFX,renderer,scene,camera,jeep,weather,get world(){return world;},get rex(){return rex;},get mode(){return mode;},get ready(){return ready;},get view(){return view;},get quality(){return tier;},get freeze(){return freeze;},set freeze(v){freeze=v;},start,pause,step,shoot,grenade,triggerTrap,aimAt(p){aim.copy(p.clone().project(camera));moveReticle();},snapshot(){return{mode,time:round.time,phase:round.phase,result:round.result,jeep:round.jeep,kills:round.kills,score:round.score,rexDistance:round.rexDistance,live:director.live.length,calls:renderer.info.render.calls,triangles:renderer.info.render.triangles};}};

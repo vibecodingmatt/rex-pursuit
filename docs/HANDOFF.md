@@ -2,10 +2,17 @@
 
 ## Resume here (2026-09-27)
 
-- **Current work:** Containment menu patrol and raptor silhouette cleanup, committed locally without publishing. The IDKFA/no-heat and shared gore release (`3f9a577`) is live. Reuse the source server on 5188. Check Git status before editing.
+- **Current work:** Containment one-click entry and gameplay cursor follow-up, after the menu patrol and raptor silhouette cleanup; local changes without publishing. The IDKFA/no-heat and shared gore release (`3f9a577`) is live. Reuse the source server on 5188. Check Git status before editing.
 - **Release checkpoint:** `798e36d` was deployed and verified with the complete Breach gameplay changes and Pursuit default. This follow-up fixes navigation/loading from that release. `test:mode-menu`, `test:smoke`, `build`, `test:release` and the local built-site `test:pages` pass. The full suite remains deliberately skipped per the user's release request; GitHub Actions retains normal logic/build/release checks. Confirm the deployment SHA and live hashed bundles when resuming; historical entries below describe their implementation-time state.
 - **Next work:** player feedback on the cheat flow and shared gore, plus the recent compound changes. Physical-phone performance remains unverified. River Escape is a detailed future roadmap item; Photo Mode remains on hold. Do not automatically start either.
 - **Where to read:** [Breach architecture and integration lessons](../.agents/skills/rex-pursuit-maintainer/references/containment-breach.md), [focused verification](../.agents/skills/rex-pursuit-maintainer/references/verification-and-release.md), [gameplay and controls](../README.md#containment-breach), and [River Escape scope](ROADMAP.md#river-escape--future-zone-requested-not-scheduled). The maintained repo skill and installed user copy are synchronized by this handoff update.
+
+## Containment one-click entry and gameplay cursor (2026-09-27, local)
+
+- **Entry:** the homepage CTA sends `breach.html?start=1`. Breach consumes that one-time intent before loading and starts combat as soon as the scene is prepared, without a second CTA. Ordinary direct links and reloads retain the briefing; other URL parameters and the fragment survive.
+- **Audio:** automatic entry does not await an audio resume that a browser may defer after navigation. Audio initializes once, normal trusted pointer/key input can resume it, and a late initialization respects pause. A manual start/restart still resumes sound from its own gesture.
+- **Cursor:** the shared `combat-extras.css` hides the native cursor over the playing surface and passive HUD in all three modes. Interactive buttons keep their pointer cursor; pause, menus and results restore normal cursor behavior.
+- **Checks:** the focused menu regression covers one desktop click/phone tap into combat, cursor state across all modes, pause/resume, return navigation, direct entry and reload. A separate deferred-audio-resume simulation verifies advancing combat without audio activation and normal key input unlocking sound. Smoke and build pass; review captures and the audio diagnostic are in ignored `art/review/containment-start-*`. No push or deployment.
 
 ## Containment menu patrol and raptor silhouette (2026-09-27, local)
 
