@@ -94,7 +94,7 @@ ford.onSplash=(kind,at,strength)=>audio.splash(kind,at,strength);
 const raycaster=new T.Raycaster(),pointer=new T.Vector2(),aimTarget=new T.Vector3(0,3.7,16);let rex,coat,mode='loading',view='first',firing=false,breathClock=0,stomp=0,stompVel=0,stompOffset=0,time=0,last=performance.now(),shake=0,gunKick=0,hitTime=0,damageFlash=0,endTime=0,frameCount=0,freeze=false;
 const reducedMotion=matchMedia('(prefers-reduced-motion: reduce)').matches;
 const combatFX=createCombatFX(scene,effects,{surface:(x,z)=>jungle.groundAt(x,z),deck:false}),screenBlood=createScreenBlood(camera,{reducedMotion}),cheatBadge=createCheatBadge();
-const cheatInput=createCheatInput({isPlaying:()=>mode==='playing'&&!state.result,activate:code=>{if(activateCheat(state,code)){cheatBadge.update(true);audio.cue(true);}}});
+const cheatInput=createCheatInput({isPlaying:()=>mode==='playing'&&!state.result,activate:code=>{if(activateCheat(state,code)){cheatBadge.update(state);audio.cue(true);}}});
 const pursuitScores=createScoreboard({root:$('#pursuit-scoreboard'),title:'PURSUIT · WILDLIFE POINTS',load:cheated=>readBoard('pursuit',cheated)});
 const returnURL=new URL(location.href),requestedMode=returnURL.searchParams.get('mode');
 if(['pursuit','safari','containment'].includes(requestedMode)){returnURL.searchParams.delete('mode');history.replaceState(history.state,'',returnURL);}
@@ -265,8 +265,8 @@ function updateHud(){
  touchHud.fire.classList.toggle('waiting',!!state.reload||state.overheated||state.weaponsLocked);
  touchHud.reloadStatus.textContent=state.reload?`${state.reload.toFixed(1)}s`:state.ammo===RULES.magazine?'FULL':'READY';
  touchHud.reload.setAttribute('aria-disabled',String(!!state.reload||state.ammo===RULES.magazine||!!state.result));
- touchHud.grenadeStatus.textContent=state.grenade?`${Math.ceil(state.grenade)}s`:'READY';touchHud.grenade.setAttribute('aria-disabled',String(state.grenade>0||state.weaponsLocked||!!state.result));
- hud.distance.textContent=`${Math.max(0,Math.round(state.distance-7))} m · ${state.phase==='charge'?'CLOSING FAST':'IN PURSUIT'}`;hud.grenade.textContent=state.grenade?`${Math.ceil(state.grenade)}s`:'READY';
+ touchHud.grenadeStatus.textContent=state.infiniteRockets?'∞':state.grenade?`${Math.ceil(state.grenade)}s`:'READY';touchHud.grenade.setAttribute('aria-disabled',String(state.grenade>0&&!state.infiniteRockets||state.weaponsLocked||!!state.result));
+ hud.distance.textContent=`${Math.max(0,Math.round(state.distance-7))} m · ${state.phase==='charge'?'CLOSING FAST':'IN PURSUIT'}`;hud.grenade.textContent=state.infiniteRockets?'∞':state.grenade?`${Math.ceil(state.grenade)}s`:'READY';
  const o=state.objective,challenge=state.phase==='challenge'&&o?.status==='active'&&!state.result;
  document.body.dataset.cinematic=state.result==='lost'?'defeat':state.result==='won'?'victory':state.phase==='intro'?'intro':state.phase==='flank'?'flank':challenge?'challenge':'';
  arcade.clock.hidden=state.phase==='intro';const remaining=Math.ceil(state.remaining);arcade.time.textContent=`${Math.floor(remaining/60)}:${String(remaining%60).padStart(2,'0')}`;arcade.clock.classList.toggle('urgent',remaining<=20);arcade.pressure.textContent=`PRESSURE ${['I','II','III'][state.tier]}`;

@@ -4,7 +4,7 @@ import {SafariRound} from './safari-rules.js';
 export const RULES={health:5600,magazine:80,reload:2.6,fireInterval:.085,grenadeCooldown:11,intro:9.4,roarAt:3.25,deadline:90,bodyDamage:10,headDamage:14,explosiveDamage:190,warning:1.25,retreat:3.05,debrisFlight:[1.8,1.5,1.25]};
 export class Encounter {
  constructor(random=Math.random){this.random=random;this.reset();}
- reset(){Object.assign(this,{cheated:false,infiniteAmmo:false,safari:null,time:0,fightTime:0,remaining:RULES.deadline,introDuration:RULES.intro,health:RULES.health,jeep:100,ammo:RULES.magazine,reload:0,heat:0,overheated:false,grenade:0,shotTimer:0,phase:'intro',phaseTime:0,distance:18,stagger:0,hits:0,headshots:0,shots:0,interrupts:0,result:null,events:[],attackNumber:0,objective:null,objectivesCleared:0,objectivesMissed:0,challengeNumber:0,attackCommitted:false,lossReason:null,introCues:new Set(),previousOrder:[],debris:null,debrisNumber:0,debrisCleared:0,debrisMissed:0,bag:{},nextDebris:12,ambushPlayed:false,ambush:null,defeat:null,victory:null});}
+ reset(){Object.assign(this,{cheated:false,infiniteAmmo:false,infiniteRockets:false,safari:null,time:0,fightTime:0,remaining:RULES.deadline,introDuration:RULES.intro,health:RULES.health,jeep:100,ammo:RULES.magazine,reload:0,heat:0,overheated:false,grenade:0,shotTimer:0,phase:'intro',phaseTime:0,distance:18,stagger:0,hits:0,headshots:0,shots:0,interrupts:0,result:null,events:[],attackNumber:0,objective:null,objectivesCleared:0,objectivesMissed:0,challengeNumber:0,attackCommitted:false,lossReason:null,introCues:new Set(),previousOrder:[],debris:null,debrisNumber:0,debrisCleared:0,debrisMissed:0,bag:{},nextDebris:12,ambushPlayed:false,ambush:null,defeat:null,victory:null});}
  startSafari(){this.reset();this.safari=new SafariRound();this.phase='safari';this.distance=24;}
  get tier(){return Math.min(2,Math.max(Math.floor(this.fightTime/30),this.health<=RULES.health*.35?2:this.health<=RULES.health*.7?1:0));}
  // The gun is live everywhere but the opening and the final overrun, including the
@@ -67,7 +67,7 @@ export class Encounter {
  }
  fire(){if(this.result||this.weaponsLocked||this.shotTimer>0||this.reload>0||(this.overheated&&!this.infiniteAmmo))return false;if(this.ammo===0&&!this.infiniteAmmo){this.startReload();return false;}if(this.infiniteAmmo){this.heat=0;this.overheated=false;}else{this.ammo--;this.heat=Math.min(1,this.heat+.029);if(this.heat>=1){this.overheated=true;this.events.push('overheat');}}this.shots++;this.shotTimer=RULES.fireInterval;return true;}
  startReload(){if(this.infiniteAmmo||this.result||this.phase==='execution'||this.reload>0||this.ammo===RULES.magazine)return false;this.reload=RULES.reload;this.events.push('reload');return true;}
- launch(){if(this.result||this.weaponsLocked||this.grenade>0)return false;this.grenade=RULES.grenadeCooldown;return true;}
+ launch(){if(this.result||this.weaponsLocked||this.grenade>0&&!this.infiniteRockets)return false;this.grenade=this.infiniteRockets?0:RULES.grenadeCooldown;return true;}
  damage(amount){if(this.safari||this.result||this.phase==='execution')return;
   // Rounds that catch her as she breaks off still wound her, but she only goes down on the road, not in the trees.
   this.health=Math.max(this.phase==='flank'&&this.phaseTime<AMBUSH.fireAt?Math.min(1,this.health):0,this.health-amount);if(this.health===0){this.result='won';if(this.objective?.status==='active')this.objective.status='cancelled';if(this.debris)this.debris.status='cancelled';this.events.push('won');}}

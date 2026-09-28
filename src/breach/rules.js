@@ -12,7 +12,7 @@ export const PRESSURE={
 const clamp=(v,a,b)=>Math.max(a,Math.min(b,v));
 export class BreachRound{
  constructor(){this.reset();}
- reset(){Object.assign(this,{cheated:false,infiniteAmmo:false,time:0,phase:'hold',result:null,jeep:100,ammo:80,reload:0,heat:0,shotTimer:0,grenade:0,trap:0,kills:0,shots:0,hits:0,trapKills:0,saves:0,staggers:0,score:0,rexDistance:43,rexCharge:0,rexRecoil:0,escapeTime:0,events:[],_revealed:false,_broken:false,_opening:false});}
+ reset(){Object.assign(this,{cheated:false,infiniteAmmo:false,infiniteRockets:false,time:0,phase:'hold',result:null,jeep:100,ammo:80,reload:0,heat:0,shotTimer:0,grenade:0,trap:0,kills:0,shots:0,hits:0,trapKills:0,saves:0,staggers:0,score:0,rexDistance:43,rexCharge:0,rexRecoil:0,escapeTime:0,events:[],_revealed:false,_broken:false,_opening:false});}
  get wave(){return waveAt(this.time);}
  get gate(){return clamp((this.time-BREACH.gateAt)/(BREACH.duration-BREACH.gateAt),0,1);}
  get remaining(){return Math.max(0,BREACH.duration-this.time);}
@@ -31,7 +31,7 @@ export class BreachRound{
  }
  shoot(){if(this.result||this.phase!=='hold'||this.shotTimer>0||this.reload>0||(!this.ammo&&!this.infiniteAmmo)||(this.heat>=.98&&!this.infiniteAmmo))return false;if(this.infiniteAmmo)this.heat=0;else{this.ammo--;this.heat=Math.min(1,this.heat+.027);}this.shots++;this.shotTimer=BREACH.fireInterval;if(!this.ammo&&!this.infiniteAmmo)this.startReload();return true;}
  startReload(){if(this.infiniteAmmo||this.result||this.phase!=='hold'||this.reload>0||this.ammo===BREACH.magazine)return false;this.reload=BREACH.reload;this.events.push({type:'reload'});return true;}
- launchGrenade(){if(this.result||this.phase!=='hold'||this.grenade>0)return false;this.grenade=BREACH.grenadeCooldown;return true;}
+ launchGrenade(){if(this.result||this.phase!=='hold'||this.grenade>0&&!this.infiniteRockets)return false;this.grenade=this.infiniteRockets?0:BREACH.grenadeCooldown;return true;}
  discharge(){if(this.result||this.phase!=='hold'||this.trap>0)return false;this.trap=BREACH.trapCooldown;this.events.push({type:'trap'});return true;}
  damage(amount,source='raptor'){if(this.result||this.phase!=='hold')return;this.jeep=Math.max(0,this.jeep-amount);this.events.push({type:'damage',source,amount});if(!this.jeep){this.result='lost';this.events.push({type:'lost',source});}}
  killed({trap=false,onJeep=false,heavy=false}={}){if(this.result||this.phase!=='hold')return;this.kills++;this.trapKills+=Number(trap);this.saves+=Number(onJeep);this.score+=(heavy?180:100)+(trap?50:0)+(onJeep?50:0);}

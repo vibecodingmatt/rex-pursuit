@@ -37,7 +37,7 @@ const rim=new T.DirectionalLight(0xa5ceda,.9);rim.position.set(-6,13,34);scene.a
 const sky=createSky(scene),jeep=createJeep(scene,{gunOffset:-1.31}),effects=createEffects(scene,dustTexture()),audio=new ChaseAudio(),round=new BreachRound();
 const combatFX=createCombatFX(scene,effects);
 const screenBlood=createScreenBlood(camera,{reducedMotion:reduced}),cheatBadge=createCheatBadge();
-const cheatInput=createCheatInput({isPlaying:()=>mode==='playing'&&!round.result,activate:code=>{if(activateCheat(round,code)){cheatBadge.update(true);audio.cue(true);}}});
+const cheatInput=createCheatInput({isPlaying:()=>mode==='playing'&&!round.result,activate:code=>{if(activateCheat(round,code)){cheatBadge.update(round);audio.cue(true);}}});
 const scores=createScoreboard({root:$('breach-scoreboard'),noun:'repelled',load:cheated=>readBoard('breach',cheated)});
 // A broad work lamp above the gun lights close faces without the narrow
 // flashlight's inverse-square hotspot at the end of the barrel.
@@ -176,7 +176,7 @@ function hud(){const t=round.time,w=round.wave;const stage=t<3?'SERVICE EXIT OFF
  $('gate-progress').style.transform=`scaleX(${Math.min(1,t/BREACH.duration)})`;$('objective-detail').textContent=t>=BREACH.gateAt?`EXIT OPENING · ${Math.round(round.gate*100)}%`:`EXIT REBOOT · ${Math.round(Math.min(1,t/BREACH.gateAt)*100)}%`;
  $('integrity').innerHTML=`${Math.ceil(round.jeep)}<small>%</small>`;$('integrity-bar').style.transform=`scaleX(${round.jeep/100})`;$('ammo').innerHTML=`${round.infiniteAmmo?'∞':String(round.ammo).padStart(3,'0')}<small>/ 080</small>`;$('heat').style.transform=`scaleX(${round.heat})`;
  $('weapon-status').textContent=round.reload>0?`RELOADING ${round.reload.toFixed(1)}s`:round.heat>=.98?'COOLING':'READY';$('score').textContent=`${round.score.toLocaleString()} PTS · ${director.live.length} CONTACTS`;
- $('grenade-state').textContent=round.grenade>0?`${Math.ceil(round.grenade)}s`:'READY';$('grid-label').textContent=round.trap>0?`GRID RECHARGING · ${Math.ceil(round.trap)}s`:'GRID READY';$('grid-tip').textContent=round.trap>0?'Wait for the blue switch lights.':'Shoot either blue switch to electrify the yard.';
+ $('grenade-state').textContent=round.infiniteRockets?'∞':round.grenade>0?`${Math.ceil(round.grenade)}s`:'READY';$('grid-label').textContent=round.trap>0?`GRID RECHARGING · ${Math.ceil(round.trap)}s`:'GRID READY';$('grid-tip').textContent=round.trap>0?'Wait for the blue switch lights.':'Shoot either blue switch to electrify the yard.';
  $('rex-meter').hidden=t<BREACH.breach||round.phase==='escape';$('stagger-progress').style.transform=`scaleX(${round.rexCharge/BREACH.staggerHits})`;
  const threat=director.warning,show=mode==='playing'&&round.phase==='hold';$('warning').hidden=!show||!threat;$('target').hidden=!show||!threat;
  if(threat&&show){const c=threat.c,board=threat.phase==='board',boards=director.live.filter(a=>a.phase==='board').length;$('warning-title').textContent=board?(boards>1?'RAPTORS ON BOTH SIDES':'RAPTOR ON THE JEEP'):threat.heavy?'PACHY CHARGE':threat.phase==='leap'?'INCOMING!':'RAPTOR PREPARING TO LEAP';$('warning-copy').textContent=board?'Clear the deck. More contacts are closing in.':threat.heavy?'Stop the ram. A rocket breaks its charge.':'Keep firing at the marked attacker.';$('target-label').textContent=board?'SHOOT IT OFF':threat.heavy?'STOP THE RAM':'LEAP';

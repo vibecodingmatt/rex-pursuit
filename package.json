@@ -10,7 +10,7 @@
                     "start":  "node scripts/serve.mjs",
                     "test":  "node scripts/test-combat.mjs && node scripts/verify-chase.cjs",
                     "test:smoke": "node scripts/smoke.cjs",
-                    "test:cheats": "node scripts/test-cheats.mjs && node scripts/verify-cheats-gore.cjs",
+                    "test:cheats": "node scripts/test-cheats.mjs && node scripts/verify-cheat-toggles.cjs && node scripts/verify-cheats-gore.cjs",
                     "test:touch": "node scripts/test-touch.mjs && node scripts/verify-touch.cjs",
                     "test:gaze": "node scripts/verify-gaze.cjs",
                     "test:logic": "node scripts/test-combat.mjs && node scripts/test-defeat.mjs && node scripts/test-ambush.mjs && node scripts/test-touch.mjs && node scripts/test-victory.mjs && node scripts/test-safari.mjs && node scripts/test-breach.mjs && node scripts/test-cheats.mjs",

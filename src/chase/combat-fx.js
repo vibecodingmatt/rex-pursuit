@@ -8,7 +8,7 @@ export function createCombatFX(scene,effects,{surface=(x,z)=>Math.abs(x)<1.02&&z
  let seed=703,nextDrop=0,nextChunk=0,nextStain=0,budget=1;
  const random=()=>{seed=(Math.imul(seed,1664525)+1013904223)>>>0;return seed/4294967296;};
  const dummy=new T.Object3D(),up=new T.Vector3(0,1,0),axis=new T.Vector3(),turn=new T.Quaternion(),color=new T.Color();
- const stats={hits:0,kills:0,blasts:0,drops:0,chunks:0,stains:0,rockets:0};
+ const stats={hits:0,kills:0,blasts:0,drops:0,chunks:0,stains:0,rockets:0,detonations:0};
  function pool(count,geometry,material){
   const mesh=new T.InstancedMesh(geometry,material,count);mesh.instanceMatrix.setUsage(T.DynamicDrawUsage);mesh.frustumCulled=false;mesh.receiveShadow=true;mesh.count=0;scene.add(mesh);
   const entries=Array.from({length:count},()=>({life:0,max:1,p:new T.Vector3(),v:new T.Vector3(),q:new T.Quaternion(),s:new T.Vector3(),spin:new T.Vector3(),landed:false}));
@@ -40,11 +40,28 @@ export function createCombatFX(scene,effects,{surface=(x,z)=>Math.abs(x)<1.02&&z
    diffuseColor.a*=max(body,spray)*vStain.y;
    diffuseColor.rgb*=.68+.32*body;`);
  };stainMaterial.customProgramCacheKey=()=> 'breach-blood-splatter-1';
- const rocket=new T.Group(),rocketMat=new T.MeshStandardMaterial({color:0x535b49,metalness:.6,roughness:.38});
- const body=new T.Mesh(new T.CylinderGeometry(.055,.055,.5,8),rocketMat);body.rotation.x=Math.PI/2;rocket.add(body);
- const tip=new T.Mesh(new T.ConeGeometry(.056,.18,8),rocketMat);tip.rotation.x=Math.PI/2;tip.position.z=.32;rocket.add(tip);
- const flame=new T.Mesh(new T.ConeGeometry(.085,.5,8),new T.MeshBasicMaterial({color:new T.Color(5,1.9,.3),toneMapped:false}));flame.rotation.x=-Math.PI/2;flame.position.z=-.45;rocket.add(flame);rocket.visible=false;scene.add(rocket);
- const flight={age:0,duration:0,trail:0,from:new T.Vector3(),at:new T.Vector3(),previous:new T.Vector3(),detonate:null,trace:null};
+ const rocket=new T.Group(),rocketMat=new T.MeshStandardMaterial({color:0x535b49,metalness:.6,roughness:.38}),capacity=64;
+ // Rapid-fire cheats can overlap flights. Three instanced draws retain every
+ // rocket's trajectory and impact while keeping meshes and memory bounded.
+ const body=new T.InstancedMesh(new T.CylinderGeometry(.055,.055,.5,8).rotateX(Math.PI/2),rocketMat,capacity);
+ const tip=new T.InstancedMesh(new T.ConeGeometry(.056,.18,8).rotateX(Math.PI/2).translate(0,0,.32),rocketMat,capacity);
+ const flame=new T.InstancedMesh(new T.ConeGeometry(.085,.5,8).rotateX(-Math.PI/2),new T.MeshBasicMaterial({color:new T.Color(5,1.9,.3),toneMapped:false}),capacity);
+ for(const mesh of [body,tip,flame]){mesh.count=0;mesh.frustumCulled=false;mesh.instanceMatrix.setUsage(T.DynamicDrawUsage);rocket.add(mesh);}rocket.visible=false;scene.add(rocket);
+ const flights=Array.from({length:capacity},()=>({on:false,serial:0,age:0,duration:0,trail:0,flare:1,from:new T.Vector3(),at:new T.Vector3(),position:new T.Vector3(),previous:new T.Vector3(),q:new T.Quaternion(),detonate:null,trace:null}));
+ let impact=null;
+ function writeRockets(){
+  let n=0;for(const f of flights)if(f.on){
+   dummy.position.copy(f.position);dummy.quaternion.copy(f.q);dummy.scale.setScalar(1);dummy.updateMatrix();body.setMatrixAt(n,dummy.matrix);tip.setMatrixAt(n,dummy.matrix);
+   dummy.position.add(axis.set(0,0,-.45).applyQuaternion(f.q));dummy.scale.setScalar(f.flare);dummy.updateMatrix();flame.setMatrixAt(n++,dummy.matrix);
+  }
+  rocket.visible=n>0;for(const mesh of [body,tip,flame]){mesh.count=n;mesh.instanceMatrix.needsUpdate=true;}
+ }
+ function stepRocket(f,dt){
+  f.age+=dt;f.trail+=dt;f.previous.copy(f.position);f.position.lerpVectors(f.from,f.at,Math.min(1,f.age/f.duration));f.flare=.8+random()*.4;
+  const contact=f.trace?.(f.previous,f.position);if(contact)f.position.copy(contact.point);
+  if(f.trail>.035/budget){f.trail=0;effects.haze(f.position,new T.Vector3(0,.12,0),{life:.6,size:.12,growth:.7,opacity:.2,color:0x8b8273});}
+  if(contact||f.age>=f.duration){f.on=false;impact={type:contact?.type??'splash',point:f.position.toArray()};stats.detonations++;const detonate=f.detonate;f.detonate=f.trace=null;detonate?.(f.position.clone(),contact);}
+ }
  function stain(p,size=.6,floor=surface(p.x,p.z)){
   const i=nextStain++%stains.entries.length,b=stains.entries[i];b.life=b.max=18+random()*12;b.p.copy(p);b.deck=deck&&floor>0;b.p.y=floor+.008+(i%5)*.0005;b.s.set(size*(.8+random()*.6),size*(.6+random()*.5),1);b.q.setFromEuler(new T.Euler(-Math.PI/2,0,random()*6.28));stainData.setXY(i,random()*6.28,1);stainData.needsUpdate=true;stats.stains++;
  }
@@ -93,10 +110,18 @@ export function createCombatFX(scene,effects,{surface=(x,z)=>Math.abs(x)<1.02&&z
    }dummy.updateMatrix();pool.mesh.setMatrixAt(i,dummy.matrix);
   }pool.mesh.count=end;pool.mesh.instanceMatrix.needsUpdate=true;
  }
- return {stats,drops,chunks,stains,rocket,breakup,
-  hit,stain,shatter:breakup.burst,get impact(){return flight.impact;},
+ return {stats,drops,chunks,stains,rocket,flights,breakup,
+  hit,stain,shatter:breakup.burst,get impact(){return impact;},
   setQuality(t){budget=t.gore??t.particles;breakup.setQuality(t);},
-  launch(from,at,detonate,trace=null){flight.from.copy(from);flight.at.copy(at);flight.age=flight.trail=0;flight.impact=null;flight.duration=Math.max(.09,from.distanceTo(at)/70);flight.detonate=detonate;flight.trace=trace;rocket.position.copy(from);rocket.lookAt(at);rocket.visible=true;stats.rockets++;},
+  launch(from,at,detonate,trace=null){
+   let f=flights.find(f=>!f.on);
+   // Only synthetic input bursts can fill 64 flights in their ~1.3 s lifetime.
+   // Finish the oldest through its remaining collision sweep instead of losing
+   // its damage or imposing a hidden weapon cooldown when the pool is full.
+   if(!f){f=flights.reduce((oldest,f)=>f.serial<oldest.serial?f:oldest);stepRocket(f,f.duration);}
+   f.from.copy(from);f.at.copy(at);f.position.copy(from);f.age=f.trail=0;f.flare=1;f.on=true;f.serial=++stats.rockets;impact=null;f.duration=Math.max(.09,from.distanceTo(at)/70);f.detonate=detonate;f.trace=trace;
+   dummy.position.copy(from);dummy.lookAt(at);f.q.copy(dummy.quaternion);writeRockets();
+  },
   update(dt,speed=0){
    if(dt<=0)return;
    breakup.update(dt,speed);
@@ -104,12 +129,8 @@ export function createCombatFX(scene,effects,{surface=(x,z)=>Math.abs(x)<1.02&&z
    let end=0;for(let i=0;i<stains.entries.length;i++){
     const b=stains.entries[i];if(b.life<=0)dummy.scale.setScalar(0);else{b.life=Math.max(0,b.life-dt);if(!b.deck)b.p.z+=speed*dt;end=i+1;dummy.position.copy(b.p);dummy.quaternion.copy(b.q);dummy.scale.copy(b.s);stainData.setY(i,Math.min(1,b.life/3));}dummy.updateMatrix();stains.mesh.setMatrixAt(i,dummy.matrix);
    }stains.mesh.count=end;stains.mesh.instanceMatrix.needsUpdate=true;stainData.needsUpdate=true;
-   if(rocket.visible){flight.age+=dt;flight.trail+=dt;flight.previous.copy(rocket.position);rocket.position.lerpVectors(flight.from,flight.at,Math.min(1,flight.age/flight.duration));flame.scale.setScalar(.8+random()*.4);
-    const contact=flight.trace?.(flight.previous,rocket.position);if(contact)rocket.position.copy(contact.point);
-    if(flight.trail>.035/budget){flight.trail=0;effects.haze(rocket.position,new T.Vector3(0,.12,0),{life:.6,size:.12,growth:.7,opacity:.2,color:0x8b8273});}
-    if(contact||flight.age>=flight.duration){rocket.visible=false;flight.impact={type:contact?.type??'splash',point:rocket.position.toArray()};const detonate=flight.detonate;flight.detonate=flight.trace=null;detonate?.(rocket.position.clone(),contact);}
-   }
+   if(rocket.visible){for(const f of flights)if(f.on)stepRocket(f,dt);writeRockets();}
   },
-  reset(){for(const p of [drops,chunks,stains]){for(const b of p.entries)b.life=0;p.mesh.count=0;}breakup.reset();rocket.visible=false;flight.detonate=flight.trace=null;nextDrop=nextChunk=nextStain=0;for(const k in stats)stats[k]=0;}
+  reset(){for(const p of [drops,chunks,stains]){for(const b of p.entries)b.life=0;p.mesh.count=0;}breakup.reset();for(const f of flights){f.on=false;f.detonate=f.trace=null;}impact=null;writeRockets();nextDrop=nextChunk=nextStain=0;for(const k in stats)stats[k]=0;}
  };
 }
