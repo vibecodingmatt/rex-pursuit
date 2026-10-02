@@ -148,6 +148,16 @@ Tuning values live in `src/chase/combat.js`. Pause freezes the fight, target and
 
 ## This iteration
 
+### Chapter 02: Raptor Ravine
+
+Beat the T. rex in Pursuit to unlock **Raptor Ravine**. Choose **Next level** from the victory screen, or use the chapter link on the menu after unlocking it. Survive an 86-second pack chase through a sunlit canyon, under an abandoned viaduct and through the north evacuation gate. Marked raptors are about to leap; stop them first, and use grenades against a clustered pack. The final six seconds close the barrier behind the Jeep.
+
+The new creature is Animaniac888's CC0 [Dromaeosaur Raptor](https://blendswap.com/blend/4889), with its authored 2K maps and a repaired/animated skeleton. The canyon uses Poly Haven's CC0 [Coastal Cliff 01](https://polyhaven.com/a/coastal_cliff_01) and [Gravelly Sand](https://polyhaven.com/a/gravelly_sand). Sources, modifications and authoring instructions are in [the chapter reference](docs/RAPTOR-RAVINE.md) and the runtime model provenance files. The existing Rex asset retains its CC BY 4.0 attribution.
+
+Progress and separate fair/cheat records are saved on this browser. First/third-person cameras, the existing touch controls and both cheat toggles work in the new chapter. `npm run test:ravine` checks progression and full gameplay flows.
+
+### Existing jungle chase
+
 - A river ford about twenty seconds into the chase. The Jeep rides down the bank into knee-deep, silty water and up the far side; its front tyres throw sheets of spray out along the doors and the rear tyres throw rooster tails, with a V wake, churned silt and foam behind. The Rex follows: each footfall is a plunge with a crown and white water, and her swinging feet throw water ahead of her stride. The river reflects the treeline, the canopy gaps and the Rex herself, flows downstream past foaming boulders and a drowned log, shows caustics on the shallow bed, and takes the storm's rain rings. Rounds and grenades raise spouts and columns of water. Spray that lands on the banks darkens them, the tyres print wet tracks for about 25 m and her feet leave wet prints, all drying slowly. The river, the tyres' churn and the splashes are real recordings.
 - Mud and water build up on the Rex over the chase. Every footfall flings more splatter up her legs, belly and the underside of her tail, far more in the storm. On a dry day it dries to a lighter crust. The river rinses her legs and belly clean and soaks her to the line the spray reached; she streams water for a while, then dries from the top down. In the storm the rain keeps soaking in as she runs, and water runs down her hide. The Jeep's lower body is soaked by the crossing and dries too.
 

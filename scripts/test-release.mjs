@@ -16,7 +16,8 @@ const schema=JSON.parse(html.match(/<script type="application\/ld\+json">([\s\S]
 for(const path of ['models/rex-hero.glb','audio/catalog.json','audio/clip-01.wav','draco/draco_decoder.wasm','textures/jungle-branch.png','favicon.svg','icons/icon-32.png','icons/apple-touch-icon.png','icons/icon-192.png','icons/icon-512.png','site.webmanifest','robots.txt','sitemap.xml'])assert.ok((await stat(join('dist',path))).size>0,`Missing ${path}`);
 const manifest=JSON.parse(await readFile('dist/site.webmanifest','utf8'));assert.equal(manifest.name,'Rex: Pursuit');assert.equal(manifest.start_url,'./');
 assert.match(html,/<button[^>]*data-game-mode="containment"/,'Containment is a homepage mode selection');
-for(const file of ['index.html','breach.html','model-lab.html','creature-lab.html','sound-library.html']){
+for(const path of ['models/raptor-ravine.glb','models/ravine-cliff.glb','models/raptor-ravine.source.json','models/ravine-environment.source.json','textures/ravine/gravel-diff.jpg','textures/ravine/gravel-nor_gl.jpg','textures/ravine/gravel-rough.jpg'])assert.ok((await stat(join('dist',path))).size>0,`Missing ravine asset ${path}`);
+for(const file of ['index.html','breach.html','ravine.html','model-lab.html','creature-lab.html','sound-library.html']){
  const page=await readFile(join('dist',file),'utf8');for(const [,url]of page.matchAll(/(?:src|href)="([^"#]+)"/g)){if(/^(https?:|data:|mailto:)/.test(url)||url==='./')continue;assert.ok(!url.startsWith('/'),`${file} has a domain-root asset: ${url}`);await stat(join('dist',url.split(/[?#]/)[0]||'index.html'));}
 }
 assert.ok(!(await readdir('dist')).includes('audio_reference'));

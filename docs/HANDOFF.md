@@ -1,5 +1,13 @@
 # Rex: Pursuit handoff
 
+## Resume here (2026-10-02)
+
+- **Current work:** one additional campaign chapter, **Raptor Ravine**, implemented locally after the user's request for free CC0 models and a new chase environment. No production release requested. Follow `AGENTS.md`: commit locally; do not push until requested.
+- **Entry/progression:** winning Pursuit unlocks `ravine.html` and displays a Next level link. The homepage footer retains a replay link. Versioned local progress and a one-use continuation handle saved and storage-blocked visits. Safari/Containment do not unlock it.
+- **Art/gameplay:** an artist-authored CC0 dromaeosaur with original 2K maps, repaired eye binding and runtime IK; CC0 Poly Haven cliff and gravel scans; an 86-second pack chase through a canyon/viaduct, followed by a closing evacuation gate. Uses existing Jeep, gunner, HDR pipeline, sound and touch controls. New assets load only on the separate chapter entry.
+- **Details:** [Raptor Ravine architecture, sources and checks](RAPTOR-RAVINE.md). `npm run test:ravine` exercises progression and full play flows; raw art/review files remain ignored. Physical-phone performance is unverified. This does not implement the separate River Escape roadmap item.
+- **Checks:** new rules pass at 30/60/120 Hz; the full browser flow passes on source and a dist-only `/rex-pursuit/` server, including actual Rex victory/continuation, a fair full win, loss/restart, storage denial, cheat toggles and trusted touch input. Existing logic, chase smoke, build and release packaging pass. Desktop/phone/close-up captures were inspected. Review fixes included source cliff orientation, portrait flank visibility, eye attachment, grounded ankle orientation, paused poses and merged scenery draws.
+
 ## Resume here (2026-09-27)
 
 - **Current work:** the user corrected the rocket cheat spelling to `idspispipd` and requested deployment. This is a code-string correction only; the existing prefix recognition, pause handling and independent toggles remain unchanged. Reuse the source server on 5188. Check Git status before editing.

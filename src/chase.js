@@ -37,7 +37,10 @@ import {createCombatFX} from './chase/combat-fx.js';
 import {createScreenBlood} from './chase/screen-blood.js';
 import {activateCheat,createCheatInput,createCheatBadge} from './chase/cheats.js';
 import {createScoreboard,readBoard,saveRun} from './chase/scoreboard.js';
+import {campaignProgress,completeChapter} from './chase/campaign.js';
 const $=s=>document.querySelector(s),canvas=$('#scene');
+function updateCampaignLink(){const p=campaignProgress();$('#campaign-link').textContent=p.ravine?'CHAPTER 02 · RAPTOR RAVINE ↗':'CHAPTER 02 · BEAT THE REX TO UNLOCK';}
+updateCampaignLink();
 installAtmosphericFog();
 const renderer=new T.WebGLRenderer({canvas,antialias:false,powerPreference:'high-performance'});renderer.shadowMap.enabled=true;renderer.shadowMap.type=T.PCFSoftShadowMap;renderer.toneMapping=T.ACESFilmicToneMapping;renderer.toneMappingExposure=1.13;renderer.info.autoReset=false;
 const post=createPost(renderer),governor=createGovernor(),detected=detectTier(renderer);let quality=storedQuality(),autoTier=detected.tier;
@@ -160,6 +163,7 @@ $('#pause').onclick=()=>['playing','paused'].includes(mode)&&pause();$('#resume'
 addEventListener('blur',()=>{controls.reset();if(mode==='playing')pause();});
 $('#credits-open').onclick=()=>$('#credits').showModal();$('#credits-close').onclick=()=>$('#credits').close();
 async function start(){
+ $('#next-chapter').hidden=true;
  if(safariUI.selected==='containment'){location.assign('./breach.html?start=1');return;}
  if(!rex)return;controls.reset();$('#start').disabled=true;$('#start-label').textContent='STARTING THE ENGINE';
  try{await audio.init();}catch(e){console.warn('Audio initialization failed',e.message);}
@@ -340,16 +344,18 @@ function handleMotionEvents(playing,speed){for(const e of rex.drainMotionEvents(
  if(e.type==='exhale')skid.exhale(e);
 }}
 function finish(){
+ $('#next-chapter').hidden=true;
  if(state.safari){safariFx.reset();setMode('ended');audio.stopCalls();audio.update(0,0,false,false);audio.river(0,null,0);$('#end-screen').hidden=false;hud.warning.style.opacity=0;arcade.card.hidden=true;safariUI.finish();sharing.reset();$('#restart').focus({preventScroll:true});return;}
  setMode('ended');audio.stopCalls();$('#end-screen').hidden=false;const won=state.result==='won',timeout=state.lossReason==='timeout';
  const wildlifeScore=Object.entries(state.bag).reduce((sum,[kind,n])=>sum+(SPECIES[kind]?.points||0)*n,0);pursuitScores.show(saveRun('pursuit',{cheated:state.cheated,score:wildlifeScore,kills:state.bagTotal}));$('#pursuit-scoreboard').hidden=false;
  $('#end-eyebrow').textContent=won?'VISITOR CENTER REACHED':timeout?'ESCAPE WINDOW CLOSED':'JEEP LOST';$('#end-title').textContent=won?'You made it.':timeout?'Time ran out.':'Too close.';
  if(state.cheated)$('#end-eyebrow').textContent+=' · CHEAT RUN';
- $('#end-copy').textContent=won?'The Jeep is safe at the Visitor Center. Take a breath. You earned it.':timeout?'She caught the Jeep. Take her down before the 90-second clock reaches zero.':'Break her attacks with the numbered targets. Shoot incoming debris—or save a grenade to clear it.';
+ $('#end-copy').textContent=won?'The Jeep is safe at the Visitor Center. A route through the north pass is open. Continue to Raptor Ravine.':timeout?'She caught the Jeep. Take her down before the 90-second clock reaches zero.':'Break her attacks with the numbered targets. Shoot incoming debris—or save a grenade to clear it.';
+ if(won){completeChapter(1);$('#next-chapter').hidden=false;updateCampaignLink();}
  $('#end-stats').textContent=`${Math.floor(state.fightTime)}s · ${state.objectivesCleared} attacks repelled · ${state.debrisCleared} debris cleared`;
  // The wildlife bag, species by species, on a line of its own.
  const bagged=Object.entries(state.bag).filter(([,n])=>n).map(([k,n])=>`${n} ${n===1?k:WILDLIFE[k][1]}`);
- if(bagged.length){const line=document.createElement('span');line.id='end-bag';line.textContent=`Wildlife bagged: ${bagged.join(' · ')}`;$('#end-stats').append(document.createElement('br'),line);}hud.warning.style.opacity=0;arcade.card.hidden=true;audio.update(0,0,false,false);audio.river(0,null,0);sharing.reset();$('#restart').focus({preventScroll:true});
+ if(bagged.length){const line=document.createElement('span');line.id='end-bag';line.textContent=`Wildlife bagged: ${bagged.join(' · ')}`;$('#end-stats').append(document.createElement('br'),line);}hud.warning.style.opacity=0;arcade.card.hidden=true;audio.update(0,0,false,false);audio.river(0,null,0);sharing.reset();$(won?'#next-chapter':'#restart').focus({preventScroll:true});
 }
 const cameraTarget=new T.Vector3(),cameraPos=new T.Vector3(),cameraLook=new T.Vector3(0,3.16,18),fallFocus=new T.Vector3(),fallLean=new T.Vector3();
 function updateCamera(dt){
