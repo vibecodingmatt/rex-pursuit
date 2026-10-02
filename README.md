@@ -150,7 +150,7 @@ Tuning values live in `src/chase/combat.js`. Pause freezes the fight, target and
 
 ### Chapter 02: Raptor Ravine
 
-**Raptor Ravine is temporarily open for play-testing** from the chapter link or `ravine.html`; no Rex win is required. Pursuit victory still offers **Next level** and records the earned unlock separately. Survive an 86-second pack chase through a sunlit canyon, under an abandoned viaduct and through the north evacuation gate. Marked raptors are about to leap; stop them first, and use grenades against a clustered pack. The final six seconds close the barrier behind the Jeep.
+**Raptor Ravine is temporarily open for play-testing** from its prominent amber main-menu card or `ravine.html`; no Rex win is required. Saved Rex winners see **Unlocked / Continue**, and chapter finishers see **Completed / Replay**. The menu card starts the chapter with one click or tap. Older players can enter without repeating a Rex victory. Pursuit victory still offers **Next level** and records the earned unlock separately. Survive an 86-second pack chase through a sunlit canyon, under an abandoned viaduct and through the north evacuation gate. Marked raptors are about to leap; stop them first, and use grenades against a clustered pack. The final six seconds close the barrier behind the Jeep.
 
 Hunters emerge from behind solid roadside boulders in overlapping groups, with faster approaches and shorter leap warnings later in the route. Hits leave wounds, blood and tissue; defeated raptors buckle, skid and settle onto the road. The Jeep has smaller, irregular suspension movement. Surviving hunters land and brake outside the closing gate as the Jeep pulls away.
 

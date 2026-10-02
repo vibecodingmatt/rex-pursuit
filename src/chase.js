@@ -37,9 +37,15 @@ import {createCombatFX} from './chase/combat-fx.js';
 import {createScreenBlood} from './chase/screen-blood.js';
 import {activateCheat,createCheatInput,createCheatBadge} from './chase/cheats.js';
 import {createScoreboard,readBoard,saveRun} from './chase/scoreboard.js';
-import {ravineAvailable,completeChapter} from './chase/campaign.js';
+import {ravineAvailable,campaignProgress,completeChapter} from './chase/campaign.js';
 const $=s=>document.querySelector(s),canvas=$('#scene');
-function updateCampaignLink(){$('#campaign-link').textContent=ravineAvailable()?'CHAPTER 02 · RAPTOR RAVINE ↗':'CHAPTER 02 · BEAT THE REX TO UNLOCK';}
+function updateCampaignLink(){
+ const available=ravineAvailable(),progress=campaignProgress(),card=$('#ravine-menu');
+ $('#campaign-link').textContent=available?'CHAPTER 02 · RAPTOR RAVINE ↗':'CHAPTER 02 · BEAT THE REX TO UNLOCK';
+ $('#ravine-menu-status').textContent=progress.completed?'CHAPTER 02 · COMPLETED':progress.ravine?'CHAPTER 02 · UNLOCKED':available?'CHAPTER 02 · AVAILABLE NOW':'BEAT THE REX TO UNLOCK';
+ card.querySelector('b').textContent=progress.completed?'REPLAY ↗':progress.ravine?'CONTINUE ↗':'PLAY ↗';
+ card.setAttribute('aria-disabled',String(!available));if(available)card.setAttribute('href','./ravine.html?start=1');else card.removeAttribute('href');
+}
 updateCampaignLink();
 installAtmosphericFog();
 const renderer=new T.WebGLRenderer({canvas,antialias:false,powerPreference:'high-performance'});renderer.shadowMap.enabled=true;renderer.shadowMap.type=T.PCFSoftShadowMap;renderer.toneMapping=T.ACESFilmicToneMapping;renderer.toneMappingExposure=1.13;renderer.info.autoReset=false;

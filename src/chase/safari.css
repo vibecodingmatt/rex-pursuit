@@ -3,6 +3,10 @@
 .mode-picker button{min-width:0;min-height:48px;text-align:left;padding:9px 8px;border:1px solid #c3cdb235;background:#09160ddd;letter-spacing:.75px;font-size:9px;font-weight:700;text-decoration:none;color:inherit}
 .mode-picker button small{display:block;margin-top:4px;color:#a4b49a;font-size:8px;letter-spacing:.2px;font-weight:400}
 .mode-picker button[aria-pressed=true]{border-color:#e8be75;color:#ffe0a5;background:#7258314a;box-shadow:inset 3px 0 #e8be75}
+#ravine-menu{grid-column:1/-1;display:flex;align-items:center;justify-content:space-between;gap:12px;min-height:56px;padding:11px 13px;border:1px solid #e8be7580;background:linear-gradient(110deg,#574326e8,#142219ed);color:#ffe0a5;text-decoration:none;box-shadow:inset 3px 0 #e8be75}
+#ravine-menu strong{display:block;font-size:12px;letter-spacing:1.2px}#ravine-menu small{display:block;margin-top:5px;font-size:8px;letter-spacing:1px;color:#d2d5b9}#ravine-menu b{font-size:10px;letter-spacing:.8px;white-space:nowrap}
+#ravine-menu:hover{border-color:#ffe0a5;background:#51432ded}#ravine-menu:focus-visible{outline:2px solid #ffe0a5;outline-offset:2px}#ravine-menu[aria-disabled=true]{opacity:.55}
+@media(max-height:570px) and (orientation:landscape){#ravine-menu{min-height:44px;padding:7px 10px}#ravine-menu small{display:block;font-size:7px;margin-top:3px}}
 #safari-menu-info{display:flex;align-items:center;gap:14px;margin-top:10px;font-size:9px;letter-spacing:1px;color:var(--amber)}
 #guide-open{font-size:9px;padding:8px 0;border-bottom:1px solid #e8be7555;color:#e2e7d9}
 #field-guide{width:min(590px,94vw);max-height:88dvh;overflow:auto;touch-action:pan-y}

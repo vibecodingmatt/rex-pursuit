@@ -10,6 +10,7 @@
                     "start":  "node scripts/serve.mjs",
                     "test":  "node scripts/test-combat.mjs && node scripts/verify-chase.cjs",
                     "test:ravine": "node scripts/test-ravine.mjs && node scripts/verify-ravine.cjs",
+                    "test:ravine-menu": "node scripts/verify-ravine-menu.cjs",
                     "test:ravine-arcade": "node scripts/test-ravine-arcade.mjs && node scripts/verify-ravine-arcade.cjs",
                     "test:smoke": "node scripts/smoke.cjs",
                     "test:cheats": "node scripts/test-cheats.mjs && node scripts/verify-cheat-toggles.cjs && node scripts/verify-cheats-gore.cjs",

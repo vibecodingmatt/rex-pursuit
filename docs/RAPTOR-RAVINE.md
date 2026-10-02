@@ -46,7 +46,9 @@ The [2026-10-02 arcade audit and overhaul](RAVINE-TURBO-AUDIT.md) adds skill cha
 - `src/ravine/world.js`: gravel road, talus, sparse agaves/dry grass, route markers, viaduct and sliding gate. Continuous rails were removed.
 - `art/prepare_raptor.py`, `art/prepare_ravine_outcrop.py`: explicit Blender export. Run with `--background --disable-autoexec`; source scripts are never needed. The raptor export repairs 292 unweighted mouth-interior vertices, in addition to the eyes. Unweighted vertices previously exported on `neutral_bone` and protruded below the moving jaw. `scripts/fetch-ravine-assets.ps1` restores inputs. Raw sources/review captures are ignored; runtime assets are committed.
 
-The menu is an idle composition, with closed jaw, planted staggered feet, subtle breathing/head/tail motion and a small camera drift. It never advances the run gait or road. Reduced-motion mode holds the pose. Portrait camera targeting follows the skull so the snout remains within the frame; menu FOV is separate from the wide combat FOV.
+The chapter menu is an idle composition, with closed jaw, planted staggered feet, subtle breathing/head/tail motion and a small camera drift. It never advances the run gait or road. Reduced-motion mode holds the pose. Portrait camera targeting follows the skull so the snout remains within the frame; menu FOV is separate from the wide combat FOV.
+
+The homepage has a prominent amber Raptor Ravine card directly beneath the mode buttons. Saved Rex winners see Unlocked/Continue; chapter finishers see Completed/Replay. Open access also lets returning players from older builds enter without repeating a Rex victory that those builds did not record. The card uses a one-use `?start=1` to enter gameplay after loading; it does not mark Rex as beaten. Refresh returns to the chapter briefing. `npm run test:ravine-menu` verifies this flow on desktop and phones, including unavailable storage.
 
 `window.ravine` exposes the local diagnostic scene, round, pack, camera, step, aim and freeze helpers, following the existing game's test conventions. A storage continuation is a local convenience flag, not an authentication mechanism.
 

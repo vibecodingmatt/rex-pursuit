@@ -22,8 +22,9 @@ import {createArcadeUI} from './arcade-ui.js';
 const $=id=>document.getElementById(id),reduced=matchMedia('(prefers-reduced-motion: reduce)').matches;
 // This continuation is also the in-session fallback when browser storage is
 // unavailable. It is a convenience unlock in a local game, not an auth token.
-const entry=new URL(location.href),continuing=entry.searchParams.get('continue')==='1';
-if(continuing){completeChapter(1);entry.searchParams.delete('continue');history.replaceState(null,'',entry);}
+const entry=new URL(location.href),continuing=entry.searchParams.get('continue')==='1',quickStart=entry.searchParams.get('start')==='1';
+if(continuing)completeChapter(1);
+if(continuing||quickStart){entry.searchParams.delete('continue');entry.searchParams.delete('start');history.replaceState(null,'',entry);}
 const unlocked=ravineAvailable();
 installAtmosphericFog();
 const renderer=new T.WebGLRenderer({canvas:$('scene'),antialias:false,powerPreference:'high-performance'});renderer.shadowMap.enabled=true;renderer.shadowMap.type=T.PCFSoftShadowMap;renderer.toneMapping=T.ACESFilmicToneMapping;renderer.toneMappingExposure=1.08;renderer.info.autoReset=false;
@@ -166,7 +167,7 @@ async function load(){try{
  breakup.burst(pack.get(900),new T.Vector3(0,0,1));for(const s of breakup.slots)for(const p of s.pieces)if(p.group.visible)p.group.position.y-=1000;
  await post.prepare(scene,camera);breakup.reset();ready=true;
  if(!unlocked){$('chapter-status').textContent='CHAPTER 02 / LOCKED';$('start').textContent='BEAT THE T. REX TO UNLOCK';$('loading-status').textContent='Win Rex Pursuit, then choose Next level from the victory screen.';}
- else{$('start').disabled=false;$('start').textContent='RUN THE RAVINE ↗';$('loading-status').textContent='Mouse: hold to fire. Touch: drag to aim, hold FIRE.';if(continuing)await start({automatic:true});}
+ else{$('start').disabled=false;$('start').textContent='RUN THE RAVINE ↗';$('loading-status').textContent='Mouse: hold to fire. Touch: drag to aim, hold FIRE.';if(continuing||quickStart)await start({automatic:true});}
  }catch(e){$('loading-status').textContent=`The ravine could not load. Reload to retry. (${e.message})`;console.error(e);}}
 load();
 window.ravine={round,scene,camera,renderer,jeep,audio,post,blood,gore,get pack(){return pack;},get breakup(){return breakup;},get world(){return world;},get ready(){return ready;},get mode(){return mode;},get view(){return view;},get freeze(){return freeze;},set freeze(v){freeze=v;},start,pause,step,shoot,grenade,aimAt(p){aim.copy(p.clone().project(camera));reticle();},snapshot(){return{mode,time:round.time,phase:round.phase,result:round.result,jeep:round.jeep,kills:round.kills,live:round.live.length,actors:pack?.pool.filter(a=>a.root.visible).length,calls:renderer.info.render.calls,triangles:renderer.info.render.triangles};}};
