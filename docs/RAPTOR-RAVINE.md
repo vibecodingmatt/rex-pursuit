@@ -19,6 +19,8 @@ The search also surfaced [Quaternius's CC0 dinosaur pack](https://quaternius.itc
 
 ## Route and rules
 
+The [2026-10-02 arcade audit and overhaul](RAVINE-TURBO-AUDIT.md) adds skill chains, earned Turbo, shootable quarry charges and the failing viaduct. It also documents the new score/rank rules and focused check. Base pack pressure and the extraction rules below remain in effect.
+
 - Survive an 86-second moving chase followed by six seconds through the closing evacuation gate. The cut, abandoned viaduct and widening north pass form three phases of this one level.
 - Overlapping ambush groups of two, then three in the last sector; live caps rise through 5 / 7 / 8. Approaches get faster and leap warnings shorten from 1.5 to 1.28 to 1.08 seconds. An unopposed strike costs 19 Jeep integrity. A perfect-aim simulation meets 41 hunters; unattended runs lose around 27 seconds. Automated aim establishes that the route remains possible, not human difficulty.
 - Hunters start behind persistent roadside boulders and arc around their inner edges. Both cameras see actual solid cover, which also blocks bullets. Cover placement and the spawn director share one route definition. Five approach lanes distribute the pack.

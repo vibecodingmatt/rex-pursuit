@@ -12,6 +12,8 @@ export const TIERS={
 export const ORDER=['low','medium','high','ultra'];
 // Combat geometry/splatter budget. Enemy counts remain identical at every tier.
 for(const [name,t]of Object.entries(TIERS))t.gore=name==='low'?.35:name==='medium'?.65:1;
+// Ravine scenery debris and muzzle lighting are independent of combat counts.
+for(const [name,t]of Object.entries(TIERS))t.ravine={debris:name==='low'?.4:name==='medium'?.7:1,muzzleLight:name!=='low'};
 
 function gpuName(renderer){
  try{const gl=renderer.getContext(),ext=gl.getExtension('WEBGL_debug_renderer_info');return String(ext?gl.getParameter(ext.UNMASKED_RENDERER_WEBGL):gl.getParameter(gl.RENDERER)||'');}catch{return '';}

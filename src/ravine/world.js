@@ -3,8 +3,9 @@ import {mergeVertices} from 'three/addons/utils/BufferGeometryUtils.js';
 import {mergeStatic} from '../chase/vehicle-geometry.js';
 import {createGeology} from './geology.js';
 import {AMBUSH_SITES,GATE,shoulderHeight} from './route.js';
+import {createSpectacle} from './spectacle.js';
 const rand=i=>{const v=Math.sin(i*127.1+311.7)*43758.5453;return v-Math.floor(v);};
-export async function createRavine(scene){
+export async function createRavine(scene,effects){
  const root=new T.Group();scene.add(root);const geology=await createGeology(root),cliffs=geology.root;
  const dummy=new T.Object3D();let travel=0;
  const textures=await Promise.all(['diff','nor_gl','rough'].map(n=>new T.TextureLoader().loadAsync(`./textures/ravine/gravel-${n}.jpg`)));
@@ -22,6 +23,8 @@ float wander=sin(vStone.z*.11)*.08+sin(vStone.z*.87)*.025;
 float track=1.-smoothstep(.19,.5,abs(abs(vStone.x+wander)-1.03));
 float edge=smoothstep(3.8,9.,abs(vStone.x));
 diffuseColor.rgb*=1.-track*.12;
+float patches=sin(vStone.z*.31+sin(vStone.x*1.4))*sin(vStone.x*.57+vStone.z*.09);
+diffuseColor.rgb*=.94+patches*.075;
 diffuseColor.rgb=mix(diffuseColor.rgb,diffuseColor.rgb*vec3(.82,.84,.76),edge*.6);`);
  };
  const roadGeo=new T.PlaneGeometry(52,92,24,64);roadGeo.rotateX(-Math.PI/2);const pos=roadGeo.attributes.position;
@@ -37,7 +40,7 @@ diffuseColor.rgb=mix(diffuseColor.rgb,diffuseColor.rgb*vec3(.82,.84,.76),edge*.6
  const grassPos=[],grassColors=[],grassIndices=[];
  for(let i=0;i<27;i++){const angle=rand(i+710)*Math.PI*2,r=rand(i+810)*.24,h=.22+rand(i+910)*.55,bend=.12+rand(i+930)*.26,base=grassPos.length/3;for(let j=0;j<4;j++){const t=j/3;for(const side of [-1,1]){const w=(1-t)*.013*side;grassPos.push(Math.cos(angle)*(r+bend*t*t)+Math.sin(angle)*w,h*t,Math.sin(angle)*(r+bend*t*t)-Math.cos(angle)*w);grassColors.push(.28+t*.17,.25+t*.14,.15+t*.09);}}for(let j=0;j<3;j++){const a=base+j*2;grassIndices.push(a,a+1,a+2,a+1,a+3,a+2);}}
  const grassGeo=new T.BufferGeometry();grassGeo.setAttribute('position',new T.Float32BufferAttribute(grassPos,3));grassGeo.setAttribute('color',new T.Float32BufferAttribute(grassColors,3));grassGeo.setIndex(grassIndices);grassGeo.computeVertexNormals();const grass=new T.InstancedMesh(grassGeo,new T.MeshStandardMaterial({vertexColors:true,roughness:1,side:T.DoubleSide}),600);grass.receiveShadow=true;root.add(grass);
- const steel=new T.MeshStandardMaterial({color:0x454846,roughness:.72,metalness:.52}),concrete=new T.MeshStandardMaterial({color:0xa39b88,roughness:.96}),rust=new T.MeshStandardMaterial({color:0x624330,roughness:.9,metalness:.27});
+ const steel=new T.MeshStandardMaterial({color:0x454846,roughness:.72,metalness:.52}),concrete=geology.debrisMaterial.clone(),rust=new T.MeshStandardMaterial({color:0x624330,roughness:.9,metalness:.27});concrete.color.set('#a9b2b0');concrete.roughness=.96;concrete.normalScale.set(.4,.4);concrete.onBeforeCompile=s=>{s.fragmentShader=s.fragmentShader.replace('#include <color_fragment>','#include <color_fragment>\n diffuseColor.rgb=mix(vec3(dot(diffuseColor.rgb,vec3(.2126,.7152,.0722))),diffuseColor.rgb,.18);');};
  function block(parent,mat,size,at){const m=new T.Mesh(new T.BoxGeometry(...size),mat);m.position.set(...at);m.castShadow=m.receiveShadow=true;parent.add(m);return m;}
  function beam(parent,mat,a,b,r=.1){const d=new T.Vector3(...b).sub(new T.Vector3(...a)),m=new T.Mesh(new T.CylinderGeometry(r,r,d.length(),8),mat);m.position.fromArray(a).addScaledVector(d,.5);m.quaternion.setFromUnitVectors(new T.Vector3(0,1,0),d.normalize());m.castShadow=true;parent.add(m);return m;}
  const props=new T.Group();root.add(props);
@@ -45,7 +48,7 @@ diffuseColor.rgb=mix(diffuseColor.rgb,diffuseColor.rgb*vec3(.82,.84,.76),edge*.6
  for(let i=0;i<10;i++){const z=i*38-138,side=i%2?1:-1;block(props,concrete,[.18,.68,.18],[side*6.3,.31,z]);block(props,rust,[.2,.13,.2],[side*6.3,.55,z]);}
  const viaduct=new T.Group();root.add(viaduct);
  for(const x of [-7.7,7.7]){block(viaduct,concrete,[1.5,12,2.6],[x,6,0]);block(viaduct,concrete,[2.4,1.1,3.8],[x,11.7,0]);}
- block(viaduct,concrete,[37,1.3,4],[0,12.7,0]);block(viaduct,rust,[37,.3,.18],[0,14.2,1.8]);for(let i=0;i<19;i++)block(viaduct,rust,[.09,1.4,.09],[i*2-18,13.6,1.8]);
+ const spectacle=createSpectacle(root,viaduct,concrete,effects);
  const gate=new T.Group();root.add(gate);
  const wings=new T.Group();wings.name='Continuous evacuation perimeter';gate.add(wings);
  const wallStone=geology.debrisMaterial.clone();wallStone.color.set('#afb1a8');
@@ -67,17 +70,29 @@ diffuseColor.rgb=mix(diffuseColor.rgb,diffuseColor.rgb*vec3(.82,.84,.76),edge*.6
  mergeStatic(props);mergeStatic(viaduct);mergeStatic(wings);for(const panel of panels)mergeStatic(panel);mergeStatic(gate);
  const motesGeo=new T.BufferGeometry(),motesP=new Float32Array(240*3);for(let i=0;i<240;i++){motesP[i*3]=(rand(i+40)-.5)*25;motesP[i*3+1]=rand(i+70)*12;motesP[i*3+2]=rand(i+80)*100-25;}motesGeo.setAttribute('position',new T.BufferAttribute(motesP,3));const motes=new T.Points(motesGeo,new T.PointsMaterial({color:0xf9d4a0,size:.032,transparent:true,opacity:.43,depthWrite:false}));root.add(motes);
  function wrap(n,length=368){return ((n+138)%length+length)%length-138;}
+ // Build instance rotations/scales once. Moving the mesh scrolls the road;
+ // only a prop crossing the far boundary needs a new instance translation.
+ const scrollSets=[];
+ for(const [mesh,count,offset]of [[rocks,440,30],[scrub,240,3],[grass,600,540]]){
+  const base=[];for(let i=0;i<count;i++){
+   const z=wrap(rand(i+offset)*368);base.push(z);
+   if(mesh===rocks){const side=i%2?1:-1,large=i<80,x=large?9+rand(i+7)*10:5.5+rand(i+7)*11,k=large?.65+rand(i+1)**2*2.5:.04+rand(i+1)**3*.62;dummy.position.set(side*x,.12+(x-6)*.12,z);dummy.rotation.set(rand(i+55)*.6,rand(i)*6,rand(i+80)*.4);dummy.scale.set(k,k*(large?.65:.6),k*1.3);}
+   else if(mesh===scrub){const x=6.8+rand(i+40)*6;dummy.position.set((i%2?1:-1)*x,.08+(x-5.6)*.12,z);dummy.rotation.set(0,rand(i)*6,0);dummy.scale.setScalar(.2+rand(i+90)*.55);}
+   else{const x=4.7+rand(i+41)**.7*10;dummy.position.set((i%2?1:-1)*x,Math.max(0,x-5.6)*.12,z);dummy.rotation.set(0,rand(i+800)*6,0);dummy.scale.setScalar(.4+rand(i+50)*.75);}
+   dummy.updateMatrix();mesh.setMatrixAt(i,dummy.matrix);
+  }mesh.frustumCulled=false;scrollSets.push({mesh,base,cycles:new Int32Array(count)});
+ }
+ for(const s of AMBUSH_SITES){dummy.position.set(s.x,shoulderHeight(s.x)+s.sy*.62,s.z);dummy.rotation.set(0,s.yaw,0);dummy.scale.set(s.sx,s.sy,s.sz);dummy.updateMatrix();ambushBoulders.setMatrixAt(s.id,dummy.matrix);}ambushBoulders.instanceMatrix.needsUpdate=true;
  function update(dt,round,speed){
   travel+=dt*speed;
   geology.update(travel);
-  for(const s of AMBUSH_SITES){dummy.position.set(s.x,shoulderHeight(s.x)+s.sy*.62,s.z+travel);dummy.rotation.set(0,s.yaw,0);dummy.scale.set(s.sx,s.sy,s.sz);dummy.updateMatrix();ambushBoulders.setMatrixAt(s.id,dummy.matrix);}ambushBoulders.instanceMatrix.needsUpdate=true;ambushBoulders.boundingSphere=null;
+  ambushBoulders.position.z=travel;
   chunks.forEach((r,i)=>r.position.z=wrap(i*92+travel));
-  for(let i=0;i<440;i++){const side=i%2?1:-1,large=i<80,x=large?9+rand(i+7)*10:5.5+rand(i+7)*11,k=large?.65+rand(i+1)**2*2.5:.04+rand(i+1)**3*.62;dummy.position.set(side*x,.12+(x-6)*.12,wrap(rand(i+30)*368+travel));dummy.rotation.set(rand(i+55)*.6,rand(i)*6,rand(i+80)*.4);dummy.scale.set(k,k*(large?.65:.6),k*1.3);dummy.updateMatrix();rocks.setMatrixAt(i,dummy.matrix);}rocks.instanceMatrix.needsUpdate=true;
-  for(let i=0;i<240;i++){const x=6.8+rand(i+40)*6;dummy.position.set((i%2?1:-1)*x,.08+(x-5.6)*.12,wrap(rand(i+3)*368+travel));dummy.rotation.set(0,rand(i)*6,0);dummy.scale.setScalar(.2+rand(i+90)*.55);dummy.updateMatrix();scrub.setMatrixAt(i,dummy.matrix);}scrub.instanceMatrix.needsUpdate=true;
-  for(let i=0;i<600;i++){const x=4.7+rand(i+41)**.7*10;dummy.position.set((i%2?1:-1)*x,Math.max(0,x-5.6)*.12,wrap(rand(i+540)*368+travel));dummy.rotation.set(0,rand(i+800)*6,0);dummy.scale.setScalar(.4+rand(i+50)*.75);dummy.updateMatrix();grass.setMatrixAt(i,dummy.matrix);}grass.instanceMatrix.needsUpdate=true;
+  for(const {mesh,base,cycles}of scrollSets){mesh.position.z=travel;let dirty=false;for(let i=0;i<base.length;i++){const cycle=Math.floor((base[i]+travel+138)/368);if(cycle!==cycles[i]){cycles[i]=cycle;mesh.instanceMatrix.array[i*16+14]=base[i]-cycle*368;dirty=true;}}if(dirty)mesh.instanceMatrix.needsUpdate=true;}
   props.position.z=travel%38;viaduct.position.z=travel-270;gate.position.z=travel+GATE.at;gate.visible=round.time>67;
   for(const panel of panels)panel.position.x=panel.userData.side*(8.7-5.86*T.MathUtils.smoothstep(round.escapeTime,GATE.closeStart,GATE.closeEnd));
+  spectacle.update(dt,round,travel);
   motes.position.z=travel%20;beaconMat.emissiveIntensity=2.2+Math.sin(round.time*6)*.8;
  }
- return {root,cliffs,gate,panels,wings,viaduct,ambushBoulders,coverHit(ray,far=100){coverRay.ray.copy(ray);coverRay.far=far;const hits=coverRay.intersectObject(ambushBoulders);if(gate.visible)hits.push(...coverRay.intersectObject(gate,true));return hits.sort((a,b)=>a.distance-b.distance)[0]||null;},update,reset(){travel=0;update(0,{time:0,escapeTime:0},0);},setQuality(t){geology.setQuality(t);scrub.count=t.detail?100:60;grass.count=t.detail?600:300;rocks.count=t.detail?440:260;motes.visible=t.detail;},get travel(){return travel;}};
+ return {root,cliffs,gate,panels,wings,viaduct,ambushBoulders,spectacle,coverHit(ray,far=100){coverRay.ray.copy(ray);coverRay.far=far;const hits=coverRay.intersectObject(ambushBoulders);if(gate.visible)hits.push(...coverRay.intersectObject(gate,true));return hits.sort((a,b)=>a.distance-b.distance)[0]||null;},update,reset(){travel=0;spectacle.reset();update(0,{time:0,escapeTime:0},0);},setQuality(t){geology.setQuality(t);spectacle.setQuality(t);scrub.count=t.detail?100:60;grass.count=t.detail?600:300;rocks.count=t.detail?440:260;motes.visible=t.detail;},get travel(){return travel;}};
 }

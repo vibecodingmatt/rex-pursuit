@@ -1,10 +1,11 @@
 import {AMBUSH_SITES,ROAD_SPEED,GATE,gateZ,hash,smooth,shoulderHeight} from './route.js';
+import {RavineArcade} from './arcade.js';
 export const RAVINE={duration:86,escape:6,magazine:80,reload:2.6,fireInterval:.085,grenadeCooldown:11,maxActors:18};
 export const sectionAt=t=>t<27?0:t<57?1:2;
 const clamp=(v,a,b)=>Math.max(a,Math.min(b,v));
 export class RavineRound{
- constructor(){this.reset();}
- reset(){Object.assign(this,{time:0,phase:'chase',result:null,jeep:100,ammo:80,reload:0,heat:0,shotTimer:0,grenade:0,kills:0,shots:0,hits:0,escapeTime:0,nextSpawn:2.6,waveLeft:0,serial:0,attackers:[],events:[],cheated:false,infiniteAmmo:false,infiniteRockets:false,coverUsed:new Map()});}
+ constructor(){this.arcade=new RavineArcade();this.reset();}
+ reset(){this.arcade.reset();Object.assign(this,{time:0,phase:'chase',result:null,jeep:100,ammo:80,reload:0,heat:0,shotTimer:0,grenade:0,kills:0,shots:0,hits:0,escapeTime:0,nextSpawn:2.6,waveLeft:0,serial:0,attackers:[],events:[],cheated:false,infiniteAmmo:false,infiniteRockets:false,coverUsed:new Map()});}
  get remaining(){return Math.max(0,RAVINE.duration-this.time);}
  get live(){return this.attackers.filter(a=>!['dead','gone','shattered','withdrawn'].includes(a.phase));}
  tick(dt){if(dt<=0||this.result)return;let left=dt;while(left>1e-8&&!this.result){const h=Math.min(left,1/60);this.advance(h);left-=h;}}
@@ -31,6 +32,7 @@ export class RavineRound{
   this.events.push({type:'escape'});
  }
  advance(dt){
+  this.arcade.tick(dt);
   if(this.phase==='escape'){this.extract(dt);return;}
   const before=sectionAt(this.time);this.time=Math.min(RAVINE.duration,this.time+dt);if(sectionAt(this.time)!==before)this.events.push({type:'section',section:sectionAt(this.time)});
   for(const k of ['shotTimer','grenade'])this[k]=Math.max(0,this[k]-dt);this.heat=Math.max(0,this.heat-dt*.21);
@@ -62,7 +64,7 @@ export class RavineRound{
   }
   this.attackers=this.attackers.filter(a=>a.phase!=='gone');
  }
- heading(a,x,z,dt){const vx=(a.x-x)/dt,vz=(a.z-z)/dt-ROAD_SPEED;a.motionSpeed=Math.min(19,Math.hypot(vx,vz));const facing=Math.atan2(-vx,-vz);if(a.motionSpeed>.1){const turn=Math.atan2(Math.sin(facing-a.yaw),Math.cos(facing-a.yaw));a.yaw+=turn*(1-Math.exp(-dt*7));}a.groundY=shoulderHeight(a.x);}
+ heading(a,x,z,dt){const vx=(a.x-x)/dt,vz=(a.z-z)/dt-ROAD_SPEED;a.motionSpeed=Math.min(19,Math.hypot(vx,vz));const facing=Math.atan2(-vx,-vz);let bank=0;if(a.motionSpeed>.1){const turn=Math.atan2(Math.sin(facing-a.yaw),Math.cos(facing-a.yaw));a.yaw+=turn*(1-Math.exp(-dt*7));bank=clamp(turn*.3,-.18,.18);}a.bank=(a.bank||0)+(bank-(a.bank||0))*(1-Math.exp(-dt*9));a.groundY=shoulderHeight(a.x);}
  withdrawal(a,travel){const e=a.exit,u=smooth(a.age,0,3.8),cross=smooth(u,.38,.82),pull=smooth(u,0,.55);a.x=e.x+(e.side*5.2-e.x)*pull+(e.cover.x+e.side*1.35-e.side*5.2)*cross;a.z=travel+e.z+(e.cover.z+9-e.z)*pull+3*smooth(u,.7,1);if(a.age>=3.8){a.phase='withdrawn';a.age=0;a.hidden=false;}}
  retreat(a){
   const travel=this.time*ROAD_SPEED,side=Math.sign(a.x)||a.side;
@@ -78,10 +80,11 @@ export class RavineRound{
   const x=cover.x+side*1.3;
   this.attackers.push({id,side,lane:rank[0].lane,x,z:cover.z+travel+7,groundY:shoulderHeight(x),cover,hp:180,maxHp:180,phase:'emerge',age:0,flash:0,seed:id*.71,yaw:0,motionSpeed:0,warning:[1.5,1.28,1.08][section]});this.events.push({type:'spawn',id});return true;
  }
- shoot(){if(this.result||this.phase!=='chase'||this.shotTimer>0||this.reload>0||(!this.ammo&&!this.infiniteAmmo)||(this.heat>=.98&&!this.infiniteAmmo))return false;this.shotTimer=RAVINE.fireInterval;this.shots++;if(this.infiniteAmmo)this.heat=0;else{this.ammo--;this.heat=Math.min(1,this.heat+.027);}if(!this.ammo&&!this.infiniteAmmo)this.startReload();return true;}
+ shoot(){const powered=this.infiniteAmmo||this.arcade.turbo>0;if(this.result||this.phase!=='chase'||this.shotTimer>0||this.reload>0||(!this.ammo&&!powered)||(this.heat>=.98&&!powered))return false;this.shotTimer=this.arcade.turbo>0?.05:RAVINE.fireInterval;this.shots++;if(powered)this.heat=0;else{this.ammo--;this.heat=Math.min(1,this.heat+.027);}if(!this.ammo&&!powered)this.startReload();return true;}
+ activateTurbo(){if(this.result||this.phase!=='chase'||!this.arcade.activate())return false;this.ammo=RAVINE.magazine;this.reload=this.heat=this.shotTimer=0;this.events.push({type:'turbo'});return true;}
  startReload(){if(this.result||this.phase!=='chase'||this.infiniteAmmo||this.reload>0||this.ammo===80)return false;this.reload=RAVINE.reload;this.events.push({type:'reload'});return true;}
  launchGrenade(){if(this.result||this.phase!=='chase'||this.grenade>0&&!this.infiniteRockets)return false;this.grenade=this.infiniteRockets?0:RAVINE.grenadeCooldown;return true;}
- hit(id,{head=false,explosive=false,direct=false,direction=[0,0,1]}={}){const a=this.attackers.find(a=>a.id===id);if(this.result||this.phase!=='chase'||!a||['dead','gone','shattered'].includes(a.phase))return false;this.hits++;a.hp=Math.max(0,a.hp-(explosive?230:head?32:20));a.flash=.16;if(a.hp===0){a.death={head,explosive,direct,direction,airV:a.phase==='leap'?1.3*Math.PI/.68*Math.cos(Math.PI*clamp(a.age/.68,0,1)):0};a.deadSpeed=Math.min(13,a.motionSpeed);a.phase=explosive&&direct?'shattered':'dead';a.age=0;this.kills++;this.events.push({type:'kill',id});return true;}return false;}
- damage(n){if(this.result||this.phase!=='chase')return;this.jeep=Math.max(0,this.jeep-n);this.events.push({type:'damage'});if(!this.jeep){this.result='lost';this.events.push({type:'lost'});}}
+ hit(id,{head=false,explosive=false,direct=false,direction=[0,0,1]}={}){const a=this.attackers.find(a=>a.id===id);if(this.result||this.phase!=='chase'||!a||['dead','gone','shattered'].includes(a.phase))return false;this.hits++;a.hp=Math.max(0,a.hp-(explosive?230:(head?32:20)*(this.arcade.turbo>0?1.6:1)));a.flash=.16;if(a.hp===0){const award=this.arcade.kill({head,explosive,air:a.phase==='leap'});a.death={head,explosive,direct,direction,airV:a.phase==='leap'?1.3*Math.PI/.68*Math.cos(Math.PI*clamp(a.age/.68,0,1)):0};a.deadSpeed=Math.min(13,a.motionSpeed);a.phase=explosive&&direct?'shattered':'dead';a.age=0;this.kills++;this.events.push({type:'kill',id,award});return true;}return false;}
+ damage(n){if(this.result||this.phase!=='chase')return;this.arcade.damage();this.jeep=Math.max(0,this.jeep-n);this.events.push({type:'damage'});if(!this.jeep){this.result='lost';this.events.push({type:'lost'});}}
  drain(){return this.events.splice(0);}
 }

@@ -77,13 +77,17 @@ export async function createRaptors(scene){
    const gaitSpeed=idle?0:(data.motionSpeed??speed);a.phase=(a.phase+dt*gaitSpeed/4.706)%1;for(const [n,r]of Object.entries(a.rest)){a.bones[n].quaternion.copy(r.q);a.bones[n].position.copy(r.p);}
    const leap=data.phase==='leap'?Math.sin(Math.PI*Math.min(1,data.age/.68)):0,warn=data.phase==='warn'?smooth(data.age,data.warning*.45,data.warning):0;
    const breath=Math.sin(data.age*1.45),settle=idle?1:data.phase==='gate-brake'?smooth(data.age,.15,.72):data.phase==='retreat'?smooth(data.age,3.05,3.8):0;
-   a.model.position.y=floor-.24*(1-settle)+breath*.009*settle+.035*Math.cos(a.phase*Math.PI*4)*(1-settle)-warn*.06;
+   a.model.position.y=floor-.24*(1-settle)+breath*.009*settle+.05*Math.cos(a.phase*Math.PI*4)*(1-settle)-warn*.19;
    turn(a,'Bone.010',X,-.1-.02*settle-warn*.07);turn(a,'Bone.014',X,.07-.24*settle+breath*.008*settle+warn*.12);turn(a,'Bone.016',Z,Math.sin(data.seed+data.age*(idle?.23:1.1))*.035);
    turn(a,'Bone.016',UP,(.12+Math.sin(data.age*.17)*.045)*settle);
+   // The pelvis banks into a turn while the head and tail counterbalance.
+   // Chase gaze follows the Jeep without rotating the planted feet.
+   const bank=data.bank||0,focus=idle?0:T.MathUtils.clamp(Math.atan2(data.x,Math.max(5,data.z))-(data.yaw||0),-.34,.34);
+   turn(a,'Bone.010',Z,bank);turn(a,'Bone.014',Z,-bank*.65);turn(a,'Bone.016',UP,focus*.5);
    if(data.flash>0){const recoil=Math.sin((.16-data.flash)/.16*Math.PI)*.065;turn(a,'Bone.012',Z,recoil*data.side);turn(a,'Bone.016',X,-recoil);}
    turn(a,'Bone.017',X,-.25-.12*settle+warn*.32+leap*.32);
-   for(let i=0;i<10;i++)turn(a,['Bone','Bone.004','Bone.003','Bone.002','Bone.006','Bone.005','Bone.001','Bone.008','Bone.007','Bone.009'][i],Z,Math.sin((idle?data.age*.35:a.phase*Math.PI*2)-i*.36)*(idle?.008:.045));
-   turn(a,'Bone.024',X,-.45+leap*.7);turn(a,'Bone.025',X,-.45+leap*.7);turn(a,'Bone.026',X,-.65);turn(a,'Bone.027',X,-.65);
+   for(let i=0;i<10;i++)turn(a,['Bone','Bone.004','Bone.003','Bone.002','Bone.006','Bone.005','Bone.001','Bone.008','Bone.007','Bone.009'][i],Z,Math.sin((idle?data.age*.35:a.phase*Math.PI*2)-i*.36)*(idle?.008:.045)-bank*.22);
+   turn(a,'Bone.024',X,-.45+leap*.88-warn*.2);turn(a,'Bone.025',X,-.45+leap*.7-warn*.15);turn(a,'Bone.026',X,-.65+leap*.34);turn(a,'Bone.027',X,-.65+leap*.28);
    a.root.updateMatrixWorld(true);
    for(let i=0;i<2;i++){
     const t=(a.phase+i*.5)%1,duty=.34,stance=idle||t<duty,amplitude=.8*(1-settle);const z=(stance?-1+t/duty*2:1-((t-duty)/(1-duty))*2)*amplitude+(i===0?-.15:.16)*settle,lift=stance?0:.4*Math.sin((t-duty)/(1-duty)*Math.PI)*(1-settle);

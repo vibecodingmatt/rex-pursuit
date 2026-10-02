@@ -158,7 +158,9 @@ The death rig gives the neck, tail and limbs independent weight and ground conta
 
 The new creature is Animaniac888's CC0 [Dromaeosaur Raptor](https://blendswap.com/blend/4889), with its authored 2K maps and repaired eyes/mouth binding. The menu uses a planted idle pose. The canyon combines Poly Haven's CC0 [Namaqualand Cliff 02](https://polyhaven.com/a/namaqualand_cliff_02), [Sandstone Cracks](https://polyhaven.com/a/sandstone_cracks) and [Gravelly Sand](https://polyhaven.com/a/gravelly_sand) with continuous terrain, overlapping fractured outcrops and talus. Sources and authoring instructions are in [the chapter reference](docs/RAPTOR-RAVINE.md) and runtime provenance. The existing Rex retains its CC BY 4.0 attribution.
 
-Progress and separate fair/cheat records are saved on this browser. First/third-person cameras, the existing touch controls and both cheat toggles work in the new chapter. `npm run test:ravine` checks progression and full gameplay flows.
+Chain takedowns within 5.5 seconds to build a **×5 multiplier**. Headshots and midair stops score more and charge **Turbo** faster. When ready, press **E** or tap **TURBO** for six seconds of rapid fire, increased bullet damage, no heat/ammo consumption and a fresh belt. Shoot the yellow **quarry charges** to blast nearby exposed hunters. The viaduct buckles behind the Jeep as the chase passes underneath it.
+
+Progress and separate fair/cheat arcade records are saved on this browser; older Ravine scores remain stored separately. Results include a D–S rank, best chain and skill totals. First/third-person cameras, the existing touch controls and both cheat toggles work in the new chapter. `npm run test:ravine` checks progression and full gameplay flows; `npm run test:ravine-arcade` checks skill scoring, Turbo and the new scenery events. See [the audit and executed plan](docs/RAVINE-TURBO-AUDIT.md).
 
 ### Existing jungle chase
 
