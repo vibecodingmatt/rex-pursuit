@@ -23,7 +23,8 @@ const {chromium}=require('playwright-core'),assert=require('node:assert/strict')
    shader(gl.FRAGMENT_SHADER,'#version 300 es\nprecision highp float;out vec4 color;void main(){color=vec4(1.);}');
    gl.transformFeedbackVaryings(program,['posed'],gl.INTERLEAVED_ATTRIBS);gl.linkProgram(program);require(gl.getProgramParameter(program,gl.LINK_STATUS),gl.getProgramInfoLog(program));gl.useProgram(program);
    const loc=name=>gl.getUniformLocation(program,name),output=gl.createBuffer(),matrix=new T.Matrix4(),point=new T.Vector3(),rows=[];
-   for(const tier of ['high','low'])for(const name of ['raptor','dilophosaurus','parasaurolophus','pachycephalosaurus','gallimimus','triceratops','stegosaurus']){
+   // The authored skinned raptor is covered by verify-shared-raptors.cjs.
+   for(const tier of ['high','low'])for(const name of ['dilophosaurus','parasaurolophus','pachycephalosaurus','gallimimus','triceratops','stegosaurus']){
     r.setQuality(tier);r.critters.reset({empty:true});const c=r.critters.huntSpawn(name,1,20),k=c.kind,g=k.mesh.geometry,pos=g.attributes.position,rig=g.attributes.rig;
     c.vigor=1;c.cadence=1;c.away=0;c.swerve=0;c.jink=100;
     const ids=[];let arm=-1,torso=-1;
@@ -60,19 +61,9 @@ const {chromium}=require('playwright-core'),assert=require('node:assert/strict')
      const shapes=[];for(const open of [0,1]){gl.uniform1f(loc('aFrill'),open);gl.enable(gl.RASTERIZER_DISCARD);gl.beginTransformFeedback(gl.POINTS);gl.drawArrays(gl.POINTS,0,ids.length);gl.endTransformFeedback();gl.disable(gl.RASTERIZER_DISCARD);gl.getBufferSubData(gl.TRANSFORM_FEEDBACK_BUFFER,0,data);shapes.push([...data]);}
      const f=(ids.length-1)*3;require(shapes[0][f]<shapes[1][f]*.5,`${tier}: folded fan is still wide`);require(shapes[0][f+2]<shapes[1][f+2]-.08,`${tier}: fan did not fold backwards`);require(shapes[0].slice(toes*3,toes*3+3).every((v,i)=>v===shapes[1][toes*3+i]),`${tier}: folding pulled the torso`);
     }
-    if(name==='raptor'){
-     // Breach's negative pose channel tucks the legs and reaches with the arms.
-     gl.uniform4fv(loc('aBody'),[0,0,0,k.centre]);gl.uniformMatrix4fv(loc('model'),false,new T.Matrix4().elements);
-     const shapes=[];for(const curl of [0,-.85]){gl.uniform4fv(loc('aPose'),[.25,0,0,curl]);gl.enable(gl.RASTERIZER_DISCARD);gl.beginTransformFeedback(gl.POINTS);gl.drawArrays(gl.POINTS,0,ids.length);gl.endTransformFeedback();gl.disable(gl.RASTERIZER_DISCARD);gl.getBufferSubData(gl.TRANSFORM_FEEDBACK_BUFFER,0,data);shapes.push([...data]);}
-     require(shapes[1].every(Number.isFinite),`${tier}: invalid leap vertices`);
-     require(shapes[1].slice(0,toes*3).some((v,i)=>i%3===1&&v-shapes[0][i]>.025),`${tier}: leap feet did not tuck`);
-     require(shapes[1].slice((toes+1)*3).some((v,i)=>Math.abs(v-shapes[0][(toes+1)*3+i])>.025),`${tier}: leap arms did not reach`);
-     c.curl=-.7;c.peck=c.flinch=0;r.critters.updateDirected(0);k.mesh.getMatrixAt(0,matrix);
-    }
     // Kill with exactly the current pose, then write at dt=0 without stepping the fall.
     const prior=matrix.clone();r.critters.kill(c,new T.Vector3(0,0,1));r.critters.update(Number.MIN_VALUE,{speed:0,spawn:false});k.mesh.getMatrixAt(0,matrix);
     require(matrix.elements.every((v,i)=>Math.abs(v-prior.elements[i])<1e-5),`${name}/${tier}: body pops on kill`);
-    if(name==='raptor')require(Math.abs(c.curl+.7)<1e-5,`${tier}: shooting an airborne raptor resets its tucked pose`);
     for(let i=0;i<300;i++)r.critters.update(1/60,{speed:0,spawn:false});require(c.grounded&&Number.isFinite(c.p.y),`${name}/${tier}: fall did not settle`);
     rows.push({name,tier,bob:+bob.toFixed(3),arm:+armRange.toFixed(3),footMin:+footMin.toFixed(4)});buffers.forEach(b=>gl.deleteBuffer(b));
    }

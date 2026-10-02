@@ -38,10 +38,10 @@ export class RavineRound{
   for(const k of ['shotTimer','grenade'])this[k]=Math.max(0,this[k]-dt);this.heat=Math.max(0,this.heat-dt*.21);
   if(this.reload>0){this.reload=Math.max(0,this.reload-dt);if(!this.reload){this.ammo=RAVINE.magazine;this.events.push({type:'loaded'});}}
   if(this.time>=RAVINE.duration){this.beginEscape();return;}
-  const section=sectionAt(this.time),limit=[5,7,8][section];
+  const section=sectionAt(this.time),limit=[6,7,8][section];
   if(this.time>=this.nextSpawn&&this.time<82&&this.live.length<limit&&this.attackers.length<RAVINE.maxActors){
-   if(!this.waveLeft)this.waveLeft=section===2?3:2;
-   if(this.spawn()){this.waveLeft--;this.nextSpawn=this.time+(this.waveLeft ? .5+hash(this.serial)*.28 : [4.4,3.6,2.8][section]);}else this.nextSpawn=this.time+.2;
+   if(!this.waveLeft)this.waveLeft=section===0?2:3;
+   if(this.spawn()){this.waveLeft--;this.nextSpawn=this.time+(this.waveLeft ? .4+hash(this.serial)*.2 : [3.7,3.15,2.5][section]);}else this.nextSpawn=this.time+.2;
   }
   for(const a of this.attackers){
    if(a.phase==='dead'){this.deadStep(a,dt);continue;}if(a.phase==='shattered'){a.age+=dt;if(a.age>7)a.phase='gone';continue;}if(a.phase==='gone')continue;
@@ -50,7 +50,7 @@ export class RavineRound{
     const u=smooth(a.age,0,1.45);a.x=a.cover.x+a.side*1.3+(a.side*4.8-a.cover.x-a.side*1.3)*u;a.z=a.cover.z+this.time*ROAD_SPEED+7-3*u;
     if(a.age>=1.45){a.phase='run';a.age=0;}
    }else if(a.phase==='run'){
-    a.z=Math.max(9,a.z-dt*(5.3+section*.65+hash(a.id)*.7));a.x+=(a.lane+Math.sin(this.time*1.4+a.seed)*.18-a.x)*(1-Math.exp(-dt*1.5));
+    a.z=Math.max(9,a.z-dt*(8.1+section*.95+hash(a.id)*.9));a.x+=(a.lane+Math.sin(this.time*1.4+a.seed)*.18-a.x)*(1-Math.exp(-dt*1.9));
     if(a.z<=9){a.phase='warn';a.age=0;this.events.push({type:'warn',id:a.id});}
    }else if(a.phase==='warn'){
     a.x+=(a.lane-a.x)*(1-Math.exp(-dt*3));

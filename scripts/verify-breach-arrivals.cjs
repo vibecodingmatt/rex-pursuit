@@ -12,11 +12,11 @@ const {chromium}=require('playwright-core'),assert=require('node:assert/strict')
     const result=await p.evaluate(async({species,lane})=>{
      const T=await import('/node_modules/three/build/three.module.js'),b=breach;b.director.reset();b.round.reset();b.round.time=20;
      const a=b.director.spawn(lane,species),c=a.c;b.director.update(0);b.scene.updateMatrixWorld(true);
-     const mesh=b.critters.meshes.find(m=>m.count>0),box=new T.Box3().setFromBufferAttribute(mesh.geometry.attributes.position).expandByScalar(.15),rotation=new T.Quaternion().setFromAxisAngle(new T.Vector3(0,1,0),c.yaw);
+     const mesh=c.kind.mesh,box=c.rig?new T.Box3().setFromObject(c.rig.root,true):new T.Box3().setFromBufferAttribute(mesh.geometry.attributes.position).expandByScalar(.15),rotation=new T.Quaternion().setFromAxisAngle(new T.Vector3(0,1,0),c.yaw);
      const frustum=new T.Frustum().setFromProjectionMatrix(new T.Matrix4().multiplyMatrices(b.camera.projectionMatrix,b.camera.matrixWorldInverse));
      let seen=0,probes=0;const exposed=[];
      for(const x of [box.min.x,(box.min.x+box.max.x)/2,box.max.x])for(const y of [box.min.y,(box.min.y+box.max.y)/2,box.max.y])for(const z of [box.min.z,(box.min.z+box.max.z)/2,box.max.z]){
-      const v=new T.Vector3(x,y,z).multiplyScalar(c.scale).applyQuaternion(rotation).add(c.p);probes++;if(v.y>=0&&frustum.containsPoint(v)&&b.world.clearEntryLine(b.camera.position,v)){seen++;exposed.push(v.toArray());}
+      const v=new T.Vector3(x,y,z);if(!c.rig)v.multiplyScalar(c.scale).applyQuaternion(rotation).add(c.p);probes++;if(v.y>=0&&frustum.containsPoint(v)&&b.world.clearEntryLine(b.camera.position,v)){seen++;exposed.push(v.toArray());}
      }
      const centre=c.p.clone();centre.y+=c.kind.centre*c.scale;b.aimAt(centre);b.shoot();const hp=c.hp;
      // A blast on the front face must not kill a hidden animal through concrete.

@@ -3,7 +3,9 @@ import {mergeGeometries} from 'three/addons/utils/BufferGeometryUtils.js';
 import {WET} from './weather-state.js';
 import {SPECIES} from './safari-rules.js';
 import {loadSafariModels} from './safari-models.js';
+import {loadRaptorModels} from './raptor-models.js';
 import {SAFARI_MOTION,safariBody,SAFARI_GAIT_GLSL,SAFARI_FRILL_GLSL,resetFrill,stepFrill,foldFrillPoint} from './safari-motion.js';
+const RAPTOR_FORWARD=new T.Quaternion(0,1,0,0);
 // Small ground life that reacts to the chase. Compies forage in loose packs on the
 // track and verges; lizards bask on verge rocks. Positions are in the Jeep's frame,
 // where the ground slides past at +speed along z, so a creature standing still rides
@@ -249,7 +251,7 @@ export function createCritters(scene,{jungle,camera=null,capacities={}}){
  const centre=new T.Vector3(),push=new T.Vector3(),turn=new T.Quaternion(),axis=new T.Vector3(),probe=new T.Vector3(),settle=new T.Quaternion(),toCentre=new T.Vector3();
  let travel=0,nextPack=40,nextHerd=300,packId=0,density=1,now=0,chunkZ=[],api;
  const tally={kills:0};
- let modelTier='high',models=null,modelError=null;
+ let modelTier='high',models=null,modelError=null,raptors=null,quality={detail:true};
  function setEyes(k,sp){const u=k.material.userData.eyes;if(!u||!sp?.eyes)return;
   sp.eyes.forEach((eye,i)=>{u[`uEye${i}`].value.set(...eye.c,eye.r);u[`uEyeAxis${i}`].value.fromArray(eye.axis);});
   u.uIris.value.setRGB(...sp.iris);u.uSlit.value=sp.slit?1:0;
@@ -260,12 +262,12 @@ export function createCritters(scene,{jungle,camera=null,capacities={}}){
  const modelLoad=loadSafariModels().then(loaded=>{models=loaded.models;for(const name of Object.keys(BAKED)){const k=kinds[name],sp=loaded.species[name];k.geometry.dispose();for(const g of Object.values(models[name])){g.setAttribute('aPose',k.pose);g.setAttribute('aBody',k.body);g.setAttribute('aFrill',k.frill);}
    k.centre=sp.centre;k.hull=hull(sp.hull);k.hullFrill=sp.hullFrill;k.spheres=sp.spheres.map(([x,y,z,r])=>({p:new T.Vector3(x,y,z),r}));k.hitR=sp.spheres[0][3];setEyes(k,sp);}
    if(models.gallimimus){for(const g of Object.values(models.gallimimus)){g.setAttribute('aPose',G.pose);g.setAttribute('aBody',G.body);g.setAttribute('aFrill',G.frill);}G.geometry.dispose();const d=critterMaterial(false,true);G.material=G.mesh.material=d.material;G.depth=G.mesh.customDepthMaterial=d.depth;setEyes(G,loaded.species.gallimimus);}
-   selectModels();}).catch(e=>{modelError=e;});
+   selectModels();return loadRaptorModels(scene,kinds.raptor);}).then(loaded=>{raptors=loaded;raptors.setQuality(quality);}).catch(e=>{modelError=e;});
  // Safari names that share a kind: the ghost raptor and the golden compy are rare colourings.
  const ALIAS={ghostRaptor:'raptor',goldenCompy:'compy'},SIZE={compy:1.5,goldenCompy:1.35,lizard:2.4,gallimimus:5.5,raptor:3.8,ghostRaptor:4.1,dilophosaurus:5.2,parasaurolophus:7.5,pachycephalosaurus:4.6,triceratops:7.8,stegosaurus:8.5},
   RUN={compy:6,goldenCompy:11.5,lizard:4.3,gallimimus:9.8,raptor:10.3,ghostRaptor:13.5,dilophosaurus:8.8,parasaurolophus:8.4,pachycephalosaurus:9.2,triceratops:7.4,stegosaurus:6.4};
 
- function free(k){const c=k.pool.find(c=>!c.on);if(c){c.hp=1;c.species=k.name;c.swerveMax=null;c.base=0;c.flinch=0;c.crossTime=null;c.body.set(0,0,0);
+ function free(k){const c=k.pool.find(c=>!c.on);if(c){c.collisionHull=k.collisionHull??null;c.poseState=c.poseTime=null;c.deathHull=null;c.hp=1;c.species=k.name;c.swerveMax=null;c.base=0;c.flinch=0;c.crossTime=null;c.body.set(0,0,0);
   // An individual's stride length and energy stay consistent for its whole run.
   // Compies (including the golden one) retain their original gait and timing.
   c.cadence=k===C?1:range(.89,1.11);c.vigor=k.motion?range(.9,1.1):1;if(k.name==='dilophosaurus')resetFrill(c,rnd);}return c;}
@@ -326,9 +328,10 @@ export function createCritters(scene,{jungle,camera=null,capacities={}}){
   c.p.set(side*range(23,27),0,z);c.v.set(-side*run*.8,0,-run*.45);c.tint.setRGB(range(.85,1.15),range(.85,1.08),range(.8,1));return c;
  }
  /** Height of the body centre above the ground when resting in orientation `c.q`: the lowest of its hull points. */
- function clearance(c){let low=0;const k=c.kind;for(let i=0;i<k.hull.length;i++){probe.copy(k.hull[i]);if(k.hullFrill?.[i]){probe.y+=k.centre;foldFrillPoint(probe,c.frill,k.hullFrill[i]);probe.y-=k.centre;}probe.applyQuaternion(c.q);low=Math.min(low,probe.y);}return -low*c.scale;}
+ function clearance(c){let low=0;const k=c.kind,hull=c.deathHull||k.hull;for(let i=0;i<hull.length;i++){probe.copy(hull[i]);if(k.hullFrill?.[i]){probe.y+=k.centre;foldFrillPoint(probe,c.frill,k.hullFrill[i]);probe.y-=k.centre;}probe.applyQuaternion(c.q);low=Math.min(low,probe.y);}return -low*c.scale;}
  /** The render transform, also used for hits and the handoff into a physical fall. */
  function livePose(c,sc=c.scale){
+  if(c.rig){raptors.render(c);pos.copy(c.rig.root.position);q.copy(c.rig.root.quaternion).multiply(RAPTOR_FORWARD);return;}
   const k=c.kind,fl=c.flinch*c.flinch,stride=c.stride||0;
   if(k.motion){
    safariBody(c.phase,stride*c.vigor,k.motion,c.body);
@@ -339,6 +342,7 @@ export function createCritters(scene,{jungle,camera=null,capacities={}}){
   }else{q.setFromEuler(e.set(-stride*k.lean-fl*.08,c.yaw+fl*.22*c.flinchSide,c.roll+fl*.3*c.flinchSide));pos.copy(c.p);}
  }
  function bodyCentre(c,out){
+  if(c.rig&&c.state!=='dead'){raptors.render(c);return out.copy(c.rig.body);}
   if(c.kind.motion){livePose(c);return out.set(0,c.kind.centre*c.scale,0).applyQuaternion(q).add(pos);}
   return out.set(c.p.x,c.p.y+c.kind.centre*c.scale,c.p.z);
  }
@@ -347,6 +351,7 @@ export function createCritters(scene,{jungle,camera=null,capacities={}}){
   // Track the body centre from here on; the pose tumbles about it.
   if(k.motion){livePose(c);c.q.copy(q);c.p.copy(pos).add(toCentre.set(0,k.centre*c.scale,0).applyQuaternion(q));}
   else{e.set(-(c.stride||0)*k.lean,c.yaw,c.roll);c.q.setFromEuler(e);c.p.y+=k.centre*c.scale;}
+  if(c.rig)raptors.captureHull(c);
   const h=Math.hypot(dir.x,dir.z)||1;
   if(k.quad){
    // A heavy quadruped's legs go: it drops, rolls onto its side and ploughs on a little.
@@ -457,11 +462,12 @@ export function createCritters(scene,{jungle,camera=null,capacities={}}){
   if(gs>.15){const target=Math.atan2(c.v.x,c.v.z);let d=target-c.yaw;d=Math.atan2(Math.sin(d),Math.cos(d));const turn=T.MathUtils.clamp(d,-14*dt,14*dt);c.yaw+=turn;c.roll+=(T.MathUtils.clamp(-turn/dt*.035,-.35,.35)-c.roll)*Math.min(1,dt*10);}
   c.yaw=Math.atan2(Math.sin(c.yaw),Math.cos(c.yaw));
   // Stride lengthens with speed, so cadence rises more slowly than pace.
-  const stride=k.stride[0]+gs*k.stride[1],cadence=c.cadence*(k.motion?Math.sqrt(SIZE[k.name]/c.scale):1);c.phase=(c.phase+dt*gs/stride*cadence)%1;
+  const stride=k.strideLength?k.strideLength*c.scale:k.stride[0]+gs*k.stride[1],cadence=c.cadence*(k.motion&&!k.strideLength?Math.sqrt(SIZE[k.name]/c.scale):1);c.phase=(c.phase+dt*gs/stride*cadence)%1;
   c.stride=Math.min(1,.28*Math.min(1,gs/.5)+.72*Math.min(1,gs/k.fullRun));
   if(c.p.z>80||c.p.z<-140||Math.abs(c.p.x)>30)c.on=false;
  }
  function write(k){
+  if(k.name==='raptor'&&raptors){for(const c of k.pool)raptors.render(c);k.mesh.visible=false;k.mesh.count=k.pool.filter(c=>c.on).length;return;}
   let n=0;const P=k.pose.array,B=k.body.array;
   for(const c of k.pool){if(!c.on)continue;
    const sc=c.scale*Math.max(0,Math.min(1,c.fade));
@@ -484,9 +490,9 @@ export function createCritters(scene,{jungle,camera=null,capacities={}}){
   updateDirected(dt,{speed=0}={}){
    for(const k of ALL){k.visible=true;for(const c of k.pool)if(c.on){if(c.state==='dead')stepDead(c,dt,speed);else{c.flinch=Math.max(0,c.flinch-dt*3.5);if(k.name==='dilophosaurus')stepFrill(c,dt,rnd);}}write(k);}
   },
-  setQuality(t){density=Math.min(1,t.fauna??t.particles);for(const k of ALL)k.mesh.castShadow=!!t.detail;modelTier=t.detail?'high':'low';SKIN.value=t.detail?1:0;selectModels();},
+  setQuality(t){quality=t;raptors?.setQuality(t);density=Math.min(1,t.fauna??t.particles);for(const k of ALL)k.mesh.castShadow=!!t.detail;modelTier=t.detail?'high':'low';SKIN.value=t.detail?1:0;selectModels();},
   /** The world is already alive when a scene begins: lizards on nearby rocks and a pack foraging in view. */
-  reset({intro=false,empty=false}={}){for(const k of ALL){for(const c of k.pool)c.on=false;k.mesh.count=0;}travel=0;nextPack=range(20,45);nextHerd=range(280,420);alarms.length=0;queue.length=0;chunkZ=[];tally.kills=0;if(empty)return;
+  reset({intro=false,empty=false}={}){raptors?.reset();for(const k of ALL){for(const c of k.pool)c.on=false;k.mesh.count=0;}travel=0;nextPack=range(20,45);nextHerd=range(280,420);alarms.length=0;queue.length=0;chunkZ=[];tally.kills=0;if(empty)return;
    for(const chunk of jungle.chunks){const z=chunk.group.position.z;if(z>-70&&z<70)populatePerches(chunk,.45*density);}
    // In the opening, a pack pecks on the shoulder in view until her roar scatters it.
    if(intro)spawnPack(-2,9,Math.max(3,Math.round(5*density)));else spawnPack(2.4,4,4);},
@@ -507,6 +513,7 @@ export function createCritters(scene,{jungle,camera=null,capacities={}}){
   hit(ray,far=Infinity,minAngle=0){
    let best=null;
    for(const k of ALL)for(const c of k.pool){if(!c.on||c.state==='dead'||c.state==='hide'||c.fade<.6)continue;
+    if(c.rig){raptors.render(c);const hit=raptors.hit(c,ray,far,minAngle);if(hit&&(!best||hit.distance<best.distance))best=hit;continue;}
     if(k.spheres){
      livePose(c);
      k.spheres.forEach((sp,i)=>{centre.copy(sp.p);const fan=k.name==='dilophosaurus'&&(i===3||i===4);if(fan)foldFrillPoint(centre,c.frill);centre.multiplyScalar(c.scale).applyQuaternion(q).add(pos);

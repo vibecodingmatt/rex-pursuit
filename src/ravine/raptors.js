@@ -10,7 +10,7 @@ const UP=new T.Vector3(0,1,0),X=new T.Vector3(1,0,0),Z=new T.Vector3(0,0,1);
 const smooth=T.MathUtils.smoothstep;
 // The CC0 source has a real weighted skeleton. Keep the authored hide/UVs;
 // articulate that skeleton, with ground-relative feet and a counterbalancing tail.
-export async function createRaptors(scene){
+export async function createRaptors(scene,{capacity=RAVINE.maxActors,trackDynamics=true}={}){
  const gltf=await new GLTFLoader().loadAsync('./models/raptor-ravine.glb');
  const template=gltf.scene;template.updateMatrixWorld(true);
  const bounds=new T.Box3().setFromObject(template),scale=5.8/(bounds.max.z-bounds.min.z),floor=-bounds.min.y*scale;
@@ -32,7 +32,7 @@ export async function createRaptors(scene){
   const a={root,model,bones,rest,meshes,legs,footRest,footRotation,skin,wounds,contacts,id:0,phase:0,fall:null,deathPose:null,footSide:[false,false],head:new T.Vector3(),body:new T.Vector3()};root.visible=false;pool.push(a);return a;
  }
  // Fixed pool includes settling bodies, never grows during play.
- for(let i=0;i<RAVINE.maxActors;i++)make();
+ for(let i=0;i<capacity;i++)make();
  function bone(a,n){return a.bones[n]||a.bones[n.replaceAll('.','')];}
  function turn(a,n,axis,angle){const b=bone(a,n);if(b)b.quaternion.multiply(q.setFromAxisAngle(axis,angle));}
  function aimBone(b,child,target){
@@ -74,20 +74,21 @@ export async function createRaptors(scene){
    if(data.age>3.5)a.sleepPose=Object.fromEntries(Object.entries(a.bones).map(([n,b])=>[n,b.quaternion.clone()]));}
   }else{
    a.fall=null;a.sleepPose=null;a.deathPose=null;a.root.position.set(data.x,data.groundY||0,data.z);a.root.rotation.set(0,data.yaw||0,0);
-   const gaitSpeed=idle?0:(data.motionSpeed??speed);a.phase=(a.phase+dt*gaitSpeed/4.706)%1;for(const [n,r]of Object.entries(a.rest)){a.bones[n].quaternion.copy(r.q);a.bones[n].position.copy(r.p);}
-   const leap=data.phase==='leap'?Math.sin(Math.PI*Math.min(1,data.age/.68)):0,warn=data.phase==='warn'?smooth(data.age,data.warning*.45,data.warning):0;
+   const gaitSpeed=idle?0:(data.motionSpeed??speed);a.phase=data.posePhase??(a.phase+dt*gaitSpeed/4.706)%1;for(const [n,r]of Object.entries(a.rest)){a.bones[n].quaternion.copy(r.q);a.bones[n].position.copy(r.p);}
+   const leap=data.leapAmount??(data.phase==='leap'?Math.sin(Math.PI*Math.min(1,data.age/.68)):0),warn=data.phase==='warn'?smooth(data.age,data.warning*.45,data.warning):0;
    const breath=Math.sin(data.age*1.45),settle=idle?1:data.phase==='gate-brake'?smooth(data.age,.15,.72):data.phase==='retreat'?smooth(data.age,3.05,3.8):0;
    a.model.position.y=floor-.24*(1-settle)+breath*.009*settle+.05*Math.cos(a.phase*Math.PI*4)*(1-settle)-warn*.19;
-   turn(a,'Bone.010',X,-.1-.02*settle-warn*.07);turn(a,'Bone.014',X,.07-.24*settle+breath*.008*settle+warn*.12);turn(a,'Bone.016',Z,Math.sin(data.seed+data.age*(idle?.23:1.1))*.035);
+   turn(a,'Bone.010',X,-.1-.02*settle-warn*.07);turn(a,'Bone.014',X,.07-.24*settle*(1-(data.alert||0))+.5*(data.alert||0)+breath*.008*settle+warn*.12);turn(a,'Bone.016',Z,Math.sin(data.seed+data.age*(idle?.23:1.1))*.035);
    turn(a,'Bone.016',UP,(.12+Math.sin(data.age*.17)*.045)*settle);
    // The pelvis banks into a turn while the head and tail counterbalance.
    // Chase gaze follows the Jeep without rotating the planted feet.
-   const bank=data.bank||0,focus=idle?0:T.MathUtils.clamp(Math.atan2(data.x,Math.max(5,data.z))-(data.yaw||0),-.34,.34);
+   const bank=data.bank||0,focus=idle||data.focus===false?0:T.MathUtils.clamp(Math.atan2(data.x,Math.max(5,data.z))-(data.yaw||0),-.34,.34);
    turn(a,'Bone.010',Z,bank);turn(a,'Bone.014',Z,-bank*.65);turn(a,'Bone.016',UP,focus*.5);
    if(data.flash>0){const recoil=Math.sin((.16-data.flash)/.16*Math.PI)*.065;turn(a,'Bone.012',Z,recoil*data.side);turn(a,'Bone.016',X,-recoil);}
    turn(a,'Bone.017',X,-.25-.12*settle+warn*.32+leap*.32);
    for(let i=0;i<10;i++)turn(a,['Bone','Bone.004','Bone.003','Bone.002','Bone.006','Bone.005','Bone.001','Bone.008','Bone.007','Bone.009'][i],Z,Math.sin((idle?data.age*.35:a.phase*Math.PI*2)-i*.36)*(idle?.008:.045)-bank*.22);
-   turn(a,'Bone.024',X,-.45+leap*.88-warn*.2);turn(a,'Bone.025',X,-.45+leap*.7-warn*.15);turn(a,'Bone.026',X,-.65+leap*.34);turn(a,'Bone.027',X,-.65+leap*.28);
+   const reach=data.reach??leap;
+   turn(a,'Bone.024',X,-.45+reach*.88-warn*.2);turn(a,'Bone.025',X,-.45+reach*.7-warn*.15);turn(a,'Bone.026',X,-.65+reach*.34);turn(a,'Bone.027',X,-.65+reach*.28);
    a.root.updateMatrixWorld(true);
    for(let i=0;i<2;i++){
     const t=(a.phase+i*.5)%1,duty=.34,stance=idle||t<duty,amplitude=.8*(1-settle);const z=(stance?-1+t/duty*2:1-((t-duty)/(1-duty))*2)*amplitude+(i===0?-.15:.16)*settle,lift=stance?0:.4*Math.sin((t-duty)/(1-duty)*Math.PI)*(1-settle);
@@ -96,12 +97,12 @@ export async function createRaptors(scene){
     if(!stance)ankle.quaternion.multiply(q.setFromAxisAngle(X,.35*Math.sin((t-duty)/(1-duty)*Math.PI)));
     if(stance&&!a.footSide[i]&&dt>0&&!leap){const contact=target.clone();contact.y=.03;api.onFoot?.(contact,speed);}a.footSide[i]=stance;
    }
-   a.root.position.y+=leap*1.3+(data.airY||0);
+   a.root.position.y+=(data.airLift??leap*1.3)+(data.airY||0);
   }
   a.root.updateMatrixWorld(true);bone(a,'Bone.016').getWorldPosition(a.head);bone(a,'Bone.012').getWorldPosition(a.body);
-  if(!dead&&dt>0){a.previousJoints=a.joints;a.joints=Object.fromEntries(Object.entries(a.bones).map(([n,b])=>[n,b.getWorldPosition(new T.Vector3())]));a.poseDelta=dt;}
+  if(trackDynamics&&!dead&&dt>0){a.previousJoints=a.joints;a.joints=Object.fromEntries(Object.entries(a.bones).map(([n,b])=>[n,b.getWorldPosition(new T.Vector3())]));a.poseDelta=dt;}
  }
- const api={pool,onFoot:null,onImpact:null,update(dt,round,speed=8.5){
+ const api={pool,onFoot:null,onImpact:null,pose(a,data){a.data=data;pose(a,data,0,0);},update(dt,round,speed=8.5){
   const ids=new Set(round.attackers.map(a=>a.id));for(const a of pool)if(!ids.has(a.id)){a.id=0;a.root.visible=false;}
   for(const data of round.attackers){let a=pool.find(a=>a.id===data.id);if(!a){a=pool.find(a=>a.id===0);if(!a)continue;a.id=data.id;a.phase=data.seed%1;a.fall=null;a.sleepPose=null;a.joints=a.previousJoints=null;a.wounds.reset();a.deathPose=null;a.footSide=[false,false];a.model.position.y=floor;}a.data=data;pose(a,data,dt,speed);}
  },retireHidden(world){

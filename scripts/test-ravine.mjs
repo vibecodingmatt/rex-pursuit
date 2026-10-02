@@ -29,4 +29,11 @@ for(const fps of [30,60,120]){
  const fall=new RaptorFall({side:1,seed:3});for(let n=0;n<fps*3;n++)fall.step(1/fps);assert.ok(Math.abs(fall.rollV)<.01&&Math.abs(fall.pitchV)<.02,'fall settles without perpetual rolling');
 }
 const rides=Array.from({length:1000},(_,i)=>ravineRide(i*.1));assert.ok(rides.every(r=>Math.abs(r.heave)<.009&&Math.abs(r.pitch)<.005&&Math.abs(r.roll)<.005),'small suspension displacement');assert.ok(Object.values(ravineRide(100,0)).every(v=>v===0));assert.ok(rides.some((r,i)=>i<900&&Math.abs(r.heave-rides[i+100].heave)>.002),'road motion does not repeat every ten metres');
+for(const fps of [30,60,120]){
+ const pressure=new RavineRound();let firstStrike=0;
+ while(!pressure.result){pressure.tick(1/fps);if(!firstStrike&&pressure.jeep<100)firstStrike=pressure.time;}
+ assert.ok(firstStrike>9&&firstStrike<11.5,'first ambush closes promptly while retaining its readable warning');
+ assert.ok(pressure.time<22,'an ignored pack overwhelms the Jeep without a long quiet opening');
+ assert.ok(run(fps,true).r.kills>=45,'sustained pressure through the middle and final sectors');
+}
 console.log('Ravine rules passed: earned progress; gun/reload; demanding bounded pack and fair wins/losses at 30/60/120 Hz; restart/cheats; leaper landing and braking outside gate; settling falls; restrained irregular ride.');

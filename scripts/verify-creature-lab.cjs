@@ -16,7 +16,7 @@ const {chromium}=require('playwright-core'),assert=require('node:assert/strict')
     await page.evaluate(()=>new Promise(requestAnimationFrame));
    }
   }
-  assert.notEqual(counts['raptor/high'],counts['raptor/low']);assert.notEqual(counts['brachiosaurus/high'],counts['brachiosaurus/low']);
+  assert.equal(counts['raptor/high'],counts['raptor/low'],'the shared authored raptor retains its mesh at both tiers');assert.notEqual(counts['brachiosaurus/high'],counts['brachiosaurus/low']);
   await page.evaluate(()=>Promise.all([creatureLab.select('brachiosaurus'),creatureLab.select('rex'),creatureLab.select('raptor')]));
   assert.equal(await page.evaluate(()=>creatureLab.selected),'raptor');
   await page.selectOption('#tier','high');await page.evaluate(()=>creatureLab.select('dilophosaurus'));await page.selectOption('#motion','rest');await page.locator('#pause').click();await page.selectOption('#frill-mode','manual');

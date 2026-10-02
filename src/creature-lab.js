@@ -82,8 +82,8 @@ async function select(id){
   }else{
    await critters.ready();if(token!==serial)return;critters.reset({empty:true});critters.setQuality(quality);
    const c=critters.huntSpawn(selected,1,20);c.scale=1;c.cadence=c.vigor=1;
-   adapter={object:c.kind.mesh,group:groundGroup,tiers:!!c.kind.motion,critter:c,head:()=>new T.Vector3().copy(c.kind.spheres?.[2]?.p||new T.Vector3(0,c.kind.centre*1.6,.3)),update(dt,rest){
-    c.state='wary';c.timer=0;c.p.set(0,0,20);c.yaw=c.roll=c.peck=0;c.phase=rest?.25:time*.9%1;c.v.set(0,0,rest?0:c.kind.fullRun);
+   adapter={object:c.rig?.root||c.kind.mesh,group:groundGroup,tiers:!c.rig&&!!c.kind.motion,critter:c,head:()=>c.rig?stage.worldToLocal(c.rig.head.clone()):new T.Vector3().copy(c.kind.spheres?.[2]?.p||new T.Vector3(0,c.kind.centre*1.6,.3)),update(dt,rest){
+    c.state='wary';c.timer=0;c.p.set(0,0,c.rig?0:20);c.yaw=c.roll=c.peck=0;c.phase=rest?.25:time*.9%1;c.v.set(0,0,rest?0:c.kind.fullRun);
     if(selected==='dilophosaurus'){
      if($('frill-mode').value==='auto')stepFrill(c,dt);
     }

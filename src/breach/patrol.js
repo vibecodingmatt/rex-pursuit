@@ -22,7 +22,7 @@ export function createCompoundPatrol(critters){
    pose(u*length,c);
    c.yaw=Math.atan2(tangent.x,tangent.z);c.v.copy(tangent).multiplyScalar(speed);
    const stride=c.kind.stride;
-   c.phase=(c.phase+dt*speed/(stride[0]+speed*stride[1])*c.cadence)%1;
+   c.phase=(c.phase+dt*speed/(c.kind.strideLength?c.kind.strideLength*c.scale:stride[0]+speed*stride[1])*c.cadence)%1;
    c.stride=Math.min(1,.28+.72*speed/c.kind.fullRun);
    c.peck=.025*Math.sin(clock+i*1.7);
   }

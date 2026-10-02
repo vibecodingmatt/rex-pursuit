@@ -1,11 +1,12 @@
 import * as T from 'three';
+import {createRaptorBreakup} from '../ravine/breakup.js';
 
 // Split the existing sculpt into bounded, reusable head/torso/limb/tail pieces.
 // Each piece freezes the *same* pose shader and instance transform as its living
 // source, so the explosion does not snap the animal into a rest pose first.
 export function createBreakup(scene,{surface=(x,z)=>Math.abs(x)<1.02&&z>1.75&&z<3.26?1.075:0,deck=true}={}){
  const cache=new Map(),matrix=new T.Matrix4(),dummy=new T.Object3D(),origin=new T.Vector3(),rotation=new T.Quaternion(),scale=new T.Vector3(),axis=new T.Vector3(),turn=new T.Quaternion();
- const stats={bursts:0,pieces:0};let detail=true;
+ const stats={bursts:0,pieces:0};let detail=true,raptorBreakup=null;
  const patch=(s,pivot)=>{s.uniforms.uBreakPivot={value:pivot};s.vertexShader=s.vertexShader.replace('#include <common>','#include <common>\nuniform vec3 uBreakPivot;').replace('#include <project_vertex>','transformed-=uBreakPivot;\n#include <project_vertex>');};
  function prepare(source,generic=false){
   const g=source.geometry;if(cache.has(g))return cache.get(g);
@@ -31,6 +32,7 @@ export function createBreakup(scene,{surface=(x,z)=>Math.abs(x)<1.02&&z>1.75&&z<
   });cache.set(g,pieces);return pieces;
  }
  function burst(c,dir){
+  if(c.rig){raptorBreakup??=createRaptorBreakup(scene,c.rig.meshes,{surface,deck});raptorBreakup.setQuality({detail});c.rig.data={deadSpeed:Math.hypot(c.v.x,c.v.z)};raptorBreakup.burst(c.rig,dir);stats.bursts++;stats.pieces+=detail?11:10;return;}
   const k=c.kind,source=k.mesh;let slot=0;for(const candidate of k.pool){if(candidate===c)break;if(candidate.on)slot++;}
   source.getMatrixAt(slot,matrix);matrix.premultiply(source.matrixWorld);matrix.decompose(origin,rotation,scale);
   for(const piece of prepare(source,!['raptor','pachycephalosaurus'].includes(k.name))){
@@ -43,6 +45,7 @@ export function createBreakup(scene,{surface=(x,z)=>Math.abs(x)<1.02&&z>1.75&&z<
   }stats.bursts++;update(0);
  }
  function update(dt,speed=0){
+  raptorBreakup?.update(dt,speed);
   for(const pieces of cache.values())for(const piece of pieces){let count=0;for(let i=0;i<3;i++){
    const b=piece.entries[i];dummy.scale.setScalar(0);
    if(b.life>0){b.life=Math.max(0,b.life-dt);count=i+1;
@@ -55,5 +58,5 @@ export function createBreakup(scene,{surface=(x,z)=>Math.abs(x)<1.02&&z>1.75&&z<
    }dummy.updateMatrix();piece.mesh.setMatrixAt(i,dummy.matrix);
   }piece.mesh.count=count;piece.mesh.instanceMatrix.needsUpdate=true;}
  }
- return {stats,cache,prepare,burst,update,setQuality(t){detail=!!t.detail;for(const pieces of cache.values())for(const piece of pieces)piece.mesh.castShadow=detail;},reset(){for(const pieces of cache.values())for(const piece of pieces){piece.entries.forEach(b=>b.life=0);piece.mesh.count=0;piece.next=0;}stats.bursts=stats.pieces=0;}};
+ return {stats,cache,get raptors(){return raptorBreakup;},prepare,burst,update,setQuality(t){detail=!!t.detail;raptorBreakup?.setQuality(t);for(const pieces of cache.values())for(const piece of pieces)piece.mesh.castShadow=detail;},reset(){raptorBreakup?.reset();for(const pieces of cache.values())for(const piece of pieces){piece.entries.forEach(b=>b.life=0);piece.mesh.count=0;piece.next=0;}stats.bursts=stats.pieces=0;}};
 }

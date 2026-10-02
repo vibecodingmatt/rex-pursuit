@@ -72,8 +72,9 @@ export function createBreachDirector(critters,round,{onCue=()=>{},onLand=()=>{},
    if(ram){round.damage(20,'pachycephalosaurus');onLand(c.p,.9);onCue('ram',a);}
    if(land)onLand(c.p,.4);
    if(nextPhase){if(nextPhase==='approach'){a.bites=0;a.duration=a.heavy?2.4:2;a.path=null;}change(a,nextPhase);}
+   c.poseState=a.phase;c.poseTime=a.life;c.poseAge=a.age;
    const moving=['approach','charge','retreat'].includes(a.phase),groundSpeed=Math.hypot(c.v.x,c.v.z),stride=c.kind.stride;
-   const cadence=moving?(stride?groundSpeed/(stride[0]+groundSpeed*stride[1]):1.9):.35;
+   const cadence=moving?(c.kind.strideLength?groundSpeed/(c.kind.strideLength*c.scale):stride?groundSpeed/(stride[0]+groundSpeed*stride[1]):1.9):.35;
    c.phase=(c.phase+dt*cadence*c.cadence)%1;
   }
   critters.updateDirected(dt,{speed});
