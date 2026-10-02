@@ -91,7 +91,7 @@ export function createJeep(scene,{gunOffset=0}={}){
   if(api.ground){const c=Math.cos(yaw),s=Math.sin(yaw),h=(wx,wz)=>api.ground(x+wx*c+wz*s,z-wx*s+wz*c),fl=h(-1,-1.16),fr=h(1,-1.16),rl=h(-1,1.16),rr=h(1,1.16);
    lift=(fl+fr+rl+rr)/4;pitch=Math.atan2((fl+fr-rl-rr)/2,2.32);roll=Math.atan2((fl+rl-fr-rr)/2,2);}
   jeep.position.set(x,lift,z);jeep.rotation.set(pitch,yaw,roll,'YXZ');
-  const bounce=Math.min(1,speed/5);body.position.y=(Math.sin(time*18)*.013+Math.sin(time*29)*.007)*bounce;body.rotation.z=Math.sin(time*7)*.006*bounce+(fatal?.jeepRoll||0);body.rotation.x=Math.sin(time*11)*.004*bounce+(fatal?.jeepPitch||0);jeep.updateMatrixWorld(true);
+  const bounce=Math.min(1,speed/5),ride=state.ride;body.position.y=ride?ride.heave:(Math.sin(time*18)*.013+Math.sin(time*29)*.007)*bounce;body.rotation.z=(ride?ride.roll:Math.sin(time*7)*.006*bounce)+(fatal?.jeepRoll||0);body.rotation.x=(ride?ride.pitch:Math.sin(time*11)*.004*bounce)+(fatal?.jeepPitch||0);jeep.updateMatrixWorld(true);
  }
  const api={root:jeep,body,muzzle,gun,yaw,gunner,character,driver,flash,weapon,lamps:{head:lens,tail:red},pose,shoot:weapon.shoot,reset,
   /** Optional road-dip function (x,z)=>metres, set by the chase for the river ford. */

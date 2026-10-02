@@ -1,55 +1,79 @@
-export const RAVINE={duration:86,escape:6,magazine:80,reload:2.6,fireInterval:.085,grenadeCooldown:11};
+import {AMBUSH_SITES,ROAD_SPEED,GATE,gateZ,hash,smooth,shoulderHeight} from './route.js';
+export const RAVINE={duration:86,escape:6,magazine:80,reload:2.6,fireInterval:.085,grenadeCooldown:11,maxActors:18};
 export const sectionAt=t=>t<27?0:t<57?1:2;
 const clamp=(v,a,b)=>Math.max(a,Math.min(b,v));
-// Deterministic, bounded pack simulation. Graphics never decide damage or wins.
 export class RavineRound{
  constructor(){this.reset();}
- reset(){Object.assign(this,{time:0,phase:'chase',result:null,jeep:100,ammo:80,reload:0,heat:0,shotTimer:0,grenade:0,kills:0,shots:0,hits:0,escapeTime:0,nextSpawn:3,serial:0,attackers:[],events:[],cheated:false,infiniteAmmo:false,infiniteRockets:false});}
+ reset(){Object.assign(this,{time:0,phase:'chase',result:null,jeep:100,ammo:80,reload:0,heat:0,shotTimer:0,grenade:0,kills:0,shots:0,hits:0,escapeTime:0,nextSpawn:2.6,waveLeft:0,serial:0,attackers:[],events:[],cheated:false,infiniteAmmo:false,infiniteRockets:false,coverUsed:new Map()});}
  get remaining(){return Math.max(0,RAVINE.duration-this.time);}
- get live(){return this.attackers.filter(a=>a.phase!=='dead'&&a.phase!=='gone');}
- tick(dt){
-  if(dt<=0||this.result)return;
-  // Substeps preserve attack windows and exactly-once damage under slow frames.
-  let left=dt;while(left>1e-8&&!this.result){const h=Math.min(left,1/60);this.advance(h);left-=h;}
+ get live(){return this.attackers.filter(a=>!['dead','gone'].includes(a.phase));}
+ tick(dt){if(dt<=0||this.result)return;let left=dt;while(left>1e-8&&!this.result){const h=Math.min(left,1/60);this.advance(h);left-=h;}}
+ deadStep(a,dt){a.age+=dt;a.deadSpeed=Math.max(0,a.deadSpeed-dt*(a.death.explosive?16:11));a.z+=(ROAD_SPEED-a.deadSpeed)*dt;a.x+=a.death.direction[0]*Math.exp(-a.age*2)*dt*(a.death.explosive?3:.7);if(a.age>9||a.z>115)a.phase='gone';}
+ extract(dt){
+  this.escapeTime+=dt;const barrier=gateZ(this.escapeTime);
+  for(const a of this.attackers){
+   if(a.phase==='dead'){this.deadStep(a,dt);continue;}a.age+=dt;a.flash=0;
+   if(a.airY>0||a.airV>0){a.airV-=dt*12;a.airY=Math.max(0,a.airY+a.airV*dt);}
+   if(a.phase==='gate-run'&&a.z-barrier<10.3){a.phase='gate-brake';a.age=0;a.brakeSpeed=a.motionSpeed;this.events.push({type:'brake',id:a.id});}
+   if(a.phase==='gate-brake'){a.motionSpeed=Math.max(0,a.brakeSpeed*(1-smooth(a.age,0,.72)));if(a.age>=.72){a.phase='gate-hold';a.age=0;a.motionSpeed=0;}}
+   a.z+=(ROAD_SPEED-a.motionSpeed)*dt;
+   // Nose stays on the far side of the barrier, including a last-second leaper.
+   a.z=Math.max(a.z,barrier+4.6);a.groundY=shoulderHeight(a.x);
+  }
+  this.attackers=this.attackers.filter(a=>a.phase!=='gone');
+  if(this.escapeTime-dt<GATE.closeEnd&&this.escapeTime>=GATE.closeEnd)this.events.push({type:'gate-sealed'});
+  if(this.escapeTime>=RAVINE.escape){this.result='won';this.events.push({type:'won'});}
+ }
+ beginEscape(){
+  this.phase='escape';
+  for(const a of this.live){a.airY=a.phase==='leap'?1.3*Math.sin(Math.PI*clamp(a.age/.68,0,1)):0;a.airV=a.phase==='leap'?1.3*Math.PI/.68*Math.cos(Math.PI*clamp(a.age/.68,0,1)):0;a.phase='gate-run';a.age=0;a.motionSpeed=12;}
+  this.events.push({type:'escape'});
  }
  advance(dt){
-  if(this.phase==='escape'){this.escapeTime+=dt;for(const a of this.attackers){a.z+=dt*12;a.age+=dt;}if(this.escapeTime>=RAVINE.escape){this.result='won';this.events.push({type:'won'});}return;}
+  if(this.phase==='escape'){this.extract(dt);return;}
   const before=sectionAt(this.time);this.time=Math.min(RAVINE.duration,this.time+dt);if(sectionAt(this.time)!==before)this.events.push({type:'section',section:sectionAt(this.time)});
-  for(const k of ['shotTimer','grenade'])this[k]=Math.max(0,this[k]-dt);
-  this.heat=Math.max(0,this.heat-dt*.21);
+  for(const k of ['shotTimer','grenade'])this[k]=Math.max(0,this[k]-dt);this.heat=Math.max(0,this.heat-dt*.21);
   if(this.reload>0){this.reload=Math.max(0,this.reload-dt);if(!this.reload){this.ammo=RAVINE.magazine;this.events.push({type:'loaded'});}}
-  if(this.time>=RAVINE.duration){this.phase='escape';this.events.push({type:'escape'});return;}
-  const section=sectionAt(this.time),limit=section===2?4:3;
-  if(this.time>=this.nextSpawn&&this.time<81&&this.live.length<limit){this.spawn();this.nextSpawn=this.time+[4.6,3.8,3.1][section];}
+  if(this.time>=RAVINE.duration){this.beginEscape();return;}
+  const section=sectionAt(this.time),limit=[5,7,8][section];
+  if(this.time>=this.nextSpawn&&this.time<82&&this.live.length<limit&&this.attackers.length<RAVINE.maxActors){
+   if(!this.waveLeft)this.waveLeft=section===2?3:2;
+   if(this.spawn()){this.waveLeft--;this.nextSpawn=this.time+(this.waveLeft ? .5+hash(this.serial)*.28 : [4.4,3.6,2.8][section]);}else this.nextSpawn=this.time+.2;
+  }
   for(const a of this.attackers){
-   a.age+=dt;a.flash=Math.max(0,a.flash-dt);
-   if(a.phase==='dead'){a.z+=dt*8.5;if(a.age>4.2)a.phase='gone';continue;}
-   if(a.phase==='gone')continue;
-   if(a.phase==='run'){
-    a.z=Math.max(9,a.z-dt*(3.6+section*.55));a.x+=(a.lane-a.x)*(1-Math.exp(-dt*.9));
+   if(a.phase==='dead'){this.deadStep(a,dt);continue;}if(a.phase==='gone')continue;
+   const oldX=a.x,oldZ=a.z;a.age+=dt;a.flash=Math.max(0,a.flash-dt);
+   if(a.phase==='emerge'){
+    const u=smooth(a.age,0,1.45);a.x=a.cover.x+a.side*1.3+(a.side*4.8-a.cover.x-a.side*1.3)*u;a.z=a.cover.z+this.time*ROAD_SPEED+7-3*u;
+    if(a.age>=1.45){a.phase='run';a.age=0;}
+   }else if(a.phase==='run'){
+    a.z=Math.max(9,a.z-dt*(5.3+section*.65+hash(a.id)*.7));a.x+=(a.lane+Math.sin(this.time*1.4+a.seed)*.18-a.x)*(1-Math.exp(-dt*1.5));
     if(a.z<=9){a.phase='warn';a.age=0;this.events.push({type:'warn',id:a.id});}
    }else if(a.phase==='warn'){
-    a.z=9;a.x+=(a.lane-a.x)*(1-Math.exp(-dt*3));
-    if(a.age>=1.85){a.phase='leap';a.age=0;a.fromX=a.x;this.events.push({type:'leap',id:a.id});}
+    a.x+=(a.lane-a.x)*(1-Math.exp(-dt*3));
+    if(a.age>=a.warning){a.phase='leap';a.age=0;a.fromX=a.x;this.events.push({type:'leap',id:a.id});}
    }else if(a.phase==='leap'){
-    const u=clamp(a.age/.8,0,1),smooth=u*u*(3-2*u);a.z=9-5.5*smooth;a.x=a.fromX+(Math.sign(a.lane||a.side)*1.55-a.fromX)*smooth;
-    if(u===1){this.damage(17);a.phase='retreat';a.age=0;this.events.push({type:'strike',id:a.id});}
-   }else if(a.phase==='retreat'){
-    a.x+=a.side*dt*2.4;a.z+=dt*6;if(a.age>2.5)a.phase='gone';
-   }
+    const u=clamp(a.age/.68,0,1),f=u*u*(3-2*u);a.z=9-5.5*f;a.x=a.fromX+(Math.sign(a.lane||a.side)*1.55-a.fromX)*f;
+    if(u===1){this.damage(19);a.phase='retreat';a.age=0;this.events.push({type:'strike',id:a.id});}
+   }else if(a.phase==='retreat'){a.x+=a.side*dt*3;a.z+=dt*6;if(a.age>2.6)a.phase='gone';}
+   const vx=(a.x-oldX)/dt,vz=(a.z-oldZ)/dt-ROAD_SPEED;a.motionSpeed=Math.min(19,Math.hypot(vx,vz));
+   const facing=Math.atan2(-vx,-vz);a.yaw+=(facing-a.yaw)*(1-Math.exp(-dt*7));a.groundY=shoulderHeight(a.x);
   }
   this.attackers=this.attackers.filter(a=>a.phase!=='gone');
  }
  spawn(){
-  const id=++this.serial,side=id%2?1:-1,lanes=[-3.5,0,3.5],lane=lanes[(id*2+sectionAt(this.time))%3];
-  // Never spawn on an occupied lane within the rear 20 m.
-  const choices=[lane,...lanes.filter(x=>x!==lane)],free=choices.find(x=>!this.live.some(a=>Math.abs(a.lane-x)<1&&a.z>19));if(free===undefined)return;
-  this.attackers.push({id,side,lane:free,x:side*6.4,z:35+id%3*2,hp:150,phase:'run',age:0,flash:0,seed:id*.71});this.events.push({type:'spawn',id});
+  if(this.attackers.length>=RAVINE.maxActors)return false;
+  const id=this.serial+1,side=id%2?1:-1,travel=this.time*ROAD_SPEED;
+  const cover=AMBUSH_SITES.filter(s=>s.side===side&&s.z+travel>23&&s.z+travel<57&&this.time-(this.coverUsed.get(s.id)??-100)>2.5).sort((a,b)=>Math.abs(a.z+travel-39)-Math.abs(b.z+travel-39))[0];
+  if(!cover)return false;this.serial=id;this.coverUsed.set(cover.id,this.time);
+  const lanes=[-3.8,-1.9,0,1.9,3.8],rank=lanes.map(lane=>({lane,n:this.live.filter(a=>Math.abs(a.lane-lane)<.8).length+hash(id+lane)*.2})).sort((a,b)=>a.n-b.n),section=sectionAt(this.time);
+  const x=cover.x+side*1.3;
+  this.attackers.push({id,side,lane:rank[0].lane,x,z:cover.z+travel+7,groundY:shoulderHeight(x),cover,hp:180,maxHp:180,phase:'emerge',age:0,flash:0,seed:id*.71,yaw:0,motionSpeed:0,warning:[1.5,1.28,1.08][section]});this.events.push({type:'spawn',id});return true;
  }
  shoot(){if(this.result||this.phase!=='chase'||this.shotTimer>0||this.reload>0||(!this.ammo&&!this.infiniteAmmo)||(this.heat>=.98&&!this.infiniteAmmo))return false;this.shotTimer=RAVINE.fireInterval;this.shots++;if(this.infiniteAmmo)this.heat=0;else{this.ammo--;this.heat=Math.min(1,this.heat+.027);}if(!this.ammo&&!this.infiniteAmmo)this.startReload();return true;}
  startReload(){if(this.result||this.phase!=='chase'||this.infiniteAmmo||this.reload>0||this.ammo===80)return false;this.reload=RAVINE.reload;this.events.push({type:'reload'});return true;}
  launchGrenade(){if(this.result||this.phase!=='chase'||this.grenade>0&&!this.infiniteRockets)return false;this.grenade=this.infiniteRockets?0:RAVINE.grenadeCooldown;return true;}
- hit(id,{head=false,explosive=false}={}){const a=this.attackers.find(a=>a.id===id);if(this.result||this.phase!=='chase'||!a||['dead','gone'].includes(a.phase))return false;this.hits++;a.hp=Math.max(0,a.hp-(explosive?230:head?32:20));a.flash=.11;if(a.hp===0){a.phase='dead';a.age=0;this.kills++;this.events.push({type:'kill',id});return true;}return false;}
+ hit(id,{head=false,explosive=false,direction=[0,0,1]}={}){const a=this.attackers.find(a=>a.id===id);if(this.result||this.phase!=='chase'||!a||['dead','gone'].includes(a.phase))return false;this.hits++;a.hp=Math.max(0,a.hp-(explosive?230:head?32:20));a.flash=.16;if(a.hp===0){a.death={head,explosive,direction,airV:a.phase==='leap'?1.3*Math.PI/.68*Math.cos(Math.PI*clamp(a.age/.68,0,1)):0};a.deadSpeed=Math.min(13,a.motionSpeed);a.phase='dead';a.age=0;this.kills++;this.events.push({type:'kill',id});return true;}return false;}
  damage(n){if(this.result||this.phase!=='chase')return;this.jeep=Math.max(0,this.jeep-n);this.events.push({type:'damage'});if(!this.jeep){this.result='lost';this.events.push({type:'lost'});}}
  drain(){return this.events.splice(0);}
 }

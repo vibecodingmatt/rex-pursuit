@@ -20,8 +20,12 @@ The search also surfaced [Quaternius's CC0 dinosaur pack](https://quaternius.itc
 ## Route and rules
 
 - Survive an 86-second moving chase followed by six seconds through the closing evacuation gate. The cut, abandoned viaduct and widening north pass form three phases of this one level.
-- At most three living attackers at first, four in the last phase. Attackers approach separate lanes, give a 1.85-second warning, then leap. An unopposed strike costs 17 Jeep integrity. Defeated bodies settle and leave with the road; actor storage is bounded.
-- Raptors have 150 health. Body hits deal 20; head hits 32. Grenades deal 230 within five metres. The existing 80-round magazine, 2.6-second reload, heat, fire interval and 11-second explosive cooldown carry over.
+- Overlapping ambush groups of two, then three in the last sector; live caps rise through 5 / 7 / 8. Approaches get faster and leap warnings shorten from 1.5 to 1.28 to 1.08 seconds. An unopposed strike costs 19 Jeep integrity. A perfect-aim simulation meets 41 hunters; unattended runs lose around 27 seconds. Automated aim establishes that the route remains possible, not human difficulty.
+- Hunters start behind persistent roadside boulders and arc around their inner edges. Both cameras see actual solid cover, which also blocks bullets. Cover placement and the spawn director share one route definition. Five approach lanes distribute the pack.
+- Raptors have 180 health. Body hits deal 20; head hits 32. Grenades deal 230 within five metres. The existing 80-round magazine, 2.6-second reload, heat, fire interval and 11-second explosive cooldown carry over.
+- Hits emit shared blood spray, tissue and lasting ground splatter. Each pooled hide retains up to 16 skinned wound marks until reuse. Death captures the current pose, buckles the legs, relaxes the neck/arms, falls around the pelvis and skids to a stop relative to the road. Skinned contact samples constrain the fall; shoulders yield so stiff fingers cannot prop up a floating body. Impact dust and sound occur on landing. This is a constrained procedural fall, not a general ragdoll solver. Eighteen pooled actors include bodies, which persist for up to nine seconds.
+- Jeep suspension samples small irregular road heights at four wheels, with axle delay; Ravine no longer uses the shared periodic bounce. The gunner camera receives only a small part of the displacement.
+- At extraction, airborne hunters finish landing, survivors brake before the barrier and settle into a breathing stance on the far side. They remain attached to the moving road. The Jeep clears before the gate closes between 1.4 and 2.35 seconds into the escape; a seal cue confirms it. No old leap/run pose is frozen at the opening.
 - First/third-person cameras, thumb-offset aiming, simultaneous aim/fire, pause, blur/background pausing, graphics tiers, reduced motion and both existing cheat toggles are supported. Fair and cheat records use separate browser-local keys.
 - The victory screen unlocks the chapter and offers a direct continuation. A persistent menu link allows replay. Local storage failure does not prevent the immediate victory continuation; without storage, progress cannot survive a fresh visit.
 
@@ -29,6 +33,8 @@ The search also surfaced [Quaternius's CC0 dinosaur pack](https://quaternius.itc
 
 - `src/chase/campaign.js`: versioned browser-local unlock/completion state.
 - `src/ravine/rules.js`: deterministic pack/combat rules and fixed substeps.
+- `src/ravine/route.js`: shared cover sites, road speed and extraction barrier timing.
+- `src/ravine/motion.js`, `wounds.js`: damped fall/irregular suspension and rest-space wound shading.
 - `src/ravine/main.js`: controls, sound, camera, HUD, lifecycle, results and shared HDR pipeline.
 - `src/ravine/raptors.js`: repaired skinned asset, bounded actor pool and animation.
 - `src/ravine/geology.js`: continuous 1,320m canyon backing, overlapping scan reliefs, mirrored geometry, near/far LODs and shared stone materials. Scan cut edges are buried; the old Coastal Cliff 01 strip is retired. Do not use an open scan as a freestanding wall.
@@ -44,5 +50,7 @@ The menu is an idle composition, with closed jaw, planted staggered feet, subtle
 `npm run test:ravine` covers rules plus fresh play-test entry without a fake earned unlock, actual Rex victory and continuation, real-ray firing, pause, both cameras, a complete fair win, a complete loss, restart, save/reload, independent cheats, blocked storage, and trusted touch controls in portrait/landscape. It watches console, page and asset errors and saves review captures to ignored `art/review/ravine/`.
 
 `node scripts/verify-ravine-art.cjs` checks 24 seconds of stationary foot placement, no walking cycle, no unbound mouth vertices, and desktop/portrait/compact/landscape menu captures. Inspect those captures and gameplay shots; numeric checks do not establish visual quality.
+
+`node scripts/verify-ravine-combat.cjs` exercises desktop High and phone Low: both-camera concealment along the route, blocked shots, real body/head/grenade/airborne kills, wound/blood emission, grounded bodies, pause/reset and surviving hunters landing/braking behind the gate. It saves captures and `combat-report.json`. Visual comparisons include falling and settled bodies, mobile hits and the sealed barrier. Physical-phone performance is unverified.
 
 Use `TEST_URL` to run the same browser check against a built entry. The release validator requires the new entry, models, provenance and ground textures. Phone emulation checks layout and input; physical-device performance remains unverified.
