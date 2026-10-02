@@ -17,6 +17,7 @@ import {createRaptors} from './raptors.js';
 import {createRavine} from './world.js';
 import {ROAD_SPEED,shoulderHeight} from './route.js';
 import {ravineRide} from './motion.js';
+import {createRaptorBreakup} from './breakup.js';
 const $=id=>document.getElementById(id),reduced=matchMedia('(prefers-reduced-motion: reduce)').matches;
 // This continuation is also the in-session fallback when browser storage is
 // unavailable. It is a convenience unlock in a local game, not an auth token.
@@ -36,7 +37,7 @@ const jeep=createJeep(scene),effects=createEffects(scene,dustTexture()),audio=ne
 const gore=createCombatFX(scene,effects,{surface:x=>shoulderHeight(x),deck:false});
 gore.stains.mesh.material.roughness=.78;gore.stains.mesh.material.envMapIntensity=.08;
 const scores=createScoreboard({root:$('ravine-scoreboard'),title:'RAVINE · LOCAL TOP FIVE',noun:'repelled',load:cheated=>readBoard('ravine',cheated)});
-let world=null,pack=null,ready=false,mode='loading',view='first',firing=false,time=0,last=performance.now(),freeze=false,radioAge=0,shake=0,flash=0,hitAge=0,ending=0,audioInit=null,starting=false,dustClock=0;
+let world=null,pack=null,breakup=null,ready=false,mode='loading',view='first',firing=false,time=0,last=performance.now(),freeze=false,radioAge=0,shake=0,flash=0,hitAge=0,ending=0,audioInit=null,starting=false,dustClock=0;
 const aim=new T.Vector2(0,.06),raycaster=new T.Raycaster(),aimTarget=new T.Vector3(),muzzle=new T.Vector3(),point=new T.Vector3(),cameraTo=new T.Vector3(),lookTo=new T.Vector3(),look=new T.Vector3(0,2,15),ground=new T.Plane(new T.Vector3(0,1,0),0);
 const vehicle={phase:'pursuit',phaseTime:0,distance:20,reload:0,ammo:80,result:null,time:0};
 const markers=Array.from({length:8},()=>{const el=document.createElement('div');el.className='threat';el.hidden=true;el.innerHTML='<span>STOP THE LEAP</span>';$('threats').append(el);return el;});
@@ -46,7 +47,7 @@ function reticle(){const x=(aim.x*.5+.5)*innerWidth,y=(.5-aim.y*.5)*innerHeight;
 const controls=createPointerControls({canvas:$('scene'),fireButton:$('fire'),isPlaying:()=>mode==='playing'&&round.phase==='chase'&&!round.result,onAim:p=>{aim.set(p.x/innerWidth*2-1,1-p.y/innerHeight*2);reticle();},onFire:value=>firing=value,onGrenade:grenade,onContact:()=>{}});
 function resize(){controls.reset();renderer.setSize(innerWidth,innerHeight);camera.aspect=innerWidth/innerHeight;camera.fov=camera.aspect<.8?100:56;camera.updateProjectionMatrix();reticle();}
 addEventListener('resize',resize);
-function applyQuality(){tier=quality==='auto'?detected.tier:quality;const t=TIERS[tier];renderer.setPixelRatio(Math.min(devicePixelRatio,t.pixelRatio));governor.setRange(t.scale);governor.reset();sun.shadow.mapSize.set(t.shadow,t.shadow);sun.shadow.map?.dispose();sun.shadow.map=null;post.configure({scale:governor.scale,msaa:t.msaa,bloomLevels:t.bloomLevels,volumetric:null,ao:t.ao,motionBlur:reduced?0:.35,grain:.024});effects.setQuality(t);gore.setQuality(t);blood.setQuality(t);world?.setQuality(t);resize();}
+function applyQuality(){tier=quality==='auto'?detected.tier:quality;const t=TIERS[tier];renderer.setPixelRatio(Math.min(devicePixelRatio,t.pixelRatio));governor.setRange(t.scale);governor.reset();sun.shadow.mapSize.set(t.shadow,t.shadow);sun.shadow.map?.dispose();sun.shadow.map=null;post.configure({scale:governor.scale,msaa:t.msaa,bloomLevels:t.bloomLevels,volumetric:null,ao:t.ao,motionBlur:reduced?0:.35,grain:.024});effects.setQuality(t);gore.setQuality(t);breakup?.setQuality(t);blood.setQuality(t);world?.setQuality(t);resize();}
 $('quality').value=quality;$('quality').onchange=()=>{quality=$('quality').value;storeQuality(quality);applyQuality();};applyQuality();
 function radio(title,copy,seconds=5){$('radio-title').textContent=title;$('radio-copy').textContent=copy;radioAge=seconds;}
 function pause(){if(!['playing','paused'].includes(mode))return;const p=mode==='playing';setMode(p?'paused':'playing');$('pause-screen').hidden=!p;audio.pause(p);}
@@ -63,21 +64,21 @@ async function start({automatic=false}={}){
  try{
   audioInit??=audio.init().then(()=>{if(mode==='paused'||mode==='ended')return audio.pause(true);}).catch(e=>console.warn('Ravine audio:',e.message));
   if(!automatic){const resumed=audio.pause(false);await audioInit;await resumed;}
-  audio.stopCalls();controls.reset();round.reset();pack.reset();world.reset();effects.reset();gore.reset();blood.reset();jeep.reset();badge.update(false);firing=false;time=ending=shake=flash=hitAge=dustClock=0;aim.set(0,.06);reticle();view='first';look.set(0,2,17);camera.position.set(.06,2.4,-.45);camera.lookAt(look);
+  audio.stopCalls();controls.reset();round.reset();pack.reset();breakup.reset();world.reset();effects.reset();gore.reset();blood.reset();jeep.reset();badge.update(false);firing=false;time=ending=shake=flash=hitAge=dustClock=0;aim.set(0,.06);reticle();view='first';look.set(0,2,17);camera.position.set(.06,2.4,-.45);camera.lookAt(look);
   $('end-screen').hidden=$('pause-screen').hidden=$('start-screen').hidden=true;setMode('playing');radio('CHAPTER 02 · RAPTOR RAVINE','Stay on the road. Stop the pack before it reaches the Jeep.',7);hud();
  }finally{starting=false;}
 }
 $('start').onclick=()=>start();$('restart').onclick=()=>start();
-function nearest(){scene.updateMatrixWorld(true);raycaster.setFromCamera(aim,camera);const target=pack.hit(raycaster.ray),cover=world.coverHit(raycaster.ray,target?.distance??100);return cover?{point:cover.point,distance:cover.distance,cover:true}:target;}
+function nearest(surface=false){scene.updateMatrixWorld(true);raycaster.setFromCamera(aim,camera);const target=pack.hit(raycaster.ray,surface),cover=world.coverHit(raycaster.ray,target?.distance??100);return cover?{point:cover.point,distance:cover.distance,cover:true}:target;}
 function shoot(){
  if(mode!=='playing'||!round.shoot())return false;const target=nearest();jeep.shoot();audio.gun();jeep.muzzle.getWorldPosition(muzzle);const end=target?.point||(raycaster.ray.intersectPlane(ground,point)&&point.distanceTo(camera.position)<100?point:raycaster.ray.at(70,point));effects.trace(muzzle,end);shake=Math.max(shake,.02);
  if(target&&!target.cover){const dead=round.hit(target.id,{head:target.head,direction:raycaster.ray.direction.toArray()});pack.wound(target);gore.hit(target.point,raycaster.ray.direction,{dead,size:1});audio.hit('flesh',target.distance,target.point);hitAge=.13;if(dead&&target.distance<9)blood.splash(target.point);}
  else if(target?.cover||end.y<.1)effects.burst(end,false);return true;
 }
 function grenade(){
- if(mode!=='playing'||!round.launchGrenade())return false;const target=nearest(),end=target?.point.clone()||(raycaster.ray.intersectPlane(ground,point)&&point.distanceTo(camera.position)<75?point.clone():raycaster.ray.at(28,new T.Vector3()));
+ if(mode!=='playing'||!round.launchGrenade())return false;const target=nearest(true),end=target?.point.clone()||(raycaster.ray.intersectPlane(ground,point)&&point.distanceTo(camera.position)<75?point.clone():raycaster.ray.at(28,new T.Vector3()));
  jeep.muzzle.getWorldPosition(muzzle);effects.trace(muzzle,end);effects.burst(end,!!target&&!target.cover,true);audio.impact(true);shake=.3;hitAge=.2;
- for(const a of pack.pool){if(a.root.visible&&a.data.phase!=='dead'&&(a.id===target?.id||a.body.distanceTo(end)<5)){const direction=a.body.clone().sub(end);if(direction.lengthSq()<.01)direction.copy(raycaster.ray.direction);direction.normalize();const dead=round.hit(a.id,{explosive:true,direction:direction.toArray()});pack.wound({actor:a,point:a.body,head:false},true);gore.hit(a.body,direction,{dead,explosive:true});if(dead&&a.body.distanceTo(camera.position)<9)blood.splash(a.head);}}
+ for(const a of pack.pool){if(a.root.visible&&a.data.phase!=='dead'&&(a.id===target?.id||a.body.distanceTo(end)<5)){const direction=a.body.clone().sub(end);if(direction.lengthSq()<.01)direction.copy(raycaster.ray.direction);direction.normalize();const direct=a.id===target?.id&&!!target.surface,dead=round.hit(a.id,{explosive:true,direct,direction:direction.toArray()});pack.wound({actor:a,point:a.body,head:false},true);gore.hit(a.body,direction,{dead,explosive:true,direct});if(dead&&direct){breakup.burst(a,raycaster.ray.direction);a.root.visible=false;}if(dead&&a.body.distanceTo(camera.position)<9)blood.splash(a.head);}}
  return true;
 }
 function events(){for(const e of round.drain()){
@@ -127,7 +128,7 @@ function step(dt){
  }
  jeep.root.visible=mode!=='menu';
  Object.assign(vehicle,{reload:round.reload,ammo:round.ammo,time,ride:ravineRide(world?.travel||0,speed)});raycaster.setFromCamera(aim,camera);raycaster.ray.at(30,aimTarget);if(active)jeep.update(dt,time,speed,aimTarget,view==='third'||mode==='menu',vehicle);
- effects.update(sim,speed);gore.update(sim,speed);blood.update(sim);shake=Math.max(0,shake-sim*2);flash=Math.max(0,flash-sim*1.7);hitAge=Math.max(0,hitAge-sim);radioAge=Math.max(0,radioAge-sim);
+ effects.update(sim,speed);gore.update(sim,speed);breakup?.update(sim,speed);blood.update(sim);if(sim)pack.retireHidden(world);shake=Math.max(0,shake-sim*2);flash=Math.max(0,flash-sim*1.7);hitAge=Math.max(0,hitAge-sim);radioAge=Math.max(0,radioAge-sim);
  if(mode==='playing'){if(firing)shoot();events();}
  audio.listen(camera,null);audio.update(speed,sim,mode==='playing',false);hud();
 }
@@ -135,10 +136,15 @@ function render(now){requestAnimationFrame(render);const raw=Math.max(0,(now-las
 requestAnimationFrame(render);
 async function load(){try{
  [pack,world]=await Promise.all([createRaptors(scene),createRavine(scene)]);world.setQuality(TIERS[tier]);world.reset();pack.onFoot=(p,speed)=>{if(mode!=='playing')return;effects.groundDust(p,new T.Vector3(0,.2,0),{size:.16,growth:.7,opacity:.2,life:.8,color:0xa38e73});if(p.z<18)audio.footstep(.045,p);};
+ breakup=createRaptorBreakup(scene,pack.pool[0].meshes);breakup.setQuality(TIERS[tier]);
  pack.onImpact=(p,death)=>{gore.stain(p,death.explosive?1.9:1.1);effects.bodyImpact(p,.6);audio.hit('ground',p.distanceTo(camera.position),p);};
- setMode('menu');step(1);$('loading-status').textContent='Preparing light and shadow…';await post.prepare(scene,camera);ready=true;
+ setMode('menu');step(1);$('loading-status').textContent='Preparing light and shadow…';
+ // Warm the pose bake and fragment material variants below the world before
+ // play, so the first direct impact does not compile a new set of shaders.
+ breakup.burst(pack.get(900),new T.Vector3(0,0,1));for(const s of breakup.slots)for(const p of s.pieces)if(p.group.visible)p.group.position.y-=1000;
+ await post.prepare(scene,camera);breakup.reset();ready=true;
  if(!unlocked){$('chapter-status').textContent='CHAPTER 02 / LOCKED';$('start').textContent='BEAT THE T. REX TO UNLOCK';$('loading-status').textContent='Win Rex Pursuit, then choose Next level from the victory screen.';}
  else{$('start').disabled=false;$('start').textContent='RUN THE RAVINE ↗';$('loading-status').textContent='Mouse: hold to fire. Touch: drag to aim, hold FIRE.';if(continuing)await start({automatic:true});}
  }catch(e){$('loading-status').textContent=`The ravine could not load. Reload to retry. (${e.message})`;console.error(e);}}
 load();
-window.ravine={round,scene,camera,renderer,jeep,audio,post,blood,gore,get pack(){return pack;},get world(){return world;},get ready(){return ready;},get mode(){return mode;},get view(){return view;},get freeze(){return freeze;},set freeze(v){freeze=v;},start,pause,step,shoot,grenade,aimAt(p){aim.copy(p.clone().project(camera));reticle();},snapshot(){return{mode,time:round.time,phase:round.phase,result:round.result,jeep:round.jeep,kills:round.kills,live:round.live.length,actors:pack?.pool.filter(a=>a.root.visible).length,calls:renderer.info.render.calls,triangles:renderer.info.render.triangles};}};
+window.ravine={round,scene,camera,renderer,jeep,audio,post,blood,gore,get pack(){return pack;},get breakup(){return breakup;},get world(){return world;},get ready(){return ready;},get mode(){return mode;},get view(){return view;},get freeze(){return freeze;},set freeze(v){freeze=v;},start,pause,step,shoot,grenade,aimAt(p){aim.copy(p.clone().project(camera));reticle();},snapshot(){return{mode,time:round.time,phase:round.phase,result:round.result,jeep:round.jeep,kills:round.kills,live:round.live.length,actors:pack?.pool.filter(a=>a.root.visible).length,calls:renderer.info.render.calls,triangles:renderer.info.render.triangles};}};

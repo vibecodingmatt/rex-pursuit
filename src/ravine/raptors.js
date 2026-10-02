@@ -3,6 +3,7 @@ import {GLTFLoader} from 'three/addons/loaders/GLTFLoader.js';
 import {clone} from 'three/addons/utils/SkeletonUtils.js';
 import {RAVINE} from './rules.js';
 import {RaptorFall} from './motion.js';
+import {RaptorDynamics} from './death-dynamics.js';
 import {shoulderHeight} from './route.js';
 import {createRaptorWounds} from './wounds.js';
 const UP=new T.Vector3(0,1,0),X=new T.Vector3(1,0,0),Z=new T.Vector3(0,0,1);
@@ -18,7 +19,7 @@ export async function createRaptors(scene){
  function support(mesh){
   const g=mesh.geometry;if(supportCache.has(g))return supportCache.get(g);const groups=new Map(),p=g.attributes.position,si=g.attributes.skinIndex,sw=g.attributes.skinWeight;
   for(let i=0;i<p.count;i++){let best=0;for(let k=1;k<4;k++)if(sw.getComponent(i,k)>sw.getComponent(i,best))best=k;const joint=si.getComponent(i,best);if(!groups.has(joint))groups.set(joint,Array.from({length:6},()=>({score:-Infinity,index:0})));const slots=groups.get(joint);for(let k=0;k<6;k++){const score=p.getComponent(i,Math.floor(k/2))*(k%2?-1:1);if(score>slots[k].score)slots[k]={score,index:i};}}
-  const samples=[];for(const [joint,slots]of groups){const n=Number(mesh.skeleton.bones[joint].name.replace('Bone','')),body=n>=10&&n<=17,arm=n===24||n===26||n>=28&&n<=33?1:n===25||n===27||n>=34&&n<=39?2:0;for(const index of new Set(slots.map(s=>s.index)))samples.push({index,body,arm});}supportCache.set(g,samples);return samples;
+  const samples=[];for(const [joint,slots]of groups){const n=Number(mesh.skeleton.bones[joint].name.replace('Bone','')),body=n>=10&&n<=17,torso=n>=10&&n<=12,arm=n===24||n===26||n>=28&&n<=33?1:n===25||n===27||n>=34&&n<=39?2:0,leg=[22,23,40,18,45,46,48,49,51].includes(n)?1:n>=41&&!arm?2:0;for(const index of new Set(slots.map(s=>s.index)))samples.push({index,body,torso,arm,leg,joint:n});}supportCache.set(g,samples);return samples;
  }
  function make(){
   const root=new T.Group(),model=clone(template);root.add(model);scene.add(root);model.scale.setScalar(scale);model.position.set(0,floor,.84*scale);root.updateMatrixWorld(true);
@@ -45,33 +46,37 @@ export async function createRaptors(scene){
   aimBone(hip,knee,bend);aimBone(knee,ankle,end);
  }
  function pose(a,data,dt,speed){
-  const dead=data.phase==='dead',idle=data.phase==='idle'||data.phase==='gate-hold';a.root.visible=true;
+  const dead=data.phase==='dead',idle=['idle','gate-hold','withdrawn'].includes(data.phase);a.root.visible=data.phase!=='shattered';if(data.phase==='shattered')return;
   if(dead){
-   if(!a.fall){a.deathPose=Object.fromEntries(Object.entries(a.bones).map(([n,b])=>[n,b.quaternion.clone()]));a.fall=new RaptorFall({side:data.death.direction[0]||data.side,seed:data.seed,...data.death});a.fallBase=a.root.quaternion.clone();a.fallGround=a.root.position.y;a.pivot=a.root.worldToLocal(bone(a,'Bone.010').getWorldPosition(new T.Vector3()));}
-   for(const [n,r]of Object.entries(a.deathPose))a.bones[n].quaternion.copy(r);
-   a.fall.step(dt);const collapse=smooth(data.age,.04,.78);
-   const relax=(n,axis,angle,w=collapse)=>{const b=bone(a,n);q.copy(a.rest[b.name].q).multiply(pq.setFromAxisAngle(axis,angle));b.quaternion.slerp(q,w);};
-   relax('Bone.022',X,-.55);relax('Bone.041',X,-.22);relax('Bone.023',X,1.15);relax('Bone.042',X,.95);relax('Bone.040',X,-.35);relax('Bone.043',X,-.22);
-   for(const n of ['Bone.024','Bone.025'])relax(n,X,-.15);for(const n of ['Bone.026','Bone.027'])relax(n,X,-1.05);
-   relax('Bone.014',X,.38);relax('Bone.016',X,-.18);relax('Bone.017',X,-.12);
-   for(const [i,n]of ['Bone','Bone.004','Bone.003','Bone.002','Bone.006','Bone.005','Bone.001','Bone.008','Bone.007','Bone.009'].entries())turn(a,n,Z,Math.sin(data.age*8-i*.4)*.065*Math.exp(-data.age*1.9)*collapse);
+   if(!a.fall){a.deathPose=Object.fromEntries(Object.entries(a.bones).map(([n,b])=>[n,b.quaternion.clone()]));a.fall=new RaptorFall({side:data.death.direction[0]||data.side,seed:data.seed,...data.death});a.dynamics=new RaptorDynamics(a);a.fallBase=a.root.quaternion.clone();a.fallGround=a.root.position.y;a.pivot=a.root.worldToLocal(bone(a,'Bone.010').getWorldPosition(new T.Vector3()));}
+   for(const [n,r]of Object.entries(a.sleepPose||a.deathPose))a.bones[n].quaternion.copy(r);
+   a.fall.step(dt);
    q.setFromEuler(new T.Euler(a.fall.pitch,0,a.fall.roll,'YXZ'));a.root.quaternion.copy(a.fallBase).multiply(q);v1.copy(a.pivot).applyQuaternion(a.root.quaternion);v2.copy(a.pivot).applyQuaternion(a.fallBase);
    a.root.position.set(data.x+v2.x-v1.x,a.fallGround+a.fall.y+v2.y-v1.y,data.z+v2.z-v1.z);a.root.updateMatrixWorld(true);
    let correction=0,bodyLow=Infinity;
-   for(const {mesh,points}of a.contacts)for(const s of points){mesh.getVertexPosition(s.index,p0);p0.applyMatrix4(mesh.matrixWorld);const height=p0.y-shoulderHeight(p0.x);correction=Math.max(correction,.018-height-(s.arm?.65*smooth(data.age,.2,.75):0));if(s.body)bodyLow=Math.min(bodyLow,height);}
+   for(const {mesh,points}of a.contacts)for(const s of points)if(s.torso){mesh.getVertexPosition(s.index,p0);p0.applyMatrix4(mesh.matrixWorld);const height=p0.y-shoulderHeight(p0.x);correction=Math.max(correction,.028-height);bodyLow=Math.min(bodyLow,height);}
+   // Shoulder sockets are part of the torso hull. A free arm cannot rotate
+   // its fixed attachment out of the ground after a head-first fall.
+   for(const n of ['Bone024','Bone025']){a.bones[n].getWorldPosition(p0);const height=p0.y-shoulderHeight(p0.x)-.085;correction=Math.max(correction,.018-height);bodyLow=Math.min(bodyLow,height);}
    if(correction>0){a.root.position.y+=correction;if(a.fall.contact(correction,bodyLow<.1)){a.root.updateMatrixWorld(true);api.onImpact?.(bone(a,'Bone.012').getWorldPosition(new T.Vector3()),data.death);}}
-   // Arms yield against the road instead of rigid fingers propping the torso
-   // in mid-air. Rotate the shoulder toward a raised elbow; retain elbow curl.
    a.root.updateMatrixWorld(true);
-   for(let pass=0;pass<3;pass++)for(const [arm,upper,elbow]of [[1,'Bone.024','Bone.026'],[2,'Bone.025','Bone.027']]){
-    let low=Infinity;for(const {mesh,points}of a.contacts)for(const s of points)if(s.arm===arm){mesh.getVertexPosition(s.index,p0);p0.applyMatrix4(mesh.matrixWorld);low=Math.min(low,p0.y-shoulderHeight(p0.x));}
-    if(low<.018){const joint=bone(a,elbow),target=joint.getWorldPosition(new T.Vector3());target.y+=(.018-low)*1.6;aimBone(bone(a,upper),joint,target);}
+   if(!a.sleepPose){a.dynamics.update(dt);
+   for(let pass=0;pass<6;pass++)for(const [kind,side,upper,child,tip]of [['arm',1,'Bone024','Bone026','Bone030'],['arm',2,'Bone025','Bone027','Bone036'],['leg',1,'Bone022','Bone023','Bone040'],['leg',2,'Bone041','Bone042','Bone043']]){
+    let low=Infinity;for(const {mesh,points}of a.contacts)for(const s of points)if(s[kind]===side){mesh.getVertexPosition(s.index,p0);p0.applyMatrix4(mesh.matrixWorld);low=Math.min(low,p0.y-shoulderHeight(p0.x));}
+    if(low<.018){const b=a.bones[pass%2?tip:child],target=b.getWorldPosition(new T.Vector3());target.y+=(.018-low)*1.7;aimBone(a.bones[pass%2?child:upper],b,target);}
    }
+   // Individual fingers fold at their own joints when the hand lands. Raising
+   // the entire shoulder to clear one long claw would hold the carcass rigid.
+   for(let pass=0;pass<3;pass++)for(const n of [28,30,32,34,36,38]){
+    let low=Infinity;for(const {mesh,points}of a.contacts)for(const s of points)if(s.joint===n||s.joint===n+1){mesh.getVertexPosition(s.index,p0);p0.applyMatrix4(mesh.matrixWorld);low=Math.min(low,p0.y-shoulderHeight(p0.x));}
+    if(low<.018){const finger=a.bones[`Bone0${n}`],tip=a.bones[`Bone0${n+1}`],target=tip.getWorldPosition(new T.Vector3());target.y+=(.018-low)*1.5;aimBone(finger,tip,target);}
+   }
+   if(data.age>3.5)a.sleepPose=Object.fromEntries(Object.entries(a.bones).map(([n,b])=>[n,b.quaternion.clone()]));}
   }else{
-   a.fall=null;a.deathPose=null;a.root.position.set(data.x,data.groundY||0,data.z);a.root.rotation.set(0,data.yaw||0,0);
+   a.fall=null;a.sleepPose=null;a.deathPose=null;a.root.position.set(data.x,data.groundY||0,data.z);a.root.rotation.set(0,data.yaw||0,0);
    const gaitSpeed=idle?0:(data.motionSpeed??speed);a.phase=(a.phase+dt*gaitSpeed/4.706)%1;for(const [n,r]of Object.entries(a.rest)){a.bones[n].quaternion.copy(r.q);a.bones[n].position.copy(r.p);}
    const leap=data.phase==='leap'?Math.sin(Math.PI*Math.min(1,data.age/.68)):0,warn=data.phase==='warn'?smooth(data.age,data.warning*.45,data.warning):0;
-   const breath=Math.sin(data.age*1.45),settle=idle?1:data.phase==='gate-brake'?smooth(data.age,.15,.72):0;
+   const breath=Math.sin(data.age*1.45),settle=idle?1:data.phase==='gate-brake'?smooth(data.age,.15,.72):data.phase==='retreat'?smooth(data.age,3.05,3.8):0;
    a.model.position.y=floor-.24*(1-settle)+breath*.009*settle+.035*Math.cos(a.phase*Math.PI*4)*(1-settle)-warn*.06;
    turn(a,'Bone.010',X,-.1-.02*settle-warn*.07);turn(a,'Bone.014',X,.07-.24*settle+breath*.008*settle+warn*.12);turn(a,'Bone.016',Z,Math.sin(data.seed+data.age*(idle?.23:1.1))*.035);
    turn(a,'Bone.016',UP,(.12+Math.sin(data.age*.17)*.045)*settle);
@@ -90,13 +95,23 @@ export async function createRaptors(scene){
    a.root.position.y+=leap*1.3+(data.airY||0);
   }
   a.root.updateMatrixWorld(true);bone(a,'Bone.016').getWorldPosition(a.head);bone(a,'Bone.012').getWorldPosition(a.body);
+  if(!dead&&dt>0){a.previousJoints=a.joints;a.joints=Object.fromEntries(Object.entries(a.bones).map(([n,b])=>[n,b.getWorldPosition(new T.Vector3())]));a.poseDelta=dt;}
  }
  const api={pool,onFoot:null,onImpact:null,update(dt,round,speed=8.5){
   const ids=new Set(round.attackers.map(a=>a.id));for(const a of pool)if(!ids.has(a.id)){a.id=0;a.root.visible=false;}
-  for(const data of round.attackers){let a=pool.find(a=>a.id===data.id);if(!a){a=pool.find(a=>a.id===0);if(!a)continue;a.id=data.id;a.phase=data.seed%1;a.fall=null;a.wounds.reset();a.deathPose=null;a.footSide=[false,false];a.model.position.y=floor;}a.data=data;pose(a,data,dt,speed);}
- },wound(hit,explosive=false){const a=hit.actor;a.wounds.add(hit.point,bone(a,hit.head?'Bone.016':'Bone.012'),scale,explosive);},reset(){for(const a of pool){a.id=0;a.root.visible=false;a.deathPose=null;a.fall=null;a.wounds.reset();}},hit(ray){
+  for(const data of round.attackers){let a=pool.find(a=>a.id===data.id);if(!a){a=pool.find(a=>a.id===0);if(!a)continue;a.id=data.id;a.phase=data.seed%1;a.fall=null;a.sleepPose=null;a.joints=a.previousJoints=null;a.wounds.reset();a.deathPose=null;a.footSide=[false,false];a.model.position.y=floor;}a.data=data;pose(a,data,dt,speed);}
+ },retireHidden(world){
+  scene.updateMatrixWorld(true);for(const a of pool)if(a.root.visible&&a.data.phase==='withdrawn'&&a.data.age>=(a.data.visibilityCheck||0)){
+   a.data.visibilityCheck=a.data.age+.2;const points=[a.head,a.body,...['Bone009','Bone031','Bone037','Bone048','Bone057'].map(n=>a.bones[n].getWorldPosition(new T.Vector3()))];
+   for(const side of [-1,1])points.push(a.head.clone().add(new T.Vector3(side*.45,.25,0)),a.body.clone().add(new T.Vector3(side*.6,.25,0)));
+   a.data.hidden=[new T.Vector3(.06,2.4,-.45),new T.Vector3(-7,4.4,-8.8),new T.Vector3(-5.8,4.4,-8.8)].every(origin=>points.every(p=>world.coverHit(new T.Ray(origin,p.clone().sub(origin).normalize()),p.distanceTo(origin))));
+  }
+ },wound(hit,explosive=false){const a=hit.actor;a.wounds.add(hit.point,bone(a,hit.head?'Bone.016':'Bone.012'),scale,explosive);},reset(){for(const a of pool){a.id=0;a.root.visible=false;a.deathPose=null;a.sleepPose=null;a.fall=null;a.wounds.reset();}},hit(ray,fullSurface=false){
+  // Grenades contact the entire posed hide, including a limb or tail outside
+  // the bullet aim-assist spheres. Refresh the animated mesh bound first.
+  if(fullSurface){let best=null;surfaceRay.ray.copy(ray);for(const a of pool){if(!a.root.visible||a.data.phase==='dead')continue;a.skin.computeBoundingSphere();const hit=surfaceRay.intersectObject(a.skin,false)[0];if(hit&&(!best||hit.distance<best.distance))best={actor:a,id:a.id,point:hit.point,distance:hit.distance,head:hit.point.distanceTo(a.head)<.57,surface:true};}return best;}
   let best=null;for(const a of pool){if(!a.root.visible||a.data.phase==='dead')continue;for(const [point,radius,head]of [[a.head,.57,true],[a.body,.76,false]]){const hit=ray.intersectSphere(new T.Sphere(point,radius),new T.Vector3());if(hit){const distance=hit.distanceTo(ray.origin);if(!best||distance<best.distance)best={actor:a,id:a.id,point:hit,distance,head};}}}
-  if(best){surfaceRay.ray.copy(ray);const hit=surfaceRay.intersectObject(best.actor.skin,false)[0];if(hit){best.point.copy(hit.point);best.distance=hit.distance;}}
+  if(best){surfaceRay.ray.copy(ray);const hit=surfaceRay.intersectObject(best.actor.skin,false)[0];best.surface=!!hit;if(hit){best.point.copy(hit.point);best.distance=hit.distance;}}
   return best;
  },get(id){return pool.find(a=>a.id===id);},get meshes(){return pool.flatMap(a=>a.meshes);}};return api;
 }

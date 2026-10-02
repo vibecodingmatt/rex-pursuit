@@ -154,6 +154,8 @@ Tuning values live in `src/chase/combat.js`. Pause freezes the fight, target and
 
 Hunters emerge from behind solid roadside boulders in overlapping groups, with faster approaches and shorter leap warnings later in the route. Hits leave wounds, blood and tissue; defeated raptors buckle, skid and settle onto the road. The Jeep has smaller, irregular suspension movement. Surviving hunters land and brake outside the closing gate as the Jeep pulls away.
 
+The death rig gives the neck, tail and limbs independent weight and ground contact. Direct grenade hits dismember the raptor into textured body parts, blood and guts; nearby splash kills leave a falling body. Raptors that land an attack turn back behind cover before leaving the scene. Solid walls connect both sides of the evacuation gate to the canyon.
+
 The new creature is Animaniac888's CC0 [Dromaeosaur Raptor](https://blendswap.com/blend/4889), with its authored 2K maps and repaired eyes/mouth binding. The menu uses a planted idle pose. The canyon combines Poly Haven's CC0 [Namaqualand Cliff 02](https://polyhaven.com/a/namaqualand_cliff_02), [Sandstone Cracks](https://polyhaven.com/a/sandstone_cracks) and [Gravelly Sand](https://polyhaven.com/a/gravelly_sand) with continuous terrain, overlapping fractured outcrops and talus. Sources and authoring instructions are in [the chapter reference](docs/RAPTOR-RAVINE.md) and runtime provenance. The existing Rex retains its CC BY 4.0 attribution.
 
 Progress and separate fair/cheat records are saved on this browser. First/third-person cameras, the existing touch controls and both cheat toggles work in the new chapter. `npm run test:ravine` checks progression and full gameplay flows.
