@@ -1,16 +1,23 @@
 {
-  "asset": "raptor-ravine.glb",
-  "title": "Dromaeosaur Raptor",
-  "creator": "Animaniac888",
-  "license": "CC0-1.0",
-  "licenseUrl": "https://creativecommons.org/publicdomain/zero/1.0/",
-  "source": "https://blendswap.com/blend/4889",
-  "distribution": "https://opengameart.org/content/dromaeosaur-dinosaur",
-  "download": "https://opengameart.org/sites/default/files/Dromaeosaur.blend",
-  "retrieved": "2026-10-02",
-  "sourceSha256": "c0e63b9e1a637d62a541566571262d0ea52375ca27e833edb370c0b1c42307c3",
-  "changes": ["Rebuilt Blender Internal materials as PBR", "Preserved authored 2K skin and normal maps; JPEG quality 93", "Attached eyes to skull with rigid skin weights", "Removed unused scene objects and animation constraints", "Runtime IK foot placement, jaw/arms/tail motion, chase, leap and fall poses"],
-  "preparation": "art/prepare_raptor.py",
-  "triangles": 47164,
-  "notes": "Artist-authored stylized prehistoric reconstruction; not a film-production or scientific reconstruction asset. The source artist explicitly confirms CC0 on the source listing."
+    "asset":  "raptor-ravine.glb",
+    "title":  "Dromaeosaur Raptor",
+    "creator":  "Animaniac888",
+    "license":  "CC0-1.0",
+    "licenseUrl":  "https://creativecommons.org/publicdomain/zero/1.0/",
+    "source":  "https://blendswap.com/blend/4889",
+    "distribution":  "https://opengameart.org/content/dromaeosaur-dinosaur",
+    "download":  "https://opengameart.org/sites/default/files/Dromaeosaur.blend",
+    "retrieved":  "2026-10-02",
+    "sourceSha256":  "c0e63b9e1a637d62a541566571262d0ea52375ca27e833edb370c0b1c42307c3",
+    "changes":  [
+                    "Rebuilt Blender Internal materials as PBR",
+                    "Preserved authored 2K skin and normal maps; JPEG quality 93",
+                    "Attached eyes to skull with rigid skin weights",
+                    "Removed unused scene objects and animation constraints",
+                    "Runtime IK foot placement, jaw/arms/tail motion, chase, leap and fall poses",
+                    "Repaired 292 unweighted mouth-interior vertices using the nearest weighted source surface; idle stance with planted feet"
+                ],
+    "preparation":  "art/prepare_raptor.py",
+    "triangles":  47164,
+    "notes":  "Artist-authored stylized prehistoric reconstruction; not a film-production or scientific reconstruction asset. The source artist explicitly confirms CC0 on the source listing."
 }

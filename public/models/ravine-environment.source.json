@@ -4,14 +4,14 @@
   "retrieved": "2026-10-02",
   "assets": [
     {
-      "file": "ravine-cliff.glb",
-      "title": "Coastal Cliff 01",
-      "creators": ["Rob Tuytel (photography and processing)", "Rico Cilliers (cleanup)"],
-      "source": "https://polyhaven.com/a/coastal_cliff_01",
-      "manifest": "https://api.polyhaven.com/files/coastal_cliff_01",
-      "sourceSha256": "091b3d5a8a1b649b56c5a07f6bc43fe61893695f2b5ecb512ba7d58641763aef",
-      "changes": "Optimized source to 29,998 polygons; 2K diffuse, normal and roughness maps; staged and lit as a canyon.",
-      "preparation": "art/prepare_cliff.py"
+      "file": "ravine-outcrop.glb",
+      "title": "Namaqualand Cliff 02",
+      "creators": ["Dario Barresi (photography)", "Rico Cilliers (modeling)"],
+      "source": "https://polyhaven.com/a/namaqualand_cliff_02",
+      "manifest": "https://api.polyhaven.com/files/namaqualand_cliff_02",
+      "sourceSha256": "a3ce3a54970b1992ee3fe126cd58012e2a80104691c46932254e473cf6c8d517",
+      "changes": "15,999 / 3,499 triangle LODs sharing 4K color and 2K normal/roughness textures, JPEG quality 90. Mirrored runtime geometry and varied placements, backed by continuous closed terrain. Replaces Coastal Cliff 01's open scan strips.",
+      "preparation": "art/prepare_ravine_outcrop.py"
     },
     {
       "files": ["textures/ravine/gravel-diff.jpg", "textures/ravine/gravel-nor_gl.jpg", "textures/ravine/gravel-rough.jpg"],
@@ -20,6 +20,14 @@
       "source": "https://polyhaven.com/a/gravelly_sand",
       "manifest": "https://api.polyhaven.com/files/gravelly_sand",
       "changes": "Unmodified 2K JPEG maps. Runtime tint and track shading."
+    },
+    {
+      "files": ["textures/ravine/sandstone-diff.jpg", "textures/ravine/sandstone-nor_gl.jpg", "textures/ravine/sandstone-rough.jpg"],
+      "title": "Sandstone Cracks",
+      "creator": "Rob Tuytel",
+      "source": "https://polyhaven.com/a/sandstone_cracks",
+      "manifest": "https://api.polyhaven.com/files/sandstone_cracks",
+      "changes": "Unmodified 2K JPEG maps. Runtime tint for the canyon backing and talus. Terrain geometry authored for this game."
     }
   ]
 }

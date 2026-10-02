@@ -10,7 +10,7 @@ Start with [docs/HANDOFF.md](docs/HANDOFF.md) for the accepted behavior and rece
 
 - Read the current code and Git status before editing. The handoff describes a checkpoint; source constants and subsequent user requests take precedence.
 - Pursuit and Safari use `index.html` / `src/chase.js`; Containment Breach has its own entry, `breach.html` / `src/breach/main.js`. `creature-lab.html` is the full TEST ONLY catalogue; `model-lab.html` / `src/main.js` is the preserved Rex study. River Escape is a future roadmap item, not an implemented mode.
-- Raptor Ravine is campaign chapter two (`ravine.html`, `src/ravine/`), unlocked by Pursuit victory through `src/chase/campaign.js`. Read `docs/RAPTOR-RAVINE.md` for CC0 art provenance, authoring and its focused regression.
+- Raptor Ravine is campaign chapter two (`ravine.html`, `src/ravine/`). It is temporarily open for play-testing via `RAVINE_PLAYTEST_OPEN` in `src/chase/campaign.js`; earned Pursuit progress remains separate. Read `docs/RAPTOR-RAVINE.md` for CC0 art provenance, authoring and focused regression.
 - Ordinary animation and material changes belong in runtime code. Re-exporting the GLB is a separate asset-authoring operation that can overwrite existing work.
 - For visual changes, inspect comparable before/after captures, including the relevant close-up and mobile framing. A passing numeric check does not establish that an animation looks good.
 - Use the focused checks in the skill's verification reference. `npm test` is not the complete suite. Keep review images and temporary diagnostics in ignored `art/review/`.

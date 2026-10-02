@@ -5,6 +5,7 @@ Source and SHA256 are recorded in public/models/raptor-ravine.source.json.
 import bpy, math, json
 from pathlib import Path
 from mathutils import Matrix
+from mathutils.kdtree import KDTree
 ROOT=Path(__file__).resolve().parent
 bpy.ops.wm.open_mainfile(filepath=str(ROOT/'Dromaeosaur.blend'),use_scripts=False)
 rig=bpy.data.objects['Armature']
@@ -23,6 +24,21 @@ eye=bpy.data.objects['Eye'];eye.vertex_groups.clear()
 eye.vertex_groups.new(name='Bone.016').add(list(range(len(eye.data.vertices))),1,'REPLACE')
 eye.modifiers.new('Follow skull','ARMATURE').object=rig
 eye.parent=rig
+# The source also leaves mouth-interior vertices completely unweighted. glTF
+# assigns those to a neutral bone, leaving pink tissue hanging outside a posed
+# jaw. Transfer only these missing bindings from the nearest weighted surface.
+for name in ['Dromaeosaur','Teeth','Claws']:
+ ob=bpy.data.objects[name];verts=ob.data.vertices
+ valid=[v for v in verts if sum(g.weight for g in v.groups)>.0001]
+ tree=KDTree(len(valid))
+ for v in valid:tree.insert(v.co,v.index)
+ tree.balance();repaired=0
+ for v in verts:
+  if sum(g.weight for g in v.groups)>.0001:continue
+  _,nearest,_=tree.find(v.co);weights=[g for g in verts[nearest].groups if g.weight>.0001];total=sum(g.weight for g in weights)
+  for g in weights:ob.vertex_groups[g.group].add([v.index],g.weight/total,'REPLACE')
+  repaired+=1
+ print('REPAIRED UNBOUND VERTICES',name,repaired)
 for name,image,rough,color in [('Dromaeosaur','Diffuse',.8,(.82,.87,.76,1)),('Eye','Raptor Eye.png',.22,(1,1,1,1)),('Teeth',None,.57,(.64,.58,.39,1)),('Claws',None,.68,(.055,.047,.031,1))]:
  mat=bpy.data.materials[name];mat.use_nodes=True;mat.node_tree.nodes.clear();nodes=mat.node_tree.nodes;links=mat.node_tree.links
  out=nodes.new('ShaderNodeOutputMaterial');p=nodes.new('ShaderNodeBsdfPrincipled');links.new(p.outputs['BSDF'],out.inputs['Surface']);p.inputs['Base Color'].default_value=color;p.inputs['Roughness'].default_value=rough

@@ -10,7 +10,7 @@ import {createPointerControls} from '../chase/pointer-controls.js';
 import {createScreenBlood} from '../chase/screen-blood.js';
 import {activateCheat,createCheatInput,createCheatBadge} from '../chase/cheats.js';
 import {createScoreboard,readBoard,saveRun} from '../chase/scoreboard.js';
-import {campaignProgress,completeChapter} from '../chase/campaign.js';
+import {ravineAvailable,completeChapter} from '../chase/campaign.js';
 import {RAVINE,RavineRound,sectionAt} from './rules.js';
 import {createRaptors} from './raptors.js';
 import {createRavine} from './world.js';
@@ -19,15 +19,16 @@ const $=id=>document.getElementById(id),reduced=matchMedia('(prefers-reduced-mot
 // unavailable. It is a convenience unlock in a local game, not an auth token.
 const entry=new URL(location.href),continuing=entry.searchParams.get('continue')==='1';
 if(continuing){completeChapter(1);entry.searchParams.delete('continue');history.replaceState(null,'',entry);}
-const unlocked=campaignProgress().ravine;
+const unlocked=ravineAvailable();
 installAtmosphericFog();
 const renderer=new T.WebGLRenderer({canvas:$('scene'),antialias:false,powerPreference:'high-performance'});renderer.shadowMap.enabled=true;renderer.shadowMap.type=T.PCFSoftShadowMap;renderer.toneMapping=T.ACESFilmicToneMapping;renderer.toneMappingExposure=1.08;renderer.info.autoReset=false;
-const scene=new T.Scene();scene.background=new T.Color(0xaaab9f);scene.fog=new T.FogExp2(0xaaab9f,.0068);scene.environment=createEnvironmentMap(renderer);scene.environmentIntensity=.38;
+const scene=new T.Scene();scene.background=new T.Color(0xb8bab2);scene.fog=new T.FogExp2(0xb8bab2,.0047);scene.environment=createEnvironmentMap(renderer);scene.environmentIntensity=.32;
 const camera=new T.PerspectiveCamera(56,innerWidth/innerHeight,.045,280),post=createPost(renderer),governor=createGovernor(),detected=detectTier(renderer);
+post.final.saturation.value=.94;post.final.contrast.value=.14;post.final.highlightTint.value.setRGB(1.015,1,.98);post.final.aberration.value=.0005;
 let quality=storedQuality(),tier=quality==='auto'?detected.tier:quality;
-const sun=new T.DirectionalLight(0xffd1a0,3.8);sun.position.set(-10,48,-36);sun.target.position.set(0,0,15);sun.castShadow=true;sun.shadow.normalBias=.025;sun.shadow.bias=-.00025;Object.assign(sun.shadow.camera,{left:-27,right:27,top:38,bottom:-25,near:1,far:125});scene.add(sun,sun.target);
-const hemi=new T.HemisphereLight(0xc4d6d6,0x766653,1);scene.add(hemi);const rim=new T.DirectionalLight(0xafd1da,.75);rim.position.set(15,17,40);scene.add(rim);const fill=new T.DirectionalLight(0xffe4bd,.8);fill.position.set(3,9,-20);scene.add(fill);
-const sky=createSky(scene);sky.palette(scene.fog.color,0x7cabbf);sky.uniforms.sunDir.value.subVectors(sun.position,sun.target.position).normalize();
+const sun=new T.DirectionalLight(0xffe2bb,3.4);sun.position.set(-24,52,-30);sun.target.position.set(0,0,15);sun.castShadow=true;sun.shadow.normalBias=.025;sun.shadow.bias=-.00025;Object.assign(sun.shadow.camera,{left:-38,right:38,top:52,bottom:-32,near:1,far:160});scene.add(sun,sun.target);
+const hemi=new T.HemisphereLight(0xc4d6e6,0x8a755f,1.35);scene.add(hemi);const rim=new T.DirectionalLight(0xb8d2e6,.65);rim.position.set(15,17,40);scene.add(rim);const fill=new T.DirectionalLight(0xffe9ce,.65);fill.position.set(3,9,-20);scene.add(fill);
+const sky=createSky(scene);sky.palette(scene.fog.color,0x749db9);sky.uniforms.sunDir.value.subVectors(sun.position,sun.target.position).normalize();
 const jeep=createJeep(scene),effects=createEffects(scene,dustTexture()),audio=new ChaseAudio(),round=new RavineRound(),blood=createScreenBlood(camera,{reducedMotion:reduced}),badge=createCheatBadge();
 const scores=createScoreboard({root:$('ravine-scoreboard'),title:'RAVINE · LOCAL TOP FIVE',noun:'repelled',load:cheated=>readBoard('ravine',cheated)});
 let world=null,pack=null,ready=false,mode='loading',view='first',firing=false,time=0,last=performance.now(),freeze=false,radioAge=0,shake=0,flash=0,hitAge=0,ending=0,audioInit=null,starting=false,dustClock=0;
@@ -100,23 +101,23 @@ function hud(){
  let n=0;for(const a of pack?.pool||[]){if(mode!=='playing'||!a.root.visible||!['warn','leap'].includes(a.data.phase))continue;const p=a.head.clone().project(camera),el=markers[n++];if(!el)break;el.hidden=p.z>1;el.classList.toggle('leap',a.data.phase==='leap');el.style.left=`${T.MathUtils.clamp((p.x*.5+.5)*innerWidth,38,innerWidth-38)}px`;el.style.top=`${T.MathUtils.clamp((.5-p.y*.5)*innerHeight,165,innerHeight-175)}px`;el.firstChild.textContent=a.data.phase==='leap'?'INCOMING':`LEAP IN ${Math.max(0,1.85-a.data.age).toFixed(1)}s`;}
  for(;n<markers.length;n++)markers[n].hidden=true;
 }
-const preview={time:0,escapeTime:0,attackers:[{id:900,side:1,lane:-3.1,x:-3.1,z:8,hp:150,phase:'run',age:0,seed:.3}]};
+const preview={time:0,escapeTime:0,attackers:[{id:900,side:1,x:-2.4,z:8,hp:150,phase:'idle',yaw:-.25,age:0,seed:.3}]};
 function step(dt){
  const sim=mode==='playing'?dt:0,active=mode==='playing'||mode==='menu'||mode==='ending';if(active)time=(time+dt)%600;
  if(mode==='playing')round.tick(dt);
  const speed=mode==='playing'?8.5:0;
- if(mode==='menu'){preview.attackers[0].age+=dt;preview.attackers[0].x=camera.aspect<.8?-.3:-3.1;pack.update(dt,preview,2);world.update(0,preview,0);}
+ if(mode==='menu'){if(!reduced)preview.attackers[0].age+=dt;pack.update(dt,preview,0);world.update(0,preview,0);}
  else if(mode==='playing')pack.update(sim,round,speed);
  if(mode==='playing'){world.update(sim,round,speed);dustClock+=sim;if(dustClock>.14){dustClock=0;for(const x of [-1,1])effects.groundDust(new T.Vector3(x,.07,1.5),new T.Vector3(x*.2,.16,0),{size:.3,growth:1.7,opacity:.14,life:1.5,color:0xb4a185});}}
  if(mode==='ending'){ending+=dt;if(ending>1.5)finish();}
  if(mode!=='paused'&&mode!=='ended'){
-  const portrait=camera.aspect<.8,third=view==='third';
-  if(mode==='menu'){cameraTo.set(portrait?.2:-3.7,portrait?2.8:3.1,portrait?1:-4.8);lookTo.set(portrait?-.3:1.2,portrait?-1.25:2,portrait?10:11);}
+  const portrait=camera.aspect<.8,third=view==='third',fov=mode==='menu'?(portrait?58:46):(portrait?100:56);if(camera.fov!==fov){camera.fov=fov;camera.updateProjectionMatrix();}
+  if(mode==='menu'){const drift=reduced?0:Math.sin(time*.09)*.18;if(portrait){const head=pack.get(900).head;cameraTo.set(head.x-3.4,head.y+.1,head.z-6.3);lookTo.set(head.x,head.y-2,head.z+.1);}else{cameraTo.set(-7.8,2.15,1.8);lookTo.set(1.3,1.75,10);}cameraTo.x+=drift;}
   else if(third){cameraTo.set(portrait?-5.8:-7,4.4,-8.8);lookTo.set(0,1.65,11);}
   else{cameraTo.set(.06,2.4,-.45);lookTo.set(0,2.05,17);}
   const blend=1-Math.exp(-dt*5);camera.position.lerp(cameraTo,blend);look.lerp(lookTo,blend);if(!reduced&&sim){camera.position.y+=Math.sin(time*18)*.008;camera.position.x+=Math.sin(time*47)*shake*.1;}camera.lookAt(look);camera.updateMatrixWorld();
  }
- jeep.root.visible=!(mode==='menu'&&camera.aspect<.8);
+ jeep.root.visible=mode!=='menu';
  Object.assign(vehicle,{reload:round.reload,ammo:round.ammo,time});raycaster.setFromCamera(aim,camera);raycaster.ray.at(30,aimTarget);if(active)jeep.update(dt,time,speed,aimTarget,view==='third'||mode==='menu',vehicle);
  effects.update(sim,speed);blood.update(sim);shake=Math.max(0,shake-sim*2);flash=Math.max(0,flash-sim*1.7);hitAge=Math.max(0,hitAge-sim);radioAge=Math.max(0,radioAge-sim);
  if(mode==='playing'){if(firing)shoot();events();}

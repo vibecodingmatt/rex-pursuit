@@ -35,7 +35,7 @@ export async function createRaptors(scene){
   aimBone(hip,knee,bend);aimBone(knee,ankle,end);
  }
  function pose(a,data,dt,speed){
-  const dead=data.phase==='dead';a.root.visible=true;a.root.position.set(data.x,0,data.z);a.root.rotation.set(0,data.phase==='retreat'?-data.side*.48:Math.sin(data.seed+data.age*.5)*.04,0);
+  const dead=data.phase==='dead',idle=data.phase==='idle';a.root.visible=true;a.root.position.set(data.x,0,data.z);a.root.rotation.set(0,idle?data.yaw||0:data.phase==='retreat'?-data.side*.48:Math.sin(data.seed+data.age*.5)*.04,0);
   const gaitSpeed=speed+(data.phase==='run'&&speed>4?3.6:data.phase==='retreat'?-6:0);
   if(!dead){a.deathPose=null;a.phase=(a.phase+dt*Math.max(0,gaitSpeed)/(speed<4?2.4:4.706))%1;for(const [n,r]of Object.entries(a.rest)){a.bones[n].quaternion.copy(r.q);a.bones[n].position.copy(r.p);}}
   else if(!a.deathPose)a.deathPose=Object.fromEntries(Object.entries(a.bones).map(([n,b])=>[n,b.quaternion.clone()]));
@@ -45,14 +45,16 @@ export async function createRaptors(scene){
    turn(a,'Bone.014',X,-.18*fall);turn(a,'Bone.017',X,.22*fall);
   }else{
    const leap=data.phase==='leap'?Math.sin(Math.PI*Math.min(1,data.age/.8)):0,warn=data.phase==='warn'?smooth(data.age,.9,1.8):0;
-   a.model.position.y=floor-(speed>4?.24:0)+.045*Math.cos(a.phase*Math.PI*4)-warn*.06;
-   turn(a,'Bone.010',X,-.1-warn*.07);turn(a,'Bone.014',X,.07+warn*.12);turn(a,'Bone.016',Z,Math.sin(data.seed+data.age*1.1)*.035);
-   turn(a,'Bone.017',X,-.25+warn*.32+leap*.32);
-   for(let i=0;i<10;i++)turn(a,['Bone','Bone.004','Bone.003','Bone.002','Bone.006','Bone.005','Bone.001','Bone.008','Bone.007','Bone.009'][i],Z,Math.sin(a.phase*Math.PI*2-i*.36)*.045);
+   const breath=Math.sin(data.age*1.45);
+   a.model.position.y=floor-(speed>4?.24:0)+(idle?breath*.009:.045*Math.cos(a.phase*Math.PI*4))-warn*.06;
+   turn(a,'Bone.010',X,idle?-.12:-.1-warn*.07);turn(a,'Bone.014',X,idle?-.17+breath*.008:.07+warn*.12);turn(a,'Bone.016',Z,idle?Math.sin(data.age*.23)*.035:Math.sin(data.seed+data.age*1.1)*.035);
+   turn(a,'Bone.016',UP,idle?.12+Math.sin(data.age*.17)*.045:0);
+   turn(a,'Bone.017',X,idle?-.37:-.25+warn*.32+leap*.32);
+   for(let i=0;i<10;i++)turn(a,['Bone','Bone.004','Bone.003','Bone.002','Bone.006','Bone.005','Bone.001','Bone.008','Bone.007','Bone.009'][i],Z,Math.sin((idle?data.age*.35:a.phase*Math.PI*2)-i*.36)*(idle?.008:.045));
    turn(a,'Bone.024',X,-.45+leap*.7);turn(a,'Bone.025',X,-.45+leap*.7);turn(a,'Bone.026',X,-.65);turn(a,'Bone.027',X,-.65);
    a.root.updateMatrixWorld(true);
    for(let i=0;i<2;i++){
-    const t=(a.phase+i*.5)%1,duty=speed<4?.58:.34,stance=t<duty,amplitude=speed<4?.3:.8;const z=(stance?-1+t/duty*2:1-((t-duty)/(1-duty))*2)*amplitude,lift=stance?0:.4*Math.sin((t-duty)/(1-duty)*Math.PI);
+    const t=(a.phase+i*.5)%1,duty=speed<4?.58:.34,stance=idle||t<duty,amplitude=speed<4?.3:.8;const z=idle?(i===0?-.15:.16):(stance?-1+t/duty*2:1-((t-duty)/(1-duty))*2)*amplitude,lift=stance?0:.4*Math.sin((t-duty)/(1-duty)*Math.PI);
     const target=a.footRest[i].clone();target.z+=z;target.y+=lift+leap*.55;leg(a,i,a.root.localToWorld(target));
     const ankle=a.legs[i][2];a.root.getWorldQuaternion(pq).multiply(a.footRotation[i]);ankle.parent.getWorldQuaternion(q).invert();ankle.quaternion.copy(q.multiply(pq));
     if(!stance)ankle.quaternion.multiply(q.setFromAxisAngle(X,.35*Math.sin((t-duty)/(1-duty)*Math.PI)));

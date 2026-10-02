@@ -1,9 +1,12 @@
 import assert from 'node:assert/strict';
 import {RavineRound,RAVINE} from '../src/ravine/rules.js';
-import {campaignProgress,completeChapter} from '../src/chase/campaign.js';
+import {campaignProgress,completeChapter,ravineAvailable,RAVINE_PLAYTEST_OPEN} from '../src/chase/campaign.js';
 const memory=new Map(),storage={getItem:k=>memory.get(k)||null,setItem:(k,v)=>memory.set(k,v)};
 assert.equal(campaignProgress(storage).ravine,false);
-assert.equal(completeChapter(2,storage).completed,false,'cannot complete an unavailable chapter');
+assert.equal(ravineAvailable(storage),RAVINE_PLAYTEST_OPEN,'fresh play-test entry requires no Rex win');
+assert.equal(campaignProgress(storage).ravine,false,'opening play-test access does not invent a Rex win');
+assert.equal(completeChapter(2,storage).completed,RAVINE_PLAYTEST_OPEN,'an available chapter records its own completion');
+assert.equal(campaignProgress(storage).ravine,false,'finishing the ravine does not invent a Rex win');
 assert.equal(completeChapter(1,storage).ravine,true);assert.equal(campaignProgress(storage).ravine,true);
 assert.equal(completeChapter(2,storage).completed,true);
 assert.equal(completeChapter(1,{getItem(){throw Error('denied');},setItem(){throw Error('denied');}}).saved,false,'storage denial is recoverable');

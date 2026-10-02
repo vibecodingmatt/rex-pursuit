@@ -37,9 +37,9 @@ import {createCombatFX} from './chase/combat-fx.js';
 import {createScreenBlood} from './chase/screen-blood.js';
 import {activateCheat,createCheatInput,createCheatBadge} from './chase/cheats.js';
 import {createScoreboard,readBoard,saveRun} from './chase/scoreboard.js';
-import {campaignProgress,completeChapter} from './chase/campaign.js';
+import {ravineAvailable,completeChapter} from './chase/campaign.js';
 const $=s=>document.querySelector(s),canvas=$('#scene');
-function updateCampaignLink(){const p=campaignProgress();$('#campaign-link').textContent=p.ravine?'CHAPTER 02 · RAPTOR RAVINE ↗':'CHAPTER 02 · BEAT THE REX TO UNLOCK';}
+function updateCampaignLink(){$('#campaign-link').textContent=ravineAvailable()?'CHAPTER 02 · RAPTOR RAVINE ↗':'CHAPTER 02 · BEAT THE REX TO UNLOCK';}
 updateCampaignLink();
 installAtmosphericFog();
 const renderer=new T.WebGLRenderer({canvas,antialias:false,powerPreference:'high-performance'});renderer.shadowMap.enabled=true;renderer.shadowMap.type=T.PCFSoftShadowMap;renderer.toneMapping=T.ACESFilmicToneMapping;renderer.toneMappingExposure=1.13;renderer.info.autoReset=false;
