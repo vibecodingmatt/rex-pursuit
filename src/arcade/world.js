@@ -10,6 +10,9 @@ import {StageLight,RouteCanopy,installArcadeFog,addRim} from './light.js';
 import {CircuitAir,PUSH,GUST,PLANT_PUSH} from './air.js';
 import {Gate,GATE_Z} from './gate.js';
 import {Sparks} from './sparks.js';
+import {RiverSurface,LEVEL} from './water.js';
+import {Spray} from './spray.js';
+import {BOW} from './boat.js';
 
 const TAU=Math.PI*2,clamp=T.MathUtils.clamp,smooth=(a,b,x)=>{const t=clamp((x-a)/(b-a),0,1);return t*t*(3-2*t);};
 export const noise=n=>{const v=Math.sin(n*127.1+311.7)*43758.5453;return v-Math.floor(v);};
@@ -95,11 +98,11 @@ export class CircuitWorld {
   const scan=await new GLTFLoader().loadAsync('./models/ravine-outcrop.glb');scan.scene.updateMatrixWorld(true);const source=scan.scene.getObjectByName('Ravine_Outcrop_LOD');this.geometry.outcrop=source.geometry.clone().applyMatrix4(source.matrixWorld);this.geometry.outcrop.computeBoundingBox();const box=this.geometry.outcrop.boundingBox,center=box.getCenter(new T.Vector3());this.geometry.outcrop.translate(-center.x,-box.min.y,-center.z);this.materials.outcrop=source.material;this.materials.outcrop.color.set(0xc5b89e);this.materials.outcrop.side=T.DoubleSide;this.materials.outcrop.roughness=.93;
   this.canopy=createCanopy(this.scene,this.sun,{width:90,height:19});this.routeCanopy=new RouteCanopy(this.canopy,{routeX,routeY});this.light=new StageLight(this,{routeX,routeY});this.light.load(this.renderer);this.air=new CircuitAir(this,{routeX,routeY,routeHeading});this.pushers=[];this.post.configure({ao:innerWidth>700?{samples:4,steps:4}:false,aoAmount:.65,volumetric:{steps:10,resolution:.4}});
   const normals=new Uint8Array(256*256*4);for(let y=0;y<256;y++)for(let x=0;x<256;x++){const u=x/256*Math.PI*2,v=y/256*Math.PI*2,dx=Math.cos(u*7+Math.sin(v*3))*.23+Math.cos(u*19+v*11)*.1,dy=Math.cos(v*9+u*3)*.22+Math.cos(v*21-u*7)*.1,n=new T.Vector3(-dx,-dy,1).normalize(),i=(y*256+x)*4;normals.set([128+n.x*127,128+n.y*127,128+n.z*127,255],i);}const normalTexture=new T.DataTexture(normals,256,256);normalTexture.wrapS=normalTexture.wrapT=T.RepeatWrapping;normalTexture.magFilter=normalTexture.minFilter=T.LinearFilter;normalTexture.needsUpdate=true;
-  this.water=new Water(new T.PlaneGeometry(250,500),{textureWidth:innerWidth>700?1024:512,textureHeight:innerWidth>700?1024:512,waterNormals:normalTexture,sunDirection:new T.Vector3(-.5,.8,-.4).normalize(),sunColor:0xfff0c9,waterColor:0x236e75,distortionScale:.85,fog:true});this.water.rotation.x=-Math.PI/2;this.water.visible=false;this.scene.add(this.water);
+  this.water=new Water(new T.PlaneGeometry(250,500),{textureWidth:innerWidth>700?1024:512,textureHeight:innerWidth>700?1024:512,waterNormals:normalTexture,sunDirection:new T.Vector3(-.5,.8,-.4).normalize(),sunColor:0xfff0c9,waterColor:0x236e75,distortionScale:.85,fog:true});this.water.rotation.x=-Math.PI/2;this.water.visible=false;this.scene.add(this.water);this.river=new RiverSurface(this.water,{routeX});this.bowAt=new T.Vector3();this.fill=new T.Color();
   // The mirror pass skips small ground clutter (grass, pebbles, contact shadows, litter) and the
   // motes, leaves and insects in the air; they barely read in the reflection.
   const reflect=this.water.onBeforeRender;this.water.onBeforeRender=(...a)=>{const hidden=[];for(const o of [...this.chunks.flatMap(c=>c.children),this.air.motes,this.air.leaves,this.air.insectFrame])if(o.userData.noReflect&&o.visible){o.visible=false;hidden.push(o);}reflect.apply(this.water,a);for(const o of hidden)o.visible=true;};
-  const sprayGeometry=new T.BufferGeometry();sprayGeometry.setAttribute('position',new T.BufferAttribute(new Float32Array(180*3),3));this.spray=new T.Points(sprayGeometry,new T.PointsMaterial({map:dustTexture(),size:.38,color:0xdaf8ef,transparent:true,opacity:.6,depthWrite:false}));this.spray.frustumCulled=false;this.scene.add(this.spray);
+  this.spray=new Spray(this.scene);this.sunLit=new T.Color();
   this.signs={gates:labelTexture('JURASSIC PARK','ISLA NUBLAR • NORTH GATE'),river:labelTexture('RIVER OF GIANTS'),fault:labelTexture('SERVICE CROSSING','UNSTABLE GROUND • DO NOT STOP'),hybrid:labelTexture('INNOVATION VALLEY'),lagoon:labelTexture('LAGOON OBSERVATORY'),manor:labelTexture('THE CONSERVATORY'),visitor:labelTexture('VISITOR CENTER','WHEN GIANTS RULED THE EARTH')};
   this.materials.porcelain=new T.MeshStandardMaterial({color:0xcdbf9f,roughness:.2});this.materials.voltSign=new T.MeshStandardMaterial({map:voltTexture(),roughness:.55,metalness:.25});this.sparks=new Sparks(this.scene);
   this.gate=new Gate(this.scene,{stone:this.materials.stone,sign:this.signs.gates,light:this.practicalLights[0],diffuse:gateDiffuse,normal:gateNormal,routeX,routeY,routeHeading,groundAt});
@@ -153,7 +156,7 @@ export class CircuitWorld {
     // Surface roots fan out from the giants' buttresses and dive into the litter.
     if(i%3!==0&&!urban)for(let k=0,n=3+Math.floor(noise(seed+5)*3);k<n;k++){const a=seed+k*TAU/n+noise(seed+k)*.8;still('root',off+Math.sin(a)*.35,ground-.04,z+Math.cos(a)*.35,a,.8+height*.04+noise(seed+k+9)*.5,[.85,.82,.75]);}
    }
-   scatter(index,id,flags,{height:hAt,put,still,rocks:this.rocks.kinds});
+   g.userData.wet=[];scatter(index,id,flags,{height:hAt,put,still,rocks:this.rocks.kinds,wet:(off,z,r)=>g.userData.wet.push([routeX(z,id)+off,z,r])});
    if(canyon)for(const side of [-1,1])for(let i=0;i<3;i++){const z=start+i*12,scale=2.1+noise(index*3+i)*.3;add(outcrops,side*19,-2,z,scale,scale*1.3,scale,0,-side*Math.PI/2);}
   }
   if(interior||urban||id==='lagoon'){
@@ -214,7 +217,7 @@ export class CircuitWorld {
   return g;
  }
  disposeChunk(g){this.scene.remove(g);const shared=new Set([...Object.values(this.materials),...Object.values(this.kit.materials)]);g.traverse(o=>{if(o.isInstancedMesh){o.dispose();return;}if(o.isLineSegments){o.geometry.dispose();o.material.dispose();return;}if(o.isMesh&&!Object.values(this.geometry).includes(o.geometry))o.geometry.dispose();if(o.isMesh&&!shared.has(o.material)&&!o.material.userData.shared)o.material.dispose();});}
- setStage(id){if(this.id===id)return;for(const g of this.chunks)this.disposeChunk(g);this.chunks=[];this.id=id;const p=palettes[id];this.light.setStage(id);this.air.setStage(id);this.materials.ground.setStage(id);this.rocks.setStage(id);this.materials.leaf.color.set(p.leaf).multiplyScalar(1.45);this.materials.canopy.color.set(p.leaf).multiplyScalar(.77);this.materials.water.color.set(p.water);}
+ setStage(id){if(this.id===id)return;this.spray.reset();for(const g of this.chunks)this.disposeChunk(g);this.chunks=[];this.id=id;const p=palettes[id];this.light.setStage(id);this.air.setStage(id);this.materials.ground.setStage(id);this.rocks.setStage(id);this.materials.leaf.color.set(p.leaf).multiplyScalar(1.45);this.materials.canopy.color.set(p.leaf).multiplyScalar(.77);this.materials.water.color.set(p.water);}
  sync(game,{reduced=false,time=0,shake=0}={}){
   if(!this.ready)return;const id=game?.stage.id||'gates';this.setStage(id);this.distance=game?.travel??time*4;const before=this.time;this.time=game?.time??time;const dt=clamp(this.time-before,0,.1);this.wave.value=this.time;
   const first=Math.floor(this.distance/32)-1;for(const g of this.chunks.filter(g=>g.userData.index<first||g.userData.index>first+8)){this.disposeChunk(g);this.chunks.splice(this.chunks.indexOf(g),1);}for(let i=first;i<=first+8;i++)if(!this.chunks.some(g=>g.userData.index===i))this.chunks.push(this.makeChunk(i));
@@ -237,7 +240,14 @@ export class CircuitWorld {
   // The canopy's dapple is pinned to the ground; open stages light the air from the shadow map alone.
   this.shafts=this.routeCanopy.update(z,id,this.light.key,{enabled:['gates','river','hybrid'].includes(id)});this.sky.mesh.visible=id!=='manor';
   this.air.update(game,{z,camera:this.camera,dt,time:this.time,key:this.light.key,canopy:this.shafts,pushers:this.pushers});
-  this.water.visible=this.spray.visible=['river','lagoon'].includes(id);if(this.water.visible){this.water.position.set(routeX(z,id),-.35,z+80);this.water.material.uniforms.time.value=this.time;this.water.material.uniforms.waterColor.value.set(palettes[id].water).multiplyScalar(.48);const positions=this.spray.geometry.attributes.position;for(let i=0;i<positions.count;i++){const age=(this.time*1.7+noise(i))%1,side=i%2?1:-1,zz=z+7-age*12;positions.setXYZ(i,routeX(zz,id)+side*(1.7+age*3)+noise(i+8)*.5,-.25+Math.sin(age*Math.PI)*(.4+noise(i+2)),zz);}positions.needsUpdate=true;}
+  this.water.visible=['river','lagoon'].includes(id);if(this.water.visible){this.water.position.set(routeX(z,id),LEVEL,z+80);this.water.material.uniforms.time.value=this.time;
+   // The bow wave rides the launch's stem; rocks that break the surface come from the chunks.
+   const boat=this.vehicle?.boat.root,speed=game?.speed??0;let bow=null;if(boat?.visible){boat.localToWorld(this.bowAt.set(0,0,BOW));const h=Math.atan2(this.look.x-this.eye.x,this.look.z-this.eye.z);bow={x:this.bowAt.x,z:this.bowAt.z,dirX:Math.sin(h),dirZ:Math.cos(h),speed};}
+   this.river.update({camera:this.camera,id,dt,time:this.time,bow,rocks:this.chunks.flatMap(c=>c.userData.wet||[]),fill:this.fill});this.water.material.uniforms.waterColor.value.set(palettes[id].water).multiplyScalar(.48);}
+  // Thrown water: the bow sheets on the water stages, splashes anywhere (spray.js).
+  if(this.water.visible&&this.vehicle)this.spray.bow(dt,this.vehicle.boat.root,game?.speed??0,this.vehicle.slap,this.vehicle.effects);
+  this.fill.copy(this.hemi.color).lerp(this.hemi.groundColor,.35).multiplyScalar(this.hemi.intensity*.16);this.sunLit.copy(this.sun.color).multiplyScalar(this.sun.intensity/Math.PI);if(dt>0){this.camVel??=new T.Vector3();if(this.lastCam)this.camVel.subVectors(this.camera.position,this.lastCam).divideScalar(dt);(this.lastCam??=new T.Vector3()).copy(this.camera.position);}
+  this.spray.update(dt,{dir:this.light.key,sun:this.sunLit,fill:this.fill},this.camVel);
   if(id==='fault')for(const chunk of this.chunks){const {deck,planks}=chunk.userData;if(!deck)continue;planks.forEach((a,i)=>{const worldZ=chunk.position.z+a[2],origin=game.bridgeOrigin??Infinity,elapsed=(game.stageTime-19)-(worldZ-origin)/32,fall=worldZ>origin-18&&worldZ<origin+18?clamp(elapsed,0,2):0;this.dummy.position.set(a[0],a[1]-fall*fall*4,a[2]);this.dummy.rotation.set(fall*.4,a[7]||0,Math.sin(i*3)*fall*.6);this.dummy.scale.set(a[3],a[4],a[5]);this.dummy.updateMatrix();deck.setMatrixAt(i,this.dummy.matrix);});deck.instanceMatrix.needsUpdate=true;deck.computeBoundingSphere();}
   WIND.value=this.time;this.sky.update(this.camera,this.time);this.post.settings.motionBlur=reduced?0:.65;
  }

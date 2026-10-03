@@ -199,7 +199,7 @@ export function mergeStill(items){
  * Ground cover, clutter and rocks for one chunk. `put(bucket, off, y, z, sx, sy, sz, rx, ry, rz, tint)` takes an
  * absolute height and a bucket name or rock scan; `still(kind, off, y, z, yaw, scale, tone)` queues merged still pieces.
  */
-export function scatter(index,id,flags,{height,put,still,rocks}){
+export function scatter(index,id,flags,{height,put,still,rocks,wet}){
  const start=index*32,rand=seeded(index*7919+id.length*104729+11),side=()=>rand()<.5?-1:1,zz=()=>start+rand()*32;
  const {river,canyon,cave,bridge,urban}=flags,water=river?-.2:-Infinity;
  const dry=(off,z)=>height(off,z)>water;
@@ -210,7 +210,9 @@ export function scatter(index,id,flags,{height,put,still,rocks}){
  const boulders=[pick(rocks.boulder,0),pick(rocks.boulder,1)],stones=[pick(rocks.stone,2),pick(rocks.stone,3)];
  const rock=(kind,off,z,scale,bury)=>{const r=kind.radius*scale,y=floorAt(off,z,r*.7)-kind.height*scale*bury,yaw=rand()*TAU;
   put(kind,off,y,z,scale*(.9+rand()*.25),scale*(.8+rand()*.35),scale*(.9+rand()*.25),(rand()-.5)*.22,yaw,(rand()-.5)*.22,.82+rand()*.3);
-  if(Math.abs(height(off+r,z)-height(off-r,z))<r*.7)put('blob',off,floorAt(off,z,r*.5)+.03,z,r*2.7,1,r*2.7,0,yaw,0);return r;};
+  if(Math.abs(height(off+r,z)-height(off-r,z))<r*.7)put('blob',off,floorAt(off,z,r*.5)+.03,z,r*2.7,1,r*2.7,0,yaw,0);
+  // A9: rocks that break the surface get foam (water.js).
+  if(wet&&river&&y<-.35&&y+kind.height*scale>-.35)wet(off,z,r);return r;};
  const plantsOk=!canyon&&!cave&&!bridge;
  // Ferns, tufts and pebbles at the base of a rock or in a clump's skirt.
  const skirt=(cx,cz,radius,n,scale=1)=>{for(let i=0;i<n;i++){const a=rand()*TAU,d=radius*(.75+Math.sqrt(rand())*.7),x=cx+Math.cos(a)*d,z=cz+Math.sin(a)*d*.8;if(Math.abs(x)<4.6||!dry(x,z))continue;const s=(.55+rand()*.8)*scale*(1.15-d/radius*.3);put('grass',x,height(x,z)+.03,z,s,s*(.8+rand()*.6),s,0,rand()*TAU,0);}};

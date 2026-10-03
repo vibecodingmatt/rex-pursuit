@@ -82,7 +82,7 @@ export class CircuitVehicle{
  float(dt,speed,accel,turn,id,move){
   const s=this.swell+=dt,big=id==='lagoon'?1.8:1,run=Math.min(1,speed/24);
   const swell=(Math.sin(s*1.13)*.055+Math.sin(s*1.71+1.1)*.03+Math.sin(s*2.9+.4)*.012)*big;
-  const slap=Math.max(0,Math.sin(s*2.35+Math.sin(s*.37)*2))**18*run;
+  const slap=this.slap=Math.max(0,Math.sin(s*2.35+Math.sin(s*.37)*2))**18*run;
   this.rig.pitch=this.pitch.step((.007*run+T.MathUtils.clamp(accel*.003,-.03,.03)+Math.sin(s*.93+.6)*.006*big+Math.cos(s*1.71+1.1)*.004*big-slap*.012)*move,dt);
   this.rig.roll=this.roll.step((-T.MathUtils.clamp(speed*turn*.005,-.04,.04)+Math.sin(s*.71+2)*.009*big+Math.sin(s*1.37)*.004*big)*move,dt);
   this.rig.heave=this.heave.step((swell+slap*.05)*move,dt);this.rig.yaw=this.yaw.step(Math.sin(s*.53)*.004*big*move,dt);this.rig.slide=this.slide.step(0,dt);this.push=0;
