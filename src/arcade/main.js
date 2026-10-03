@@ -2,10 +2,10 @@ import {Circuit,STAGES,project,grade} from './rules.js';
 import {RideRenderer} from './renderer.js';
 import {RideAudio} from './audio.js';
 import {readRecord,saveRecord} from './records.js';
-import {ChaseAudio} from '../chase/audio.js';
+import {ChaseAudio} from '../chase/audio.js';import {StageAmbience} from './ambience.js';
 // RideAudio keeps the score and UI cues; Pursuit's recorded library supplies the
 // world: gunfire, impacts, engine, wind, and the Rex's voice placed at her head.
-const $=id=>document.getElementById(id),canvas=$('ride'),renderer=new RideRenderer(canvas),audio=new RideAudio(),field=new ChaseAudio();let fieldInit=null;
+const $=id=>document.getElementById(id),canvas=$('ride'),renderer=new RideRenderer(canvas),audio=new RideAudio(),field=new ChaseAudio(),ambience=new StageAmbience(field);let fieldInit=null;
 const test=new URLSearchParams(location.search).get('test')==='1';
 let clearCard=0,game=null,mode='menu',route='extended',ready=false,fire=false,frozen=false,clock=0,accumulator=0,last=performance.now(),announcementTime=0,radioTime=0,saved=false;
 const aim={x:.5,y:.5},keys=new Set();let pointerId=null;
@@ -22,7 +22,7 @@ function showMode(value){mode=value;document.body.dataset.screen=value;$('menu')
 function announce(top,title,bottom='',seconds=3,over=false){const el=$('announcement');el.classList.toggle('over',over);el.children[0].textContent=top;el.children[1].textContent=title;el.children[2].textContent=bottom;announcementTime=seconds;el.style.opacity='1';}
 function radio(copy){$('radio').querySelector('span').textContent=copy;radioTime=7;$('radio').style.opacity='1';}
 function stageChanged(){
- const stage=game.stage;$('location').textContent=stage.location;$('stage-name').textContent=stage.name;
+ const stage=game.stage;ambience.setStage(stage.id);$('location').textContent=stage.location;$('stage-name').textContent=stage.name;
  $('route-dots').replaceChildren(...game.path.map((_,i)=>{const dot=document.createElement('i');dot.className=i<game.stageIndex?'done':i===game.stageIndex?'current':'';return dot;}));
  announce(`${String(game.stageIndex+1).padStart(2,'0')} / ${String(game.path.length).padStart(2,'0')} — ${stage.era}`,stage.name,'HOLD TO FIRE · SHOOT DEBRIS · KEEP MOVING');radio(stage.radio);
 }
@@ -115,6 +115,7 @@ function step(dt){
  const speed=.65;aim.x=Math.max(.02,Math.min(.98,aim.x+((keys.has('ArrowRight')?1:0)-(keys.has('ArrowLeft')?1:0))*dt*speed));aim.y=Math.max(.19,Math.min(.85,aim.y+((keys.has('ArrowDown')?1:0)-(keys.has('ArrowUp')?1:0))*dt*speed));
  game.update(dt);if(fire||keys.has(' ')){renderer.sync(game,aim);game.shoot(aim.x,aim.y,innerWidth/innerHeight);}processEvents();renderer.update(dt);audio.update(game);
  if(field.context&&renderer.bossRex){renderer.bossRex.voice=field.vocalPose(dt);field.listen(renderer.world.camera,renderer.bossRex.headOf(renderer.bossRex.voiceSlot??0));field.update(Math.min(16,Math.abs(game.speed)),dt,true,BOSS_STAGES.includes(game.stage.id));}
+ if(field.context)ambience.update(true);
  if(clearCard>0&&(clearCard-=dt)<=0)announce('SECTOR CLEAR','Still in one piece.','INTEGRITY +12 · SECTOR BONUS +1,500',2.6,true);
  announcementTime=Math.max(0,announcementTime-dt);radioTime=Math.max(0,radioTime-dt);$('announcement').style.opacity=String(Math.min(1,announcementTime*2));$('radio').style.opacity=String(Math.min(1,radioTime));
 }
@@ -127,11 +128,11 @@ requestAnimationFrame(frame);
 async function load(){
  try{await renderer.load(p=>$('load-status').textContent=`Preparing the island · ${Math.round(p*100)}%`);ready=true;
   // A leaping ichthyosaur throws a ring of spray where it breaks the surface.
-  renderer.actors.effects=renderer.effects;renderer.actors.onSplash=(at,strength)=>{field.splash('step',at,strength);for(let i=0;i<8;i++){const r=i/8*Math.PI*2;renderer.effects.spume(at.clone().setY(at.y-.2),at.clone().set(Math.cos(r)*2.4*strength,3.4*strength+Math.random(),Math.sin(r)*2.4*strength),{size:1.1,opacity:.24,life:1.5});}};
+  ambience.world=renderer.world;renderer.actors.effects=renderer.effects;renderer.actors.onSplash=(at,strength)=>{field.splash('step',at,strength);for(let i=0;i<8;i++){const r=i/8*Math.PI*2;renderer.effects.spume(at.clone().setY(at.y-.2),at.clone().set(Math.cos(r)*2.4*strength,3.4*strength+Math.random(),Math.sin(r)*2.4*strength),{size:1.1,opacity:.24,life:1.5});}};
   $('start').disabled=false;$('start-label').textContent='START THE RIDE';$('load-status').textContent='';updateBest();void renderer.loadBosses();}
  catch{$('load-status').textContent='The island could not load. Check your connection and reload this page.';$('start-label').textContent='RELOAD TO RETRY';$('start').disabled=false;$('start').onclick=()=>location.reload();}
 }void load();
 window.lostCircuit={get ready(){return ready;},get mode(){return mode;},snapshot:()=>game?.snapshot(),get audioState(){return audio.context?.state||'uninitialized';},get art(){return Object.fromEntries(Object.entries(renderer.images).map(([key,im])=>[key,{width:im.width,height:im.height}]));}};
-if(test)Object.assign(window.lostCircuit,{getGame:()=>game,get renderer(){return renderer;},project:e=>renderer.project(e,innerWidth/innerHeight),bossesReady:()=>renderer.loadBosses().then(()=>renderer.bossRex.ready),diagnostics:()=>({bosses:renderer.bossRex?.diagnostics(),weapon:renderer.weapon.diagnostics(),camera:renderer.world.camera.position.toArray(),actors:renderer.actors.diagnostics(),draws:renderer.world.renderer.info.render.calls,triangles:renderer.world.renderer.info.render.triangles}),freeze:v=>{frozen=v;},step:(seconds,autoplay=false,live=false)=>{
+if(test)Object.assign(window.lostCircuit,{getGame:()=>game,get renderer(){return renderer;},get ambience(){return ambience;},project:e=>renderer.project(e,innerWidth/innerHeight),bossesReady:()=>renderer.loadBosses().then(()=>renderer.bossRex.ready),diagnostics:()=>({bosses:renderer.bossRex?.diagnostics(),weapon:renderer.weapon.diagnostics(),camera:renderer.world.camera.position.toArray(),actors:renderer.actors.diagnostics(),draws:renderer.world.renderer.info.render.calls,triangles:renderer.world.renderer.info.render.triangles}),freeze:v=>{frozen=v;},step:(seconds,autoplay=false,live=false)=>{
  // live: sync the scene every substep, as real frames do (modeled bosses integrate motion per frame).
  for(let t=0;t<seconds&&mode==='playing';t+=1/60){if(live&&!autoplay)renderer.sync(game,aim);if(autoplay){renderer.sync(game,aim);const target=game.entities.find(e=>!e.dead&&e.age>.2&&renderer.project(e)?.visible!==false);if(target){const p=renderer.project(target,innerWidth/innerHeight);aim.x=p.hx;aim.y=p.hy;game.shoot(aim.x,aim.y,innerWidth/innerHeight);}if(game.focus>=100)game.activateFocus();}step(1/60);}updateHud();renderer.render(game,aim,{time:game.time});},seek:(id,at=0)=>{const idx=game.path.findIndex(n=>STAGES[n].id===id);if(idx<0)throw Error('Stage is not on route');game.stageIndex=idx;game.stageTime=at;game.travel=at*(id==='manor'?14:id==='fault'?27:24);renderer.actors.reset();game.phase='ride';game.phaseTime=at;game.entities=[];game.spawnTimer=.2;game.bossSpawned=false;game.bridgeBroken=false;stageChanged();updateHud();},setAim:(x,y)=>{aim.x=x;aim.y=y;},render:()=>renderer.render(game,aim,{time:game?.time??0,menu:mode==='menu'})});
