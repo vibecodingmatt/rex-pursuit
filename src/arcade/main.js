@@ -43,7 +43,7 @@ function processEvents(){for(const event of game.drain()){
 const BOSS_STAGES=['gates','river','hybrid','visitor'];
 function fieldEvent(e){
  if(!field.context)return;
- if(e.type==='shot'){field.gun();if(e.hit){const wound=renderer.lastWound,actor=renderer.actors?.actors.get(e.id),at=wound?.point||actor?.position;if(at)field.hit('flesh',at.distanceTo(renderer.world.camera.position),at);renderer.lastWound=null;}}
+ if(e.type==='shot'){field.gun();if(e.hit){const wound=renderer.lastWound,actor=renderer.actors?.actors.get(e.id),at=wound?.point||actor?.position;if(at)field.hit('flesh',at.distanceTo(renderer.world.camera.position),at);renderer.lastWound=null;renderer.actors?.hit(e.id,e.precise,e.x);}}
  if(e.type==='blast')field.impact(true);
 }
 // Her calls, bite, pain and footfalls come from the modeled Rex's own timing.

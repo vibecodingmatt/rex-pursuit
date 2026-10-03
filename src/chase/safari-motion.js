@@ -56,7 +56,17 @@ export const SAFARI_FRILL_GLSL=`
 // aBody is the instance's model-space heave, pitch, roll and body-centre height.
 // Undo its transform at the toes, fading the correction up the leg: the torso
 // can rise and rock without pulling the supporting foot off the road.
+// uLook holds an optional neck turn toward model +X and tail swing (radians) per instance,
+// read by instance index because the vertex attribute slots are full; zero keeps the gait.
 export const SAFARI_GAIT_GLSL=`
+ uniform sampler2D uLook;
+ vec2 critterLook(){
+ #ifdef USE_INSTANCING
+  return texelFetch(uLook,ivec2(gl_InstanceID,0),0).xy;
+ #else
+  return vec2(0.);
+ #endif
+ }
  vec3 critterPitch(vec3 p,float a){float c=cos(a),s=sin(a);return vec3(p.x,c*p.y-s*p.z,s*p.y+c*p.z);}
  vec3 critterRoll(vec3 p,float a){float c=cos(a),s=sin(a);return vec3(c*p.x-s*p.y,s*p.x+c*p.y,p.z);}
  void critterSupport(inout vec3 p,inout vec3 n,float weight){
@@ -86,8 +96,10 @@ export const SAFARI_GAIT_GLSL=`
    }else if(part>.5&&part<1.5){
     float a=(-aPose.z*1.05-amp*.045*sin(th*2.-.35)+dead*.75)*blend;
     q=critterPitch(q,-a);n=critterPitch(n,-a);
+    float y=-critterLook().x*w*blend,c=cos(y),s=sin(y);
+    q.xz=vec2(c*q.x-s*q.z,s*q.x+c*q.z);n.xz=vec2(c*n.x-s*n.z,s*n.x+c*n.z);
    }else if(part>1.5){
-    float a=(amp*.18*sin(th-.3)+dead*.45)*w*blend,c=cos(a),s=sin(a);
+    float a=(amp*.18*sin(th-.3)+dead*.45+critterLook().y)*w*blend,c=cos(a),s=sin(a);
     q.xz=vec2(c*q.x-s*q.z,s*q.x+c*q.z);n.xz=vec2(c*n.x-s*n.z,s*n.x+c*n.z);
     q.y+=w*w*blend*amp*.018*cos(th*2.-.5);
    }

@@ -3,7 +3,7 @@ import {createCritters} from '../chase/critters.js';
 import {createFlyers} from '../chase/flyers.js';
 import {createBrachio} from '../chase/brachio.js';
 import {routeX,routeY,groundAt,routeHeading,noise} from './world.js';
-import {project as bossProject} from './rules.js';
+import {project as bossProject,TYPES} from './rules.js';
 
 const species={raptor:'raptor',dilo:'dilophosaurus',galli:'gallimimus',trike:'triceratops'};
 const sizes={raptor:4.5,dilo:5.8,galli:6.4,trike:8.8};
@@ -72,10 +72,10 @@ export class CircuitActors {
    if(id==='manor'&&e.kind==='raptor')lift=Math.max(0,1-age/.8)**2*11;
    if(e.kind==='barrel'||e.kind==='supply')lift=e.kind==='barrel'?.8:.55;
    a.position.y+=lift;
-   if(e.dead){if(!a.dead){a.dead=true;a.deathPosition=a.position.clone();if(a.c&&species[e.kind]){a.c.hp=1;this.critters.strike(a.c,new T.Vector3(0,.1,1),1,999);}else if(a.c){a.c.on=false;}}if(a.mesh){a.mesh.position.copy(a.deathPosition);a.mesh.position.y-=e.fade*2;a.mesh.rotation.z+=dt*1.8;a.mesh.scale.setScalar(Math.max(0,1-e.fade));}continue;}
-   if(a.c){const c=a.c;c.p.copy(a.position);c.fade=1;c.on=true;c.flinch=e.hit>0?.7:0;
-    if(e.kind==='ptero'){c.q.setFromEuler(new T.Euler(-.08,a.yaw,Math.sin(age*2)*.2));c.phase=(age*1.4)%1;c.amp=.8;c.fold=.03;c.scale=2;}
-    else{c.yaw=a.yaw;c.v.set(lateral,0,forward);const strideDt=Math.max(0,age-(a.lastAge??age-.016));a.lastAge=age;a.stridePhase=((a.stridePhase||0)+strideDt*Math.hypot(lateral,forward)/(c.kind.strideLength?c.kind.strideLength*c.scale:4.7))%1;c.phase=a.stridePhase;c.stride=.95;c.poseTime=age;c.body.set(0,0,0);c.roll=0;c.curl=0;if(e.kind==='dilo')c.frill=clamp((age/life-.23)*3.8,0,1);}
+   if(e.dead){if(!a.dead){a.dead=true;a.deathPosition=a.position.clone();if(a.c&&species[e.kind]){Object.assign(a.c,{look:0,tailYaw:0,crouch:0,pant:0});a.c.hp=1;this.critters.strike(a.c,new T.Vector3(0,.1,1),1,999);}else if(a.c){a.c.on=false;}}if(a.mesh){a.mesh.position.copy(a.deathPosition);a.mesh.position.y-=e.fade*2;a.mesh.rotation.z+=dt*1.8;a.mesh.scale.setScalar(Math.max(0,1-e.fade));}continue;}
+   if(a.c){const c=a.c;c.p.copy(a.position);c.fade=1;c.on=true;
+    if(e.kind==='ptero'){c.flinch=e.hit>0?.7:0;c.q.setFromEuler(new T.Euler(-.08,a.yaw,Math.sin(age*2)*.2));c.phase=(age*1.4)%1;c.amp=.8;c.fold=.03;c.scale=2;}
+    else this.animate(a,c,e,age,life,windup,lateral,forward,dt);
    }else{a.mesh.position.copy(a.position);a.mesh.rotation.set(e.kind==='ichthy'?Math.sin(age*2)*.3:e.kind==='rock'?age*.7:0,a.yaw,e.kind==='rock'?age:.0);}
    if(lift<1.5&&e.kind!=='ichthy'){const s=this.shadows[shadow++];if(s){s.visible=true;s.position.set(x,y+.11,z);s.rotation.y=a.yaw;s.scale.set(e.kind==='trike'?4.2:2.8,1,e.kind==='trike'?6.2:4.2);}}
   }
@@ -86,6 +86,40 @@ export class CircuitActors {
    else if(a.c&&species[a.e.kind]){const c=a.c,spheres=c.kind.spheres;head.copy(spheres?.[1]?.p||v.set(0,c.kind.centre+.1,.3)).multiplyScalar(c.scale).applyAxisAngle(up,c.yaw).add(c.p);a.head.copy(head);a.position.copy(c.p).add(v.set(0,c.kind.centre*c.scale,0));}
    else a.head.copy(a.position);
   }
+ }
+ // The directed path writes yaw and stride directly, bypassing Safari's steering, so this
+ // gives back what steering gave (lean and tail swing from the turn rate) and adds the
+ // authored beats: a 0.3 s gathered crouch that telegraphs the charge, a head that tracks
+ // the vehicle, panting while pacing, flinches that follow the round, stumbles and a limp.
+ animate(a,c,e,age,life,windup,lateral,forward,dt){
+  const kind=e.kind,cam=this.world.camera.position,ease=k=>Math.min(1,dt*k),step=T.MathUtils.smoothstep;
+  const turn=a.lastYaw===undefined||dt<=0?0:clamp(Math.atan2(Math.sin(a.yaw-a.lastYaw),Math.cos(a.yaw-a.lastYaw))/dt,-6,6);a.lastYaw=a.yaw;
+  a.bank=(a.bank||0)+(clamp(-turn*.06,-.35,.35)-(a.bank||0))*ease(8);a.tail=(a.tail||0)+(clamp(turn*.16,-.45,.45)-(a.tail||0))*ease(5);
+  const gather=kind==='galli'?0:step(age,windup-.45,windup-.15)*(1-step(age,windup,windup+.2)),charging=kind==='galli'?0:step(age,windup,windup+.25);
+  a.flinch=Math.max(0,(a.flinch||0)-dt*4);a.heavy=Math.max(0,(a.heavy||0)-dt*1.8);
+  const stumble=a.heavy>0?a.heavyAmp*Math.sin(Math.PI*(1-a.heavy)):0,limp=clamp((1-e.hp/(TYPES[kind]?.hp||1)-.25)*1.6,0,1);
+  const len=c.kind.strideLength?c.kind.strideLength*c.scale:4.7,dAge=Math.max(0,age-(a.lastAge??age-.016));a.lastAge=age;
+  a.stridePhase=((a.stridePhase||0)+dAge*Math.hypot(lateral,forward)/len*(1-.45*stumble))%1;
+  // A limp shortens one stance and dips the body onto the bad leg once per stride.
+  const wave=Math.sin(a.stridePhase*Math.PI*2),side=a.side||1;
+  c.phase=(a.stridePhase+limp*.06*wave+1)%1;c.stride=.95*(1-.55*gather)*(1-.3*stumble);
+  c.yaw=a.yaw;c.v.set(lateral,0,forward);c.poseTime=age;c.body.set(0,0,0);c.curl=0;
+  c.roll=a.bank+limp*.07*wave+side*.14*stumble;c.crouch=gather+.8*stumble+limp*.35*Math.max(0,wave)**2;
+  // Head toward the vehicle (model +X positive), lowered while gathering.
+  const dx=cam.x-c.p.x,dz=cam.z-c.p.z,cy=Math.cos(a.yaw),sy=Math.sin(a.yaw),look=clamp(Math.atan2(dx*cy-dz*sy,dx*sy+dz*cy),-.65,.65)*(1-.6*gather);
+  a.look=(a.look||0)+(look-(a.look||0))*ease(5);
+  const snap=a.hitHead?a.flinch:0;c.look=a.look+snap*.45*side;c.tailYaw=a.tail;c.flinch=a.hitHead?a.flinch*.4:a.flinch;c.flinchSide=side;
+  if(c.rig){c.pant=(1-step(age,windup-.7,windup-.35))*(1-.5*limp);c.recoil=a.hitHead?3.5:2.8;c.hitHead=!!a.hitHead;}
+  else c.peck=(kind==='trike'?.5*Math.max(gather,.6*charging):kind==='dilo'?-.25*gather:0)-snap*.7;
+  if(kind==='dilo')c.frill=clamp((age/life-.23)*3.8,0,1);
+ }
+ /** A round that hit actor `id` at screen x: twist about where it landed. */
+ hit(id,precise,x){
+  const a=this.actors.get(id);if(!a||a.dead||!a.c||a.e.kind==='ptero')return;const cam=this.world.camera,pr=this.project(a.e,cam.aspect);
+  // Torque about up from a push along the view, applied off the body's centre line.
+  v.setFromMatrixColumn(cam.matrixWorld,0);p.setFromMatrixColumn(cam.matrixWorld,2).negate();const off=pr.visible===false?0:x-pr.x;
+  a.side=Math.sign((v.z*p.x-v.x*p.z)*off||Math.sin(a.yaw)*p.z-Math.cos(a.yaw)*p.x)||1;
+  const amp=precise?1:a.e.kind==='trike'?.6:.4;a.heavyAmp=a.heavy>0?Math.max(a.heavyAmp,amp):amp;a.heavy=1;a.flinch=1;a.hitHead=precise;
  }
  project(e,aspect){
   if(e.boss)return bossProject(e,aspect);const a=this.actors.get(e.id);if(!a||e.age<0)return{visible:false};const cam=this.world.camera;const d=a.position.distanceTo(cam.position),size=e.kind==='trike'?5:e.kind==='raptor'?2.7:e.kind==='galli'?3.6:e.kind==='dilo'?3.4:e.kind==='ptero'?5:e.kind==='ichthy'?3:1.7;

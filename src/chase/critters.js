@@ -156,7 +156,9 @@ const SKIN_GLSL=`
 function critterMaterial(lizard,detail=false){
  const m=new T.MeshStandardMaterial({vertexColors:true,roughness:lizard?.55:.7});
  if(detail)m.userData.eyes={uEye0:{value:new T.Vector4()},uEye1:{value:new T.Vector4()},uEyeAxis0:{value:new T.Vector3(-1,0,0)},uEyeAxis1:{value:new T.Vector3(1,0,0)},uIris:{value:new T.Color(.3,.2,.06)},uSlit:{value:0}};
- const vertex=s=>{s.vertexShader=s.vertexShader.replace('#include <common>','#include <common>\nattribute vec4 rig;attribute vec3 pivot;attribute vec4 aPose;'+(detail?'\nattribute vec4 aBody;'+SAFARI_FRILL_GLSL+SAFARI_GAIT_GLSL:''))
+ // Per-instance neck turn and tail swing (SAFARI_GAIT_GLSL's uLook), indexed by instance.
+ const lookTex=detail?new T.DataTexture(new Float32Array(LOOK_MAX*4),LOOK_MAX,1,T.RGBAFormat,T.FloatType):null;if(lookTex){lookTex.minFilter=lookTex.magFilter=T.NearestFilter;lookTex.needsUpdate=true;}
+ const vertex=s=>{if(detail)s.uniforms.uLook={value:lookTex};s.vertexShader=s.vertexShader.replace('#include <common>','#include <common>\nattribute vec4 rig;attribute vec3 pivot;attribute vec4 aPose;'+(detail?'\nattribute vec4 aBody;'+SAFARI_FRILL_GLSL+SAFARI_GAIT_GLSL:''))
   .replace('#include <begin_vertex>','#include <begin_vertex>'+(detail?'\n{vec3 n=normal;safariFrill(transformed,n);safariPose(transformed,n);}':GAIT(lizard)));
   if(detail)s.vertexShader=s.vertexShader.replace('#include <beginnormal_vertex>','#include <beginnormal_vertex>\n{vec3 p=position;safariFrill(p,objectNormal);safariPose(p,objectNormal);}');};
  m.onBeforeCompile=s=>{s.uniforms.uWet=WET;vertex(s);
@@ -202,11 +204,12 @@ function critterMaterial(lizard,detail=false){
   }
   // Rain darkens the hide a little and gives it a wet sheen.
   s.fragmentShader=s.fragmentShader.replace('#include <common>','#include <common>\nuniform float uWet;').replace('#include <color_fragment>','#include <color_fragment>\ndiffuseColor.rgb*=1.-uWet*.25;').replace('#include <roughnessmap_fragment>','#include <roughnessmap_fragment>\nroughnessFactor*=1.-uWet*.5;');};
- m.customProgramCacheKey=()=>`rex-critter-${lizard?'lizard':'compy'}-${detail}-v9`;
+ m.customProgramCacheKey=()=>`rex-critter-${lizard?'lizard':'compy'}-${detail}-v10`;
  // Shadows step with the legs too.
- const depth=new T.MeshDepthMaterial({depthPacking:T.RGBADepthPacking});depth.onBeforeCompile=vertex;depth.customProgramCacheKey=()=>`rex-critter-depth-${lizard?'lizard':'compy'}-${detail}-v6`;
- return{material:m,depth};
+ const depth=new T.MeshDepthMaterial({depthPacking:T.RGBADepthPacking});depth.onBeforeCompile=vertex;depth.customProgramCacheKey=()=>`rex-critter-depth-${lizard?'lizard':'compy'}-${detail}-v7`;
+ return{material:m,depth,lookTex};
 }
+const LOOK_MAX=256;
 
 // --------------------------------------------------------------------- system --
 export function createCritters(scene,{jungle,camera=null,capacities={}}){
@@ -261,7 +264,7 @@ export function createCritters(scene,{jungle,camera=null,capacities={}}){
   if(models.gallimimus){G.mesh.geometry=models.gallimimus[modelTier];G.geometry=G.mesh.geometry;}}
  const modelLoad=loadSafariModels().then(loaded=>{models=loaded.models;for(const name of Object.keys(BAKED)){const k=kinds[name],sp=loaded.species[name];k.geometry.dispose();for(const g of Object.values(models[name])){g.setAttribute('aPose',k.pose);g.setAttribute('aBody',k.body);g.setAttribute('aFrill',k.frill);}
    k.centre=sp.centre;k.hull=hull(sp.hull);k.hullFrill=sp.hullFrill;k.spheres=sp.spheres.map(([x,y,z,r])=>({p:new T.Vector3(x,y,z),r}));k.hitR=sp.spheres[0][3];setEyes(k,sp);}
-   if(models.gallimimus){for(const g of Object.values(models.gallimimus)){g.setAttribute('aPose',G.pose);g.setAttribute('aBody',G.body);g.setAttribute('aFrill',G.frill);}G.geometry.dispose();const d=critterMaterial(false,true);G.material=G.mesh.material=d.material;G.depth=G.mesh.customDepthMaterial=d.depth;setEyes(G,loaded.species.gallimimus);}
+   if(models.gallimimus){for(const g of Object.values(models.gallimimus)){g.setAttribute('aPose',G.pose);g.setAttribute('aBody',G.body);g.setAttribute('aFrill',G.frill);}G.geometry.dispose();const d=critterMaterial(false,true);G.material=G.mesh.material=d.material;G.depth=G.mesh.customDepthMaterial=d.depth;G.lookTex=d.lookTex;setEyes(G,loaded.species.gallimimus);}
    selectModels();return loadRaptorModels(scene,kinds.raptor);}).then(loaded=>{raptors=loaded;raptors.setQuality(quality);}).catch(e=>{modelError=e;});
  // Safari names that share a kind: the ghost raptor and the golden compy are rare colourings.
  const ALIAS={ghostRaptor:'raptor',goldenCompy:'compy'},SIZE={compy:1.5,goldenCompy:1.35,lizard:2.4,gallimimus:5.5,raptor:3.8,ghostRaptor:4.1,dilophosaurus:5.2,parasaurolophus:7.5,pachycephalosaurus:4.6,triceratops:7.8,stegosaurus:8.5},
@@ -336,6 +339,8 @@ export function createCritters(scene,{jungle,camera=null,capacities={}}){
   if(k.motion){
    safariBody(c.phase,stride*c.vigor,k.motion,c.body);
    c.body.y-=stride*k.lean+fl*.08;c.body.z+=c.roll+fl*.3*c.flinchSide;
+   // An optional crouch (authored encounters) sinks and pitches the torso; the feet stay planted.
+   if(c.crouch){c.body.x-=c.crouch*.035;c.body.y+=c.crouch*.1;}
    q.setFromEuler(e.set(c.body.y,c.yaw+fl*.22*c.flinchSide,c.body.z));
    pos.copy(c.p);pos.y+=(k.centre+c.body.x)*sc;
    pos.sub(toCentre.set(0,k.centre*sc,0).applyQuaternion(q));
@@ -468,7 +473,7 @@ export function createCritters(scene,{jungle,camera=null,capacities={}}){
  }
  function write(k){
   if(k.name==='raptor'&&raptors){for(const c of k.pool)raptors.render(c);k.mesh.visible=false;k.mesh.count=k.pool.filter(c=>c.on).length;return;}
-  let n=0;const P=k.pose.array,B=k.body.array;
+  let n=0,looking=false;const P=k.pose.array,B=k.body.array;
   for(const c of k.pool){if(!c.on)continue;
    const sc=c.scale*Math.max(0,Math.min(1,c.fade));
    // A dead one turns about its body centre (c.p), which sits k.centre (scaled) above the mesh origin.
@@ -476,10 +481,12 @@ export function createCritters(scene,{jungle,camera=null,capacities={}}){
    else livePose(c,sc);
    m.compose(pos,q,s.setScalar(sc));k.mesh.setMatrixAt(n,m);k.mesh.setColorAt(n,c.tint);
    B[n*4]=c.body.x;B[n*4+1]=c.body.y;B[n*4+2]=c.body.z;B[n*4+3]=k.centre;
-   k.frill.array[n]=c.frill??1;
+   k.frill.array[n]=c.frill??1;if(k.lookTex){const L=k.lookTex.image.data;L[n*4]=c.look||0;L[n*4+1]=c.tailYaw||0;if(c.look||c.tailYaw)looking=true;}
    P[n*4]=c.phase;P[n*4+1]=(c.stride||0)*k.swing*c.vigor;P[n*4+2]=c.peck+c.flinch*.35;P[n*4+3]=c.curl||0;n++;}
   // An empty pool issues no draw (a zero-instance draw still binds its program).
   k.mesh.count=n;k.mesh.visible=k.visible!==false&&n>0;if(n){k.mesh.instanceMatrix.needsUpdate=true;k.mesh.instanceColor.needsUpdate=true;k.pose.needsUpdate=true;if(k.motion){k.body.needsUpdate=true;k.frill.needsUpdate=true;}}
+  // Upload only while something turns, plus once more to clear it.
+  if(k.lookTex&&(looking||k.looking)){k.lookTex.needsUpdate=true;k.looking=looking;}
  }
 
  api={

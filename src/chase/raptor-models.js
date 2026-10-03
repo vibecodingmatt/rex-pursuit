@@ -33,7 +33,7 @@ export async function loadRaptorModels(scene,kind){
    a.root.position.copy(c.p).sub(local.set(0,kind.centre*c.scale*Math.max(0,c.fade),0).applyQuaternion(c.q));
   }else{
    const boarded=c.poseState==='board',alert=boarded?T.MathUtils.smoothstep(c.poseAge,0,.3):0;
-   pack.pose(a,{x:c.p.x,z:c.p.z,groundY:c.p.y,yaw:c.yaw+Math.PI,phase:(c.stride||0)<.2?'idle':'run',age:c.poseTime??c.timer??0,seed:0,posePhase:c.phase,leapAmount:Math.max(0,-c.curl),airLift:0,focus:false,alert,reach:boarded?.5*alert:undefined,bank:c.roll,flash:c.flinch*.16,side:c.flinchSide});
+   pack.pose(a,{x:c.p.x,z:c.p.z,groundY:c.p.y,yaw:c.yaw+Math.PI,phase:(c.stride||0)<.2?'idle':'run',age:c.poseTime??c.timer??0,seed:0,posePhase:c.phase,leapAmount:Math.max(0,-c.curl),airLift:0,focus:false,alert,reach:boarded?.5*alert:undefined,bank:c.roll,flash:c.flinch*.16,side:c.flinchSide,crouch:c.crouch,look:c.look,pant:c.pant,recoil:c.recoil,hitHead:c.hitHead});
    a.root.visible=force||c.on&&kind.visible!==false;
   }
   a.meshes.forEach((m,i)=>{m.castShadow=detail;m.material.color.copy(a.baseColors[i]);if(c.species==='ghostRaptor'&&m.name==='Dromaeosaur')m.material.color.setRGB(1.9,2.5,3.2);});

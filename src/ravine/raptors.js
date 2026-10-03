@@ -75,17 +75,19 @@ export async function createRaptors(scene,{capacity=RAVINE.maxActors,trackDynami
   }else{
    a.fall=null;a.sleepPose=null;a.deathPose=null;a.root.position.set(data.x,data.groundY||0,data.z);a.root.rotation.set(0,data.yaw||0,0);
    const gaitSpeed=idle?0:(data.motionSpeed??speed);a.phase=data.posePhase??(a.phase+dt*gaitSpeed/4.706)%1;for(const [n,r]of Object.entries(a.rest)){a.bones[n].quaternion.copy(r.q);a.bones[n].position.copy(r.p);}
-   const leap=data.leapAmount??(data.phase==='leap'?Math.sin(Math.PI*Math.min(1,data.age/.68)):0),warn=data.phase==='warn'?smooth(data.age,data.warning*.45,data.warning):0;
+   const leap=data.leapAmount??(data.phase==='leap'?Math.sin(Math.PI*Math.min(1,data.age/.68)):0),warn=data.phase==='warn'?smooth(data.age,data.warning*.45,data.warning):data.crouch||0;
    const breath=Math.sin(data.age*1.45),settle=idle?1:data.phase==='gate-brake'?smooth(data.age,.15,.72):data.phase==='retreat'?smooth(data.age,3.05,3.8):0;
    a.model.position.y=floor-.24*(1-settle)+breath*.009*settle+.05*Math.cos(a.phase*Math.PI*4)*(1-settle)-warn*.19;
    turn(a,'Bone.010',X,-.1-.02*settle-warn*.07);turn(a,'Bone.014',X,.07-.24*settle*(1-(data.alert||0))+.5*(data.alert||0)+breath*.008*settle+warn*.12);turn(a,'Bone.016',Z,Math.sin(data.seed+data.age*(idle?.23:1.1))*.035);
    turn(a,'Bone.016',UP,(.12+Math.sin(data.age*.17)*.045)*settle);
    // The pelvis banks into a turn while the head and tail counterbalance.
-   // Chase gaze follows the Jeep without rotating the planted feet.
-   const bank=data.bank||0,focus=idle||data.focus===false?0:T.MathUtils.clamp(Math.atan2(data.x,Math.max(5,data.z))-(data.yaw||0),-.34,.34);
-   turn(a,'Bone.010',Z,bank);turn(a,'Bone.014',Z,-bank*.65);turn(a,'Bone.016',UP,focus*.5);
-   if(data.flash>0){const recoil=Math.sin((.16-data.flash)/.16*Math.PI)*.065;turn(a,'Bone.012',Z,recoil*data.side);turn(a,'Bone.016',X,-recoil);}
-   turn(a,'Bone.017',X,-.25-.12*settle+warn*.32+leap*.32);
+   // Chase gaze follows the Jeep without rotating the planted feet. A caller
+   // in another frame (the arcade) can pass the head turn as `look` instead.
+   const bank=data.bank||0,look=data.look!=null,focus=look?T.MathUtils.clamp(data.look,-.7,.7):idle||data.focus===false?0:T.MathUtils.clamp(Math.atan2(data.x,Math.max(5,data.z))-(data.yaw||0),-.34,.34);
+   turn(a,'Bone.010',Z,bank);turn(a,'Bone.014',Z,-bank*.65);if(look){turn(a,'Bone.014',Z,-focus*.45);turn(a,'Bone.016',Z,-focus*.55);}else turn(a,'Bone.016',UP,focus*.5);
+   // Optional `recoil` scales the flinch; `hitHead` snaps the head instead of twisting the chest.
+   if(data.flash>0){const recoil=Math.sin((.16-data.flash)/.16*Math.PI)*.065*(data.recoil??1);if(data.hitHead){turn(a,'Bone.016',X,-recoil*1.6);turn(a,'Bone.016',UP,recoil*data.side*1.4);}else{turn(a,'Bone.012',Z,recoil*data.side);turn(a,'Bone.016',X,-recoil);}}
+   turn(a,'Bone.017',X,-.25-.12*settle+warn*.32+leap*.32+(data.pant||0)*(.09+.07*Math.sin(data.age*10)));
    for(let i=0;i<10;i++)turn(a,['Bone','Bone.004','Bone.003','Bone.002','Bone.006','Bone.005','Bone.001','Bone.008','Bone.007','Bone.009'][i],Z,Math.sin((idle?data.age*.35:a.phase*Math.PI*2)-i*.36)*(idle?.008:.045)-bank*.22);
    const reach=data.reach??leap;
    turn(a,'Bone.024',X,-.45+reach*.88-warn*.2);turn(a,'Bone.025',X,-.45+reach*.7-warn*.15);turn(a,'Bone.026',X,-.65+reach*.34);turn(a,'Bone.027',X,-.65+reach*.28);
