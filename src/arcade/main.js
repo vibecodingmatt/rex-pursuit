@@ -23,14 +23,15 @@ function stageChanged(){
  $('route-dots').replaceChildren(...game.path.map((_,i)=>{const dot=document.createElement('i');dot.className=i<game.stageIndex?'done':i===game.stageIndex?'current':'';return dot;}));
  announce(`${String(game.stageIndex+1).padStart(2,'0')} / ${String(game.path.length).padStart(2,'0')} — ${stage.era}`,stage.name,'HOLD TO FIRE · SHOOT DEBRIS · KEEP MOVING');radio(stage.radio);
 }
-function start(){if(!ready)return;audio.reset();void audio.unlock();game=new Circuit({route,difficulty:$('difficulty').value});saved=false;fire=false;keys.clear();renderer.reset();clock=0;accumulator=0;showMode('playing');canvas.focus({preventScroll:true});processEvents();updateHud();}
+function start(){if(!ready)return;audio.reset();void audio.unlock();game=new Circuit({route,difficulty:$('difficulty').value});game.projector=(e,aspect)=>renderer.project(e,aspect);saved=false;fire=false;keys.clear();renderer.reset();clock=0;accumulator=0;showMode('playing');canvas.focus({preventScroll:true});processEvents();updateHud();}
 function processEvents(){for(const event of game.drain()){
  renderer.event(event);audio.event(event);
  if(event.type==='stage')stageChanged();
  if(event.type==='boss'){announce('APEX ENCOUNTER',names[event.kind],'KEEP FIRING AT THE AMBER WEAK POINT',2.4);radio(event.kind==='mosa'?'It is coming up! Break the attack before it reaches us.':'Amber marks stop the charge. Keep your aim on the head.');}
  if(event.type==='clear'){announce('SECTOR CLEAR','Still in one piece.','INTEGRITY +12 · SECTOR BONUS +1,500',3);}
- if(event.type==='bridge'){announce('HOLD ON','There goes the bridge.','SHOOT THE FALLING DEBRIS',2);radio('Eyes forward! We are going into the river!');}
+ if(event.type==='bridge'){announce('HOLD ON','There goes the bridge.','SHOOT THE FALLING DEBRIS',2);radio('Brace! Clear the debris. We are jumping the gap!');}
  if(event.type==='focus')radio('Overdrive online. Five seconds. Make them count.');
+ if(event.type==='threat')radio(`Raptors on the ${event.side}! They are keeping pace. Watch for the turn!`);
  if(event.type==='loss')showContinue();
  if(event.type==='win')showResult(true);
 }}
@@ -80,7 +81,7 @@ addEventListener('keyup',e=>keys.delete(e.key));addEventListener('blur',()=>{fir
 function step(dt){
  if(mode!=='playing')return;
  const speed=.65;aim.x=Math.max(.02,Math.min(.98,aim.x+((keys.has('ArrowRight')?1:0)-(keys.has('ArrowLeft')?1:0))*dt*speed));aim.y=Math.max(.19,Math.min(.85,aim.y+((keys.has('ArrowDown')?1:0)-(keys.has('ArrowUp')?1:0))*dt*speed));
- game.update(dt);if(fire||keys.has(' '))game.shoot(aim.x,aim.y,innerWidth/innerHeight);processEvents();renderer.update(dt);audio.update(game);
+ game.update(dt);if(fire||keys.has(' ')){renderer.sync(game,aim);game.shoot(aim.x,aim.y,innerWidth/innerHeight);}processEvents();renderer.update(dt);audio.update(game);
  announcementTime=Math.max(0,announcementTime-dt);radioTime=Math.max(0,radioTime-dt);$('announcement').style.opacity=String(Math.min(1,announcementTime*2));$('radio').style.opacity=String(Math.min(1,radioTime));
 }
 let hudTick=0;
@@ -94,5 +95,5 @@ async function load(){
  catch{$('load-status').textContent='The island could not load. Check your connection and reload this page.';$('start-label').textContent='RELOAD TO RETRY';$('start').disabled=false;$('start').onclick=()=>location.reload();}
 }void load();
 window.lostCircuit={get ready(){return ready;},get mode(){return mode;},snapshot:()=>game?.snapshot(),get audioState(){return audio.context?.state||'uninitialized';},get art(){return Object.fromEntries(Object.entries(renderer.images).map(([key,im])=>[key,{width:im.width,height:im.height}]));}};
-if(test)Object.assign(window.lostCircuit,{getGame:()=>game,project:e=>project(e,innerWidth/innerHeight),freeze:v=>{frozen=v;},step:(seconds,autoplay=false)=>{
- for(let t=0;t<seconds&&mode==='playing';t+=1/60){if(autoplay){const target=game.entities.find(e=>!e.dead&&e.age>.2);if(target){const p=project(target,innerWidth/innerHeight);aim.x=p.hx;aim.y=p.hy;game.shoot(aim.x,aim.y,innerWidth/innerHeight);}if(game.focus>=100)game.activateFocus();}step(1/60);}updateHud();renderer.render(game,aim,{time:game.time});},seek:(id,at=0)=>{const idx=game.path.findIndex(n=>STAGES[n].id===id);if(idx<0)throw Error('Stage is not on route');game.stageIndex=idx;game.stageTime=at;game.phase='ride';game.phaseTime=at;game.entities=[];game.spawnTimer=.2;game.bossSpawned=false;game.bridgeBroken=false;stageChanged();updateHud();},setAim:(x,y)=>{aim.x=x;aim.y=y;},render:()=>renderer.render(game,aim,{time:game?.time??0,menu:mode==='menu'})});
+if(test)Object.assign(window.lostCircuit,{getGame:()=>game,project:e=>renderer.project(e,innerWidth/innerHeight),diagnostics:()=>({weapon:renderer.weapon.diagnostics(),camera:renderer.world.camera.position.toArray(),actors:renderer.actors.diagnostics(),draws:renderer.world.renderer.info.render.calls,triangles:renderer.world.renderer.info.render.triangles}),freeze:v=>{frozen=v;},step:(seconds,autoplay=false)=>{
+ for(let t=0;t<seconds&&mode==='playing';t+=1/60){if(autoplay){renderer.sync(game,aim);const target=game.entities.find(e=>!e.dead&&e.age>.2&&renderer.project(e)?.visible!==false);if(target){const p=renderer.project(target,innerWidth/innerHeight);aim.x=p.hx;aim.y=p.hy;game.shoot(aim.x,aim.y,innerWidth/innerHeight);}if(game.focus>=100)game.activateFocus();}step(1/60);}updateHud();renderer.render(game,aim,{time:game.time});},seek:(id,at=0)=>{const idx=game.path.findIndex(n=>STAGES[n].id===id);if(idx<0)throw Error('Stage is not on route');game.stageIndex=idx;game.stageTime=at;game.travel=at*(id==='manor'?14:id==='fault'?27:24);renderer.actors.reset();game.phase='ride';game.phaseTime=at;game.entities=[];game.spawnTimer=.2;game.bossSpawned=false;game.bridgeBroken=false;stageChanged();updateHud();},setAim:(x,y)=>{aim.x=x;aim.y=y;},render:()=>renderer.render(game,aim,{time:game?.time??0,menu:mode==='menu'})});

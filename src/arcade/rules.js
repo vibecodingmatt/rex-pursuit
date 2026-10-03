@@ -1,7 +1,7 @@
 // Deterministic fixed-step arcade simulation. Coordinates are in the playable viewport.
 export const STAGES = [
- {id:'gates',name:'Through the gates',era:'THE ORIGINAL CIRCUIT',location:'NORTH PADDOCK · 06:14',bg:0,duration:34,boss:'trike',roster:['raptor','dilo','galli','anky'],radio:'Keep the trigger down. We are going straight through.',setpiece:'stampede'},
- {id:'river',name:'River of giants',era:'THE ORIGINAL CIRCUIT',location:'RIVER VALLEY · 07:02',bg:4,duration:36,boss:'rex',roster:['ptero','ichthy','raptor'],radio:'That is not a bridge. Hold on to something.',setpiece:'brachio'},
+ {id:'gates',name:'Through the gates',era:'THE ORIGINAL CIRCUIT',location:'NORTH PADDOCK · 06:14',bg:0,duration:34,boss:'trike',roster:['raptor','dilo','galli','trike'],radio:'Keep the trigger down. We are going straight through.',setpiece:'stampede'},
+ {id:'river',name:'River of giants',era:'THE ORIGINAL CIRCUIT',location:'RIVER VALLEY · 07:02',bg:4,duration:36,boss:'rex',roster:['ptero','ichthy','ptero'],radio:'That is not a bridge. Hold on to something.',setpiece:'brachio'},
  {id:'fault',name:'The falling world',era:'THE ORIGINAL CIRCUIT',location:'FAULTLINE · 18:46',bg:1,duration:38,boss:null,roster:['ptero','trike','raptor'],radio:'The bridge is coming apart! Clear us a way through.',setpiece:'bridge'},
  {id:'hybrid',name:'Nobody is in control',era:'THE WORLD DETOUR',location:'LAGOON PROMENADE · 20:31',bg:2,duration:30,boss:'indominus',roster:['raptor','ptero','dilo'],radio:'Thermal is blank. Watch for the eyes.',setpiece:'camouflage'},
  {id:'lagoon',name:'Something in the water',era:'THE WORLD DETOUR',location:'DEEP WATER · 20:48',bg:2,duration:28,boss:'mosa',roster:['ichthy','ptero'],radio:'Wake on the starboard side. A very, very big wake.',setpiece:'water'},
@@ -28,7 +28,7 @@ export class Circuit {
   this.route=route;this.difficulty=difficulty;this.rng=seed;this.path=route==='classic'?[0,1,2,6]:[0,1,2,3,4,5,6];
   this.status='playing';this.stageIndex=0;this.stageTime=0;this.time=0;this.phase='intro';this.phaseTime=0;this.hp=100;this.score=0;
   this.combo=0;this.maxCombo=0;this.chainTime=0;this.shots=0;this.hits=0;this.kills=0;this.bosses=0;this.credits=2;this.continues=0;
-  this.entities=[];this.events=[];this.serial=0;this.spawnTimer=2.5;this.hazardTimer=6;this.supplyTimer=11;
+  this.entities=[];this.events=[];this.serial=0;this.spawnTimer=2.5;this.hazardTimer=6;this.supplyTimer=11;this.travel=0;this.speed=0;
   this.cooldown=0;this.focus=0;this.focusTime=0;this.invulnerable=0;this.bossSpawned=false;this.bridgeBroken=false;this.wave=0;
   this.emit('stage',{stage:this.stage.id});
  }
@@ -39,7 +39,8 @@ export class Circuit {
  spawn(kind,{boss=false,x,delay=0}={}){
   const def=TYPES[kind],side=this.random()<.5?-1:1;
   const e={id:++this.serial,kind,boss,hp:boss?(kind==='trike'?180:def.hp):def.hp,maxHp:boss?(kind==='trike'?180:def.hp):def.hp,
-   age:-delay,life:boss?99:5.8+this.random()*1.4,lane:x??(.5+side*(.12+this.random()*.23)),x:.5,y:.55,size:.01,head:def.head||[.5,.5],
+   age:-delay,life:boss?99:4.2+this.random()*.7,lane:x??(.5+side*(.12+this.random()*.23)),x:.5,y:.55,size:.01,head:def.head||[.5,.5],
+   spawnTravel:this.travel+Math.max(0,delay)*this.speed,
    seed:this.random()*6.28,attack:0,cycle:0,hit:0,dead:false,fade:0,weak:0,weakHits:0,alpha:1};
   this.entities.push(e);return e;
  }
@@ -78,12 +79,14 @@ export class Circuit {
   const list=this.entities.filter(e=>!e.dead&&e.age>.15).sort((a,b)=>b.size-a.size);
   let target=null,precise=false;
   for(const e of list){
-   const {x:cx,y:cy,w,h,hx,hy}=project(e,aspect);
+   const projection=this.projector?this.projector(e,aspect):project(e,aspect);
+   if(!projection||projection.visible===false)continue;
+   const {x:cx,y:cy,w,h,hx,hy}=projection;
    const head=Math.hypot((x-hx)*aspect,y-hy)<Math.max(.035,h*.15);
    const body=((x-cx)/(w*.4))**2+((y-cy)/(h*.46))**2<1;
    if(head||body){target=e;precise=head;break;}
   }
-  this.emit('shot',{x,y,hit:!!target,precise});
+  this.emit('shot',{x,y,hit:!!target,precise,id:target?.id});
   if(!target)return true;
   this.hits++;target.hit=.14;
   if(target.kind==='supply'){
@@ -105,18 +108,23 @@ export class Circuit {
  update(dt){
   if(this.status!=='playing')return;
   dt=clamp(dt,0,.05);this.time+=dt;this.phaseTime+=dt;this.cooldown=Math.max(0,this.cooldown-dt);this.invulnerable=Math.max(0,this.invulnerable-dt);
+  const cruise=this.stage.id==='manor'?14:this.stage.id==='fault'?27:24;
+  this.speed=this.phase==='ride'?cruise:this.phase==='intro'?8+16*clamp(this.phaseTime/3,0,1):7;
+  if(this.focusTime>0)this.speed*=.52;
+  this.travel+=dt*this.speed;
   this.focusTime=Math.max(0,this.focusTime-dt);this.chainTime=Math.max(0,this.chainTime-dt);if(!this.chainTime)this.combo=0;
   const pace=this.focusTime>0?.52:1;
   if(this.phase==='intro'&&this.phaseTime>=3){this.phase='ride';this.phaseTime=0;}
   if(this.phase==='ride'){
    this.stageTime+=dt;this.spawnTimer-=dt*pace;this.hazardTimer-=dt*pace;this.supplyTimer-=dt;
    if(this.spawnTimer<=0&&this.entities.filter(e=>!e.dead).length<8){
-    const roster=this.stage.roster;this.spawn(roster[this.wave%roster.length]);this.wave++;this.spawnTimer=1.4+this.random()*.6;
+    const roster=this.stage.id==='fault'&&this.stageTime>18&&this.stageTime<23?['ptero']:this.stage.roster,arrival=this.spawn(roster[this.wave%roster.length]);this.wave++;this.spawnTimer=1.4+this.random()*.6;
+    if(arrival.kind==='raptor'&&this.wave%3===1)this.emit('threat',{side:arrival.lane<.5?'right':'left'});
     if(this.stageTime>15&&this.wave%3===0)this.spawn(roster[0],{delay:.4});
    }
    if(this.hazardTimer<=0){this.spawn(this.stage.id==='manor'?'spit':'rock');this.hazardTimer=5.2;}
    if(this.supplyTimer<=0){this.spawn(this.wave%2?'supply':'barrel');this.supplyTimer=12;}
-   if(this.stage.setpiece==='bridge'&&this.stageTime>19&&!this.bridgeBroken){this.bridgeBroken=true;this.emit('bridge');for(let i=0;i<3;i++)this.spawn('rock',{x:.27+i*.23,delay:i*.6});}
+   if(this.stage.setpiece==='bridge'&&this.stageTime>19&&!this.bridgeBroken){this.bridgeBroken=true;this.bridgeOrigin=this.travel+30;this.emit('bridge');for(let i=0;i<3;i++)this.spawn('rock',{x:.27+i*.23,delay:i*.6});}
    if(this.stageTime>=this.stage.duration){
     this.phase='boss';this.phaseTime=0;
     // Let the vehicle pass the remaining waves before the boss arrives.
@@ -142,7 +150,7 @@ export class Circuit {
   if(this.phase==='boss'&&this.entities.every(e=>e.dead)&&this.phaseTime>1.5){this.phase='clear';this.phaseTime=0;this.hp=Math.min(100,this.hp+12);this.score+=1500;this.emit('clear');}
   if(this.phase==='clear'&&this.phaseTime>3.5){
    if(this.stageIndex===this.path.length-1)this.finish();
-   else{this.stageIndex++;this.stageTime=0;this.phase='intro';this.phaseTime=0;this.entities=[];this.spawnTimer=1;this.hazardTimer=5;this.supplyTimer=9;this.bossSpawned=false;this.bridgeBroken=false;this.emit('stage',{stage:this.stage.id});}
+   else{this.stageIndex++;this.stageTime=0;this.travel=0;this.phase='intro';this.phaseTime=0;this.entities=[];this.spawnTimer=1;this.hazardTimer=5;this.supplyTimer=9;this.bossSpawned=false;this.bridgeBroken=false;this.emit('stage',{stage:this.stage.id});}
   }
  }
  snapshot(){return{status:this.status,phase:this.phase,stage:this.stage.id,time:this.time,hp:this.hp,score:this.score,shots:this.shots,hits:this.hits,combo:this.combo,focus:this.focus,continues:this.continues,entities:this.entities.map(e=>({...e}))};}

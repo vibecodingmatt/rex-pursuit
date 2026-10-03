@@ -261,6 +261,8 @@ export function createFlyers(scene,{jungle,camera=null}){
 
  api={
   meshes:ALL.map(k=>k.mesh),huntSpawn,strike,onKill:null,onLand:null,onFlush:null,onCall:null,
+  // A rail encounter supplies position, orientation and wing phase itself.
+  updateDirected(){for(const k of ALL){k.mesh.visible=true;write(k);}},
   setQuality(t){density=Math.min(1,t.fauna??t.particles);D.mesh.castShadow=!!t.detail;},
   reset({empty=false}={}){for(const k of ALL){for(const c of k.pool)c.on=false;k.mesh.count=0;}now=0;travel=0;nextPass=range(120,220);chunkZ=[];tally.kills=0;if(empty)return;
    for(const chunk of jungle.chunks){const cz=chunk.group.position.z;if(cz>-70&&cz<70)populate(chunk,.5);}},

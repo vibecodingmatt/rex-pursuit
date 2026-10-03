@@ -19,6 +19,14 @@ unattended.invulnerable=0;unattended.damage(1000);assert(unattended.continueRun(
 assert.notEqual(recordKey('classic','arcade'),recordKey('extended','arcade'));assert.notEqual(recordKey('classic','tour'),recordKey('classic','arcade'));assert.notEqual(recordKey('classic','arcade',true),recordKey('classic','arcade',false));
 const g=new Circuit();g.drain();const boss=g.spawn('rex',{boss:true});boss.age=2;g.pose(boss);const at=project(boss,16/9);for(let i=0;i<9;i++){g.cooldown=0;g.shoot(at.hx,at.hy,16/9);}assert(g.drain().some(e=>e.type==='stagger'));assert.equal(g.hp,100,'Interrupting a boss must not inflict its attack');
 const miss=new Circuit();assert(miss.shoot(0,0));assert.equal(miss.hits,0);assert.equal(miss.shoot(0,0),false,'Fire cadence cannot be bypassed');
+for(const slowed of [false,true]){
+ const ride=new Circuit({route:'classic'});ride.stageIndex=2;ride.phase='ride';ride.stageTime=18.8;ride.travel=400;ride.focusTime=slowed?5:0;ride.drain();
+ while(!ride.bridgeBroken)ride.update(1/60);
+ assert(Math.abs(ride.bridgeOrigin-ride.travel-30)<.001,'Bridge collapse stays ahead of the vehicle, including during Overdrive');
+ const origin=ride.bridgeOrigin;for(let i=0;i<60;i++)ride.update(1/60);
+ assert.equal(ride.bridgeOrigin,origin,'Gap remains anchored to the terrain');assert.equal(ride.drain().filter(e=>e.type==='bridge').length,1,'Collapse fires once');
+ assert(ride.entities.filter(e=>!['rock','supply','barrel'].includes(e.kind)).every(e=>e.kind==='ptero'),'Air threats replace ground charges over the broken bridge');
+}
 miss.hp=60;const supply=miss.spawn('supply');supply.age=3;miss.pose(supply);const p=project(supply,16/9);miss.cooldown=0;miss.shoot(p.hx,p.hy);assert.equal(miss.hp,82);
 miss.focus=100;assert(miss.activateFocus());assert.equal(miss.activateFocus(),false);assert.equal(miss.focus,0);
 console.log('Lost Circuit rules: complete routes, phone targets, frame rates, loss/continues, fire cadence, repairs, boss interrupts and record separation passed.');
