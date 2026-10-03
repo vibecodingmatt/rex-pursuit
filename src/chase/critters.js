@@ -378,7 +378,7 @@ export function createCritters(scene,{jungle,camera=null,capacities={}}){
   Object.assign(c,{state:'dead',age:0,grounded:false,landed:false,curl:Math.min(0,c.curl),twitch:1,fade:1,peck:0,peckTime:0,stopAt:0,goal:null,alarmAt:-1,onRock:false,hop:0,flinch:0});
   tally.kills++;api.onKill?.(pos.copy(c.p),c.species||k.name);return true;
  }
- function stepDead(c,dt,speed){
+ function stepDead(c,dt,speed,cull=true){
   c.age+=dt;const ground=jungle.groundAt(c.p.x,c.p.z);
   c.curl=Math.min(1,c.curl+dt*3);c.twitch=Math.max(0,c.twitch-dt*.6);
   if(!c.grounded){
@@ -401,7 +401,7 @@ export function createCritters(scene,{jungle,camera=null,capacities={}}){
   // A few dying kicks, fading out.
   c.phase=(c.phase+dt*(1.5+5*c.twitch))%1;c.stride=.55*c.twitch*c.twitch;
   if(c.age>12){c.fade-=dt*2;if(c.fade<=0)c.on=false;}
-  if(c.p.z>80||c.p.z<-140||Math.abs(c.p.x)>30)c.on=false;
+  if(cull&&(c.p.z>80||c.p.z<-140||Math.abs(c.p.x)>30))c.on=false;
  }
  function populatePerches(chunk,chance){for(const pr of chunk.perches||[])if(rnd()<chance)spawnLizard(pr.x,pr.y,pr.z+chunk.group.position.z);}
 
@@ -494,8 +494,8 @@ export function createCritters(scene,{jungle,camera=null,capacities={}}){
   async ready(){await modelLoad;if(modelError)throw modelError;},
   /** Authored encounters own the live animals' transforms/stride. Keep the
    * shared material, hits and physical death falls, without Safari steering. */
-  updateDirected(dt,{speed=0}={}){
-   for(const k of ALL){k.visible=true;for(const c of k.pool)if(c.on){if(c.state==='dead')stepDead(c,dt,speed);else{c.flinch=Math.max(0,c.flinch-dt*3.5);if(k.name==='dilophosaurus')stepFrill(c,dt,rnd);}}write(k);}
+  updateDirected(dt,{speed=0,cull=true}={}){
+   for(const k of ALL){k.visible=true;for(const c of k.pool)if(c.on){if(c.state==='dead')stepDead(c,dt,speed,cull);else{c.flinch=Math.max(0,c.flinch-dt*3.5);if(k.name==='dilophosaurus')stepFrill(c,dt,rnd);}}write(k);}
   },
   setQuality(t){quality=t;raptors?.setQuality(t);density=Math.min(1,t.fauna??t.particles);for(const k of ALL)k.mesh.castShadow=!!t.detail;modelTier=t.detail?'high':'low';SKIN.value=t.detail?1:0;selectModels();},
   /** The world is already alive when a scene begins: lizards on nearby rocks and a pack foraging in view. */

@@ -96,7 +96,7 @@ export class Circuit {
   if(!target)return true;
   this.hits++;target.hit=.14;
   if(target.kind==='supply'){
-   target.dead=true;this.hp=Math.min(100,this.hp+22);this.focus=Math.min(100,this.focus+25);this.emit('supply',{x:target.x,y:target.y});return true;
+   target.dead=true;this.hp=Math.min(100,this.hp+22);this.focus=Math.min(100,this.focus+25);this.emit('supply',{x:target.x,y:target.y,id:target.id});return true;
   }
   if(target.kind==='barrel'){
    target.hp--;if(target.hp<=0){this.kill(target);this.emit('blast',{x:target.x,y:target.y});

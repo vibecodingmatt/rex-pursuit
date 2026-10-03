@@ -12,3 +12,4 @@
 
 /* Cards that arrive while a modeled boss holds the centre of the frame sit above her. */
 #announcement.over{top:16%}#announcement.over>strong{font-size:clamp(26px,3.8vw,54px);margin:8px 0}
+#screen-blood{position:fixed;inset:0;width:100%;height:100%;z-index:1;pointer-events:none}

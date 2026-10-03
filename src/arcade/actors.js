@@ -23,7 +23,7 @@ export class CircuitActors {
   this.critters=createCritters(this.scene,{jungle,capacities:{compy:1,lizard:1,galli:7,raptor:8,dilophosaurus:6,triceratops:5,parasaurolophus:1,pachycephalosaurus:1,stegosaurus:1}});
   this.flyers=createFlyers(this.scene,{jungle});this.critters.reset({empty:true});this.flyers.reset({empty:true});
   this.brachio=createBrachio(this.scene,{jungle});
-  this.basis=new T.Matrix4();this.roll=new T.Quaternion();this.shadowTexture=this.makeShadow();this.shadows=[];
+  this.basis=new T.Matrix4();this.roll=new T.Quaternion();this.shadowTexture=this.makeShadow();this.shadows=[];this.corpses=[];
   // Soft contact shade under grounded animals; the sun's shadow map casts the real shadow.
   const mat=new T.MeshBasicMaterial({map:this.shadowTexture,transparent:true,opacity:.34,depthWrite:false,polygonOffset:true,polygonOffsetFactor:-2});
   for(let i=0;i<20;i++){const mesh=new T.Mesh(new T.PlaneGeometry(1,1).rotateX(-Math.PI/2),mat);mesh.visible=false;this.scene.add(mesh);this.shadows.push(mesh);}
@@ -34,7 +34,7 @@ export class CircuitActors {
  setQuality(t){this.critters.setQuality(t);this.flyers.setQuality?.(t);this.brachio.setQuality?.(t);loadIchthy(t.detail?'ichthy.bin':'ichthy-low.bin').then(m=>{this.ichthy=m;}).catch(()=>{});}
  pushers(){const out=[];for(const a of this.actors.values()){const k=a.e.kind;if(a.dead||!a.c||k==='ptero')continue;out.push({x:a.position.x,z:a.position.z,r:k==='trike'?3.6:k==='galli'?1.8:2.3,s:1});}return out;}
  makeShadow(){const c=document.createElement('canvas');c.width=c.height=64;const x=c.getContext('2d'),g=x.createRadialGradient(32,32,4,32,32,32);g.addColorStop(0,'#000b');g.addColorStop(1,'#0000');x.fillStyle=g;x.fillRect(0,0,64,64);return new T.CanvasTexture(c);}
- reset(){for(const a of this.actors.values())if(a.mesh)disposeProp(a.mesh);this.actors.clear();this.critters.reset({empty:true});this.flyers.reset({empty:true});for(const s of this.shadows)s.visible=false;}
+ reset(){for(const a of this.actors.values())if(a.mesh)disposeProp(a.mesh);this.actors.clear();this.corpses=[];this.critters.reset({empty:true});this.flyers.reset({empty:true});for(const s of this.shadows)s.visible=false;}
  makeProp(kind){
   if(kind==='ichthy'&&this.ichthy){const mesh=createIchthy(this.ichthy);mesh.scale.setScalar(1.15);this.scene.add(mesh);return mesh;}
   const built=buildProp(kind);if(built){this.scene.add(built);return built;}
@@ -55,7 +55,9 @@ export class CircuitActors {
   if(!game)return;if(this.stage!==game.stage.id){this.reset();this.stage=game.stage.id;}
   const dt=clamp(game.time-this.lastTime,0,.05);this.lastTime=game.time;tickProps(game.time);
   const live=new Set(game.entities.filter(e=>!e.boss).map(e=>e.id));
-  for(const [id,a]of this.actors)if(!live.has(id)){if(a.c)a.c.on=false;if(a.mesh)disposeProp(a.mesh);this.actors.delete(id);}
+  // A fallen animal outlives its rules entity so the tumble and skid play out (a few at a time).
+  for(const [id,a]of this.actors)if(!live.has(id)){if(a.c&&a.dead&&species[a.e.kind])this.corpses.push({c:a.c,t:0});else if(a.c)a.c.on=false;if(a.mesh)disposeProp(a.mesh);this.actors.delete(id);}
+  const camZ=this.world.camera.position.z;for(const k of this.corpses){k.t+=dt;if(k.t>4||k.c.p.z<camZ-6||this.corpses.length>3&&k===this.corpses[0])k.c.on=false;}this.corpses=this.corpses.filter(k=>k.c.on);
   let shadow=0;
   for(const e of game.entities){
    if(e.boss||e.age<0)continue;let a=this.actors.get(e.id);
@@ -86,7 +88,9 @@ export class CircuitActors {
    a.position.y+=lift;
    if(e.dead){if(!a.dead){a.dead=true;a.deathPosition=a.position.clone();
     // A shot crate tumbles away from the gun; a barrel goes up with its blast.
-    if(a.mesh&&fixed){const blast=e.kind==='barrel',r=Math.random;v.subVectors(a.position,this.world.camera.position).setY(0).normalize();a.tumble={v:new T.Vector3(v.x*(blast?5:3.5)+(r()-.5)*2,blast?9:4.5,v.z*(blast?5:3.5)),spin:new T.Vector3(r()-.5,r()-.5,r()-.5).normalize().multiplyScalar(blast?14:8),r:blast?.75:.55};}if(a.c&&species[e.kind]){Object.assign(a.c,{look:0,tailYaw:0,crouch:0,pant:0});a.c.hp=1;this.critters.strike(a.c,new T.Vector3(0,.1,1),1,999);}else if(a.c){a.c.on=false;}}if(a.tumble)this.tumble(a,e,dt,id);else if(a.mesh){a.mesh.position.copy(a.deathPosition);a.mesh.position.y-=e.fade*2;a.mesh.rotation.z+=dt*1.8;a.mesh.scale.setScalar(Math.max(0,1-e.fade));}continue;}
+    if(a.mesh&&fixed){const blast=e.kind==='barrel',r=Math.random;v.subVectors(a.position,this.world.camera.position).setY(0).normalize();a.tumble={v:new T.Vector3(v.x*(blast?5:3.5)+(r()-.5)*2,blast?9:4.5,v.z*(blast?5:3.5)),spin:new T.Vector3(r()-.5,r()-.5,r()-.5).normalize().multiplyScalar(blast?14:8),r:blast?.75:.55};}if(a.c&&species[e.kind]){Object.assign(a.c,{look:0,tailYaw:0,crouch:0,pant:0});a.c.hp=1;
+     // The killing round carries the body on along the line of fire; a head shot hits harder.
+     const push=new T.Vector3().subVectors(a.position,this.world.camera.position).setY(0).normalize().setY(.12);this.critters.strike(a.c,push,a.hitHead?1.5:1.15,999);}else if(a.c){a.c.on=false;}}if(a.tumble)this.tumble(a,e,dt,id);else if(a.mesh){a.mesh.position.copy(a.deathPosition);a.mesh.position.y-=e.fade*2;a.mesh.rotation.z+=dt*1.8;a.mesh.scale.setScalar(Math.max(0,1-e.fade));}continue;}
    if(a.c){const c=a.c;c.p.copy(a.position);c.fade=1;c.on=true;
     if(e.kind==='ptero')this.fly(a,c,e,age,life,dt);
     else this.animate(a,c,e,age,life,windup,lateral,forward,dt);
@@ -95,7 +99,7 @@ export class CircuitActors {
    else{a.mesh.position.copy(a.position);a.mesh.rotation.set(e.kind==='ichthy'?Math.sin(age*2)*.3:e.kind==='rock'?age*.7:0,a.yaw,e.kind==='rock'?age:.0);}
    if(lift<1.5&&e.kind!=='ichthy'){const s=this.shadows[shadow++];if(s){s.visible=true;s.position.set(x,y+.11,z);s.rotation.y=a.yaw;s.scale.set(e.kind==='trike'?4.2:2.8,1,e.kind==='trike'?6.2:4.2);}}
   }
-  this.critters.updateDirected(dt);this.flyers.updateDirected();for(let i=shadow;i<this.shadows.length;i++)this.shadows[i].visible=false;
+  this.critters.updateDirected(dt,{cull:false});this.flyers.updateDirected();for(let i=shadow;i<this.shadows.length;i++)this.shadows[i].visible=false;
   if(game.stage.id==='river'&&game.stageTime>5&&game.stageTime<28){const z=500;this.brachio.show(routeX(z,'river')-10,z,Math.PI/2);this.brachio.mesh.position.y=routeY(z,'river')-1.3;this.brachio.mesh.scale.setScalar(1.45);this.brachio.rearAt(Math.max(0,game.stageTime-19));this.brachio.mesh.visible=true;}else this.brachio.mesh.visible=false;
   for(const a of this.actors.values()){
    if(a.c?.rig){a.head.copy(a.c.rig.head);a.position.copy(a.c.rig.body);}

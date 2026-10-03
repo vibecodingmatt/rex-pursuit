@@ -44,6 +44,8 @@ const BOSS_STAGES=['gates','river','hybrid','visitor'];
 function fieldEvent(e){
  // Bodies and the vehicle react with or without sound; a blow knocks the camera away from its source.
  if(e.type==='shot'&&e.hit)renderer.actors?.hit(e.id,e.precise,e.x);
+ // A broken boss attack freezes the action for 50 ms and lands a low thump.
+ if(e.type==='stagger'){hitStop=.05;if(field.context)field.groundImpact(1);}
  if(e.type==='damage')renderer.vehicle?.hit(renderer.actors?.actors.get(e.id)?.position||null,Math.min(1.6,.4+e.amount/14));
  if(!field.context)return;
  if(e.type==='shot'){field.gun();if(e.hit){const wound=renderer.lastWound,actor=renderer.actors?.actors.get(e.id),at=wound?.point||actor?.position;if(at)field.hit('flesh',at.distanceTo(renderer.world.camera.position),at);renderer.lastWound=null;}}
@@ -92,7 +94,7 @@ $('start').addEventListener('click',start);$('restart').addEventListener('click'
 $('continue').addEventListener('click',()=>{if(game?.continueRun()){showMode('playing');void audio.unlock();unlockField();canvas.focus({preventScroll:true});processEvents();updateHud();}});
 $('focus').addEventListener('click',()=>{if(mode==='playing'){game.activateFocus();processEvents();canvas.focus({preventScroll:true});}});
 $('sound').addEventListener('click',()=>{audio.mute(!audio.muted);if(field.muted!==audio.muted)field.mute();$('sound').textContent=audio.muted?'SOUND OFF':'SOUND ON';$('sound').setAttribute('aria-pressed',String(audio.muted));$('sound').setAttribute('aria-label',audio.muted?'Enable sound':'Mute sound');if(mode==='playing')void audio.unlock();});
-let quality=null;function qualityLabel(){$('quality').textContent=`QUALITY ${quality?.label||'AUTO'}`;}$('quality').onclick=()=>{quality?.cycle();qualityLabel();};
+let quality=null,hitStop=0;function qualityLabel(){$('quality').textContent=`QUALITY ${quality?.label||'AUTO'}`;}$('quality').onclick=()=>{quality?.cycle();qualityLabel();};
 function motionLabel(){$('motion').textContent=renderer.reduced?'MOTION LOW':'MOTION FULL';$('motion').setAttribute('aria-pressed',String(renderer.reduced));}motionLabel();
 $('motion').addEventListener('click',()=>{renderer.reduced=!renderer.reduced;motionLabel();});
 $('difficulty').addEventListener('change',updateBest);
@@ -122,7 +124,7 @@ function step(dt){
 }
 let hudTick=0;
 function frame(now){const raw=now-last,dt=Math.min(.1,raw/1000);last=now;if(quality&&!frozen&&!document.hidden&&quality.sample(raw,mode==='playing'))qualityLabel();
- if(!frozen){if(mode==='menu'&&!document.hidden)clock+=dt;if(mode==='playing'){accumulator+=dt;while(accumulator>=1/60){step(1/60);accumulator-=1/60;}hudTick+=dt;if(hudTick>.08){updateHud();hudTick=0;}}}
+ if(!frozen){if(mode==='menu'&&!document.hidden)clock+=dt;if(mode==='playing'){if(hitStop>0)hitStop-=dt;else{accumulator+=dt;while(accumulator>=1/60){step(1/60);accumulator-=1/60;}}hudTick+=dt;if(hudTick>.08){updateHud();hudTick=0;}}}
  renderer.render(game,aim,{menu:mode==='menu',time:game?.time??clock});bossCues();requestAnimationFrame(frame);
 }
 requestAnimationFrame(frame);

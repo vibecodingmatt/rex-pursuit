@@ -1,24 +1,28 @@
+import * as T from 'three';
 import {TYPES,project} from './rules.js';
 import {drawPuppet} from './puppet.js';
 import {CircuitWorld} from './world.js';
 import {CircuitActors} from './actors.js';
 import {CircuitWeapon} from './weapon.js';
 import {CircuitVehicle} from './vehicle.js';
+import {CircuitImpacts} from './impacts.js';
 import {BossRex} from './boss-rex.js';
 import {createEffects} from '../chase/effects.js';
 import {dustTexture} from '../chase/foliage.js';
 // Individual cell padding avoids the generated atlas's occasional boundary overlap.
 const CUTS=[[0,0,.247,.471],[.249,0,.249,.482],[.507,0,.233,.48],[.738,0,.262,.445],[0,.489,.25,.511],[.252,.493,.249,.507],[.498,.478,.26,.522],[.754,.485,.246,.515]];
 const clamp=(v,a,b)=>Math.max(a,Math.min(b,v));
+// Score numeral colours by chain multiplier (x1 to x5).
+const CHAIN=['#f4ecd2','#9ff8c0','#7fe3ff','#ffc46b','#ff6a4d'];
 const hash=n=>{const s=Math.sin(n*127.1+311.7)*43758.5453;return s-Math.floor(s);};
 export class RideRenderer {
- constructor(canvas){this.canvas=canvas;this.ctx=canvas.getContext('2d');this.terrain=document.createElement('canvas');this.terrain.id='terrain';this.terrain.setAttribute('aria-hidden','true');canvas.before(this.terrain);this.world=new CircuitWorld(this.terrain);this.images={};this.particles=[];this.labels=[];this.tracers=[];this.shake=0;this.flash=0;this.recoil=0;this.hitMark=0;this.age=0;this.reduced=matchMedia('(prefers-reduced-motion: reduce)').matches;this.resize();}
- async load(onProgress){let n=0;await Promise.all([this.world.load(),...['worlds','predators','wildlife','landmarks'].map(async key=>{const im=new Image();im.src=new URL(`./arcade/${key}.png`,document.baseURI).href;await im.decode();this.images[key]=im;onProgress(++n/6);})]);this.actors=new CircuitActors(this.world);await this.actors.load();this.world.rimCreatures(this.world.scene);onProgress(5/6);this.weapon=new CircuitWeapon(this.world);this.vehicle=this.world.vehicle=new CircuitVehicle(this.world);this.effects=createEffects(this.world.scene,dustTexture());this.vehicle.effects=this.effects;this.world.overlay=this.effects.soft.render;this.bossRex=new BossRex(this.world);this.sync(null,{x:.5,y:.5});onProgress(1);}
+ constructor(canvas){this.canvas=canvas;this.ctx=canvas.getContext('2d');this.terrain=document.createElement('canvas');this.terrain.id='terrain';this.terrain.setAttribute('aria-hidden','true');canvas.before(this.terrain);this.world=new CircuitWorld(this.terrain);this.images={};this.particles=[];this.labels=[];this.tracers=[];this.shake=0;this.flash=0;this.recoil=0;this.hitMark=0;this.heat=0;this.lift=new T.Vector3();this.age=0;this.reduced=matchMedia('(prefers-reduced-motion: reduce)').matches;this.resize();}
+ async load(onProgress){let n=0;await Promise.all([this.world.load(),...['worlds','predators','wildlife','landmarks'].map(async key=>{const im=new Image();im.src=new URL(`./arcade/${key}.png`,document.baseURI).href;await im.decode();this.images[key]=im;onProgress(++n/6);})]);this.actors=new CircuitActors(this.world);await this.actors.load();this.world.rimCreatures(this.world.scene);onProgress(5/6);this.weapon=new CircuitWeapon(this.world);this.vehicle=this.world.vehicle=new CircuitVehicle(this.world);this.effects=createEffects(this.world.scene,dustTexture());this.vehicle.effects=this.effects;this.impacts=new CircuitImpacts(this,{reducedMotion:this.reduced});this.world.overlay=this.effects.soft.render;this.bossRex=new BossRex(this.world);this.sync(null,{x:.5,y:.5});onProgress(1);}
  /** The hero Rex streams in after the menu is usable; until then the 2D boss stands in. */
  loadBosses(){this.bossLoad??=this.bossRex.load().catch(e=>{console.warn('Hero Rex unavailable; using the 2D boss.',e.message);});return this.bossLoad;}
  resize(){this.w=innerWidth;this.h=innerHeight;const dpr=Math.min(devicePixelRatio||1,1.6);this.canvas.width=Math.round(this.w*dpr);this.canvas.height=Math.round(this.h*dpr);this.ctx.setTransform(dpr,0,0,dpr,0,0);this.world.resize(this.w,this.h);}
- reset(){this.particles=[];this.labels=[];this.tracers=[];this.shake=0;this.flash=0;this.recoil=0;this.hitMark=0;this.actors?.reset();this.weapon?.reset();this.bossRex?.reset();this.effects?.reset();}
- sync(game,aim){if(!this.weapon)return;this.world.sync(game,{reduced:this.reduced,shake:this.shake});this.actors.sync(game);this.bossRex.sync(game);this.weapon.sync(game,aim);
+ reset(){this.particles=[];this.labels=[];this.tracers=[];this.shake=0;this.flash=0;this.recoil=0;this.hitMark=0;this.heat=0;this.impacts?.reset();this.actors?.reset();this.weapon?.reset();this.bossRex?.reset();this.effects?.reset();}
+ sync(game,aim){if(!this.weapon)return;this.game=game;this.world.sync(game,{reduced:this.reduced,shake:this.shake});this.actors.sync(game);this.bossRex.sync(game);this.weapon.sync(game,aim);
   // Bosses and running animals push the planting aside on the next frame.
   this.world.pushers=[...this.bossRex.slots.filter(s=>s.id!==null&&s.frame.visible).map(s=>({x:s.frame.position.x,z:s.frame.position.z,r:6,s:1.3})),...this.actors.pushers()].slice(0,6);}
  project(e,aspect=this.w/this.h){return this.bossRex?.project(e,aspect)||this.actors?.project(e,aspect)||project(e,aspect);}
@@ -28,17 +32,18 @@ export class RideRenderer {
   if(e.id){const boss=this.bossRex?.slots.find(s=>s.id===e.id&&s.started),actor=this.actors?.actors.get(e.id),p=boss?this.bossRex.project(boss.entity,this.w/this.h):actor&&this.project(actor.e);if(p?.visible&&e.type!=='shot')e={...e,x:boss?p.hx:p.x,y:boss?p.hy:p.y};}
   // Rounds that meet her hide leave a wound and throw flecks and mist back toward the gun.
   if(e.type==='shot'&&e.hit&&e.id){const wound=this.bossRex?.wound(e);if(wound){this.effects.burst(wound.point,true);this.lastWound=wound;}}
-  if(e.type==='shot'){this.recoil=1;this.weapon?.fire();this.tracers.push({x:e.x*this.w,y:e.y*this.h,life:.065,hit:e.hit});if(e.hit){this.hitMark=.11;this.burst(e.x,e.y,e.precise?'#ffe0a0':'#b8e1d0',7,.4);}}
-  if(e.type==='kill'){this.burst(e.x,e.y,e.boss?'#f5cf88':'#d4af6f',e.boss?50:20,1);this.labels.push({x:e.x*this.w,y:e.y*this.h,text:`${e.precise?'PRECISION ':''}+${e.points.toLocaleString()}`,life:1.1,color:'#ffe0a0'});if(e.boss)this.shake=.5;}
+  if(e.type==='shot'){this.recoil=1;this.heat=Math.min(1,this.heat+.13);this.weapon?.fire();this.impacts?.shot(e);if(e.hit){this.hitMark=.11;this.confirm={x:e.x,y:e.y,precise:e.precise,life:.22};}}
+  if(e.type==='kill'){const a=this.actors?.actors.get(e.id),at=a?a.position.clone():null;if(at)this.impacts?.kill(e,at);else this.burst(e.x,e.y,e.boss?'#f5cf88':'#d4af6f',e.boss?50:20,1);
+    const chain=Math.min(5,1+Math.floor((this.game?.combo||0)/5));this.labels.push({x:e.x*this.w,y:e.y*this.h,at:at?.add(this.lift.set(0,e.kind==='trike'?2.6:1.6,0)),text:`+${e.points.toLocaleString()}`,tag:e.precise?'PRECISION':chain>1?`CHAIN ×${chain}`:'',life:1.15,max:1.15,color:CHAIN[chain-1],size:Math.min(34,18+Math.log10(Math.max(10,e.points))*3)});if(e.boss)this.shake=.5;}
   if(e.type==='damage'||e.type==='attack'){this.shake=.7;this.flash=.5;}
-  if(e.type==='blast'){this.world.air?.startle(this.world.distance+30);this.shake=.7;this.burst(e.x,e.y,'#ffbb69',65,2);}
+  if(e.type==='blast'){this.world.air?.startle(this.world.distance+30);this.shake=.7;}
   if(e.type==='stagger'){this.shake=.3;this.labels.push({x:e.x*this.w,y:e.y*this.h,text:'ATTACK BROKEN',life:1.3,color:'#9ff8e0'});}
-  if(e.type==='supply'){this.burst(e.x,e.y,'#a8ffcb');this.labels.push({x:e.x*this.w,y:e.y*this.h,text:'REPAIR +22',life:1.2,color:'#a8ffcb'});}
+  if(e.type==='supply'){const a=this.actors?.actors.get(e.id);if(a)this.impacts?.kill({kind:'supply'},a.position.clone());else this.burst(e.x,e.y,'#a8ffcb');this.labels.push({x:e.x*this.w,y:e.y*this.h,text:'REPAIR +22',life:1.2,color:'#a8ffcb'});}
   if(e.type==='bridge')this.shake=1.2;
  }
- update(dt){this.age+=dt;this.effects?.update(dt,0);this.shake=Math.max(0,this.shake-dt);this.flash=Math.max(0,this.flash-dt);this.recoil=Math.max(0,this.recoil-dt*9);this.hitMark=Math.max(0,this.hitMark-dt);
+ update(dt){this.age+=dt;this.effects?.update(dt,0);this.impacts?.update(dt);this.heat=Math.max(0,this.heat-dt*1.7);if(this.confirm&&(this.confirm.life-=dt)<=0)this.confirm=null;this.shake=Math.max(0,this.shake-dt);this.flash=Math.max(0,this.flash-dt);this.recoil=Math.max(0,this.recoil-dt*9);this.hitMark=Math.max(0,this.hitMark-dt);
   for(const p of this.particles){p.x+=p.vx*dt;p.y+=p.vy*dt;p.vy+=150*dt;p.life-=dt;}this.particles=this.particles.filter(p=>p.life>0);
-  for(const p of this.labels){p.y-=dt*35;p.life-=dt;}this.labels=this.labels.filter(p=>p.life>0);
+  for(const p of this.labels){if(p.at)p.at.y+=dt*.8;else p.y-=dt*35;p.life-=dt;}this.labels=this.labels.filter(p=>p.life>0);
   for(const p of this.tracers)p.life-=dt;this.tracers=this.tracers.filter(p=>p.life>0);
  }
  background(index,time,aim,game){
@@ -118,9 +123,12 @@ export class RideRenderer {
     const p=this.project(e);if(!p?.visible||['supply','barrel','galli'].includes(e.kind))continue;c.save();c.strokeStyle='#ffcb87';c.globalAlpha=.85;c.lineWidth=2;c.beginPath();c.arc(p.hx*w,p.hy*h,Math.max(13,p.h*h*.27),-Math.PI/2,-Math.PI/2+Math.PI*2*(1-e.age/e.life));c.stroke();c.restore();
    }
    for(const p of this.particles){c.globalAlpha=clamp(p.life*2,0,1);c.fillStyle=p.color;c.fillRect(p.x,p.y,p.size,p.size);}c.globalAlpha=1;
-   const muzzle=this.weapon?.projectedMuzzle();
-   if(muzzle)for(const p of this.tracers){c.save();c.globalAlpha=p.life/.065;c.strokeStyle=p.hit?'#fff7c4':'#e8ddab';c.shadowColor='#ffd585';c.shadowBlur=5;c.lineWidth=1.6;c.beginPath();c.moveTo(muzzle.x*w,muzzle.y*h);c.lineTo(p.x,p.y);c.stroke();c.restore();}
-   for(const p of this.labels){c.save();c.globalAlpha=Math.min(1,p.life*3);c.fillStyle=p.color;c.shadowColor='#07110d';c.shadowBlur=7;c.font='bold 11px Arial';c.textAlign='center';c.fillText(p.text,p.x,p.y);c.restore();}
+   // Score numerals ride the spot where the animal fell; they pop in, then rise and fade.
+   for(const p of this.labels){let x=p.x,y=p.y;if(p.at){this.lift.copy(p.at).project(this.world.camera);if(this.lift.z>1)continue;x=(this.lift.x*.5+.5)*w;y=(.5-this.lift.y*.5)*h;}
+    const pop=p.size?1+.45*Math.max(0,1-(p.max-p.life)/.12):1;c.save();c.globalAlpha=Math.min(1,p.life*3);c.translate(x,y);c.scale(pop,pop);c.textAlign='center';c.lineJoin='round';
+    if(p.size){c.font=`italic 900 ${p.size}px "Arial Black",Impact,sans-serif`;c.lineWidth=5;c.strokeStyle='#07110dcc';c.strokeText(p.text,0,0);c.fillStyle=p.color;c.shadowColor=p.color;c.shadowBlur=10;c.fillText(p.text,0,0);
+     if(p.tag){c.shadowBlur=0;c.font='900 10px "Arial Black",sans-serif';c.lineWidth=3;c.strokeText(p.tag,0,-p.size*.95);c.fillText(p.tag,0,-p.size*.95);}}
+    else{c.fillStyle=p.color;c.shadowColor='#07110d';c.shadowBlur=7;c.font='bold 13px Arial';c.fillText(p.text,0,0);}c.restore();}
   }
   const vignette=c.createRadialGradient(w*.5,h*.48,h*.25,w*.5,h*.48,Math.max(w,h)*.8);vignette.addColorStop(0,'transparent');vignette.addColorStop(1,menu?'#020c0ac9':'#020c0a55');c.fillStyle=vignette;c.fillRect(0,0,w,h);
   if(!menu){
@@ -128,9 +136,15 @@ export class RideRenderer {
    if(fade){c.fillStyle=`rgba(3,12,10,${fade})`;c.fillRect(0,0,w,h);}
    if(game.focusTime>0){c.strokeStyle='#bcecdba0';c.lineWidth=5;c.strokeRect(3,3,w-6,h-6);}
    if(this.flash>0){c.fillStyle=`rgba(215,65,32,${this.flash*.22})`;c.fillRect(0,0,w,h);}
-   const x=aim.x*w,y=aim.y*h;c.save();c.strokeStyle=this.hitMark?'#ffe1a5':'#f4ecd2';c.shadowBlur=4;c.shadowColor='#000';c.lineWidth=1.5;
-   for(let i=0;i<4;i++){const a=i*Math.PI/2;c.beginPath();c.moveTo(x+Math.cos(a)*8,y+Math.sin(a)*8);c.lineTo(x+Math.cos(a)*18,y+Math.sin(a)*18);c.stroke();}
-   c.beginPath();c.arc(x,y,3,0,7);c.stroke();if(this.hitMark){c.beginPath();c.moveTo(x-7,y-7);c.lineTo(x+7,y+7);c.moveTo(x+7,y-7);c.lineTo(x-7,y+7);c.stroke();}c.restore();
+   // The reticle blooms under sustained fire, rings on a hit and brackets a head in its sights.
+   const x=aim.x*w,y=aim.y*h,spread=8+this.heat*9;let head=null;
+   for(const e of game.entities){if(e.boss||e.dead||e.age<.15||['supply','barrel','rock','spit'].includes(e.kind))continue;const p=this.project(e);if(p?.visible&&Math.hypot((aim.x-p.hx)*w/h,aim.y-p.hy)<Math.max(.035,p.h*.15)){head=p;break;}}
+   c.save();c.strokeStyle=this.hitMark?'#ffe1a5':head?'#ffd27a':'#f4ecd2';c.shadowBlur=4;c.shadowColor='#000';c.lineWidth=1.5;
+   for(let i=0;i<4;i++){const a=i*Math.PI/2;c.beginPath();c.moveTo(x+Math.cos(a)*spread,y+Math.sin(a)*spread);c.lineTo(x+Math.cos(a)*(spread+10),y+Math.sin(a)*(spread+10));c.stroke();}
+   c.beginPath();c.arc(x,y,3,0,7);c.stroke();if(this.hitMark){c.beginPath();c.moveTo(x-7,y-7);c.lineTo(x+7,y+7);c.moveTo(x+7,y-7);c.lineTo(x-7,y+7);c.stroke();}
+   if(this.confirm){const k=1-this.confirm.life/.22;c.globalAlpha=1-k;c.strokeStyle=this.confirm.precise?'#ffd27a':'#f4ecd2';c.beginPath();c.arc(x,y,spread+4+k*14,0,7);c.stroke();c.globalAlpha=1;}
+   if(head){const hx=head.hx*w,hy=head.hy*h,r=Math.max(10,head.h*h*.13),l=r*.45;c.strokeStyle='#ffd27a';c.lineWidth=2;for(const [sx,sy]of [[-1,-1],[1,-1],[-1,1],[1,1]]){c.beginPath();c.moveTo(hx+sx*r,hy+sy*(r-l));c.lineTo(hx+sx*r,hy+sy*r);c.lineTo(hx+sx*(r-l),hy+sy*r);c.stroke();}}
+   c.restore();
   }
  }
 }
