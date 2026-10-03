@@ -8,6 +8,7 @@ import {DRIVE} from './rules.js';
 import {terrainGeometry,groundMaterial,loadRocks,rootGeometry,mergeStill,scatter} from './ground.js';
 import {StageLight,RouteCanopy,installArcadeFog,addRim} from './light.js';
 import {CircuitAir,PUSH,GUST,PLANT_PUSH} from './air.js';
+import {Gate,GATE_Z} from './gate.js';
 
 const TAU=Math.PI*2,clamp=T.MathUtils.clamp,smooth=(a,b,x)=>{const t=clamp((x-a)/(b-a),0,1);return t*t*(3-2*t);};
 export const noise=n=>{const v=Math.sin(n*127.1+311.7)*43758.5453;return v-Math.floor(v);};
@@ -55,7 +56,7 @@ export class CircuitWorld {
   this.practicalLights=Array.from({length:4},(_,i)=>{const light=new T.PointLight(i%2?0x87c8dd:0xffc47c,0,19,2);this.scene.add(light);return light;});
  }
  async load(){
-  const loader=new T.TextureLoader();const [soil,rock,rockNormal,branch,verge,vergeNormal,floor,floorNormal,track,trackNormal]=await Promise.all(['ravine/gravel-diff.jpg','ravine/sandstone-diff.jpg','ravine/sandstone-nor_gl.jpg','jungle-branch.png','arcade/verge-diff.jpg','arcade/verge-nor.jpg','arcade/forest-floor-diff.jpg','arcade/forest-floor-nor.jpg','arcade/track-diff.jpg','arcade/track-nor.jpg'].map(p=>loader.loadAsync(`./textures/${p}`)));
+  const loader=new T.TextureLoader();const [soil,rock,rockNormal,branch,verge,vergeNormal,floor,floorNormal,track,trackNormal,gateDiffuse,gateNormal]=await Promise.all(['ravine/gravel-diff.jpg','ravine/sandstone-diff.jpg','ravine/sandstone-nor_gl.jpg','jungle-branch.png','arcade/verge-diff.jpg','arcade/verge-nor.jpg','arcade/forest-floor-diff.jpg','arcade/forest-floor-nor.jpg','arcade/track-diff.jpg','arcade/track-nor.jpg','arcade/gate-planks-diff.jpg','arcade/gate-planks-nor.jpg'].map(p=>loader.loadAsync(`./textures/${p}`)));
   for(const t of [soil,rock,rockNormal,verge,vergeNormal,floor,floorNormal,track,trackNormal]){t.wrapS=t.wrapT=T.RepeatWrapping;t.anisotropy=8;}soil.colorSpace=rock.colorSpace=branch.colorSpace=verge.colorSpace=floor.colorSpace=track.colorSpace=T.SRGBColorSpace;
   this.kit=createFoliageKit(branch);
   // The shared foliage kit normally lives in a stationary Jeep frame. Here the
@@ -91,6 +92,7 @@ export class CircuitWorld {
   const reflect=this.water.onBeforeRender;this.water.onBeforeRender=(...a)=>{const hidden=[];for(const o of [...this.chunks.flatMap(c=>c.children),this.air.motes,this.air.leaves,this.air.insectFrame])if(o.userData.noReflect&&o.visible){o.visible=false;hidden.push(o);}reflect.apply(this.water,a);for(const o of hidden)o.visible=true;};
   const sprayGeometry=new T.BufferGeometry();sprayGeometry.setAttribute('position',new T.BufferAttribute(new Float32Array(180*3),3));this.spray=new T.Points(sprayGeometry,new T.PointsMaterial({map:dustTexture(),size:.38,color:0xdaf8ef,transparent:true,opacity:.6,depthWrite:false}));this.spray.frustumCulled=false;this.scene.add(this.spray);
   this.signs={gates:labelTexture('JURASSIC PARK','ISLA NUBLAR • NORTH GATE'),river:labelTexture('RIVER OF GIANTS'),fault:labelTexture('SERVICE CROSSING','UNSTABLE GROUND • DO NOT STOP'),hybrid:labelTexture('INNOVATION VALLEY'),lagoon:labelTexture('LAGOON OBSERVATORY'),manor:labelTexture('THE CONSERVATORY'),visitor:labelTexture('VISITOR CENTER','WHEN GIANTS RULED THE EARTH')};
+  this.gate=new Gate(this.scene,{stone:this.materials.stone,sign:this.signs.gates,diffuse:gateDiffuse,normal:gateNormal,routeX,routeY,routeHeading,groundAt});
   this.ready=true;
  }
  instances(parent,geo,mat,items,shadow=true){
@@ -160,8 +162,9 @@ export class CircuitWorld {
    if(interior)for(let z=start;z<start+32;z+=8)for(const side of [-1,1]){add(wood,side*6.8,.55,z+1,1.2,.12,2.5);add(metal,side*7.3,1,z+1,.12,.95,2.5);for(const k of [-1,1])add(metal,side*6.8,.25,z+1+k*.8,1,.5,.12);}
   }
   // One landmark gateway per sector, plus passing hazard markers and fence wire.
-  if(index===1){const z=mid;for(const side of [-1,1])add(stone,side*7,5,z,1.8,10,2);add(wood,0,9,z,15,1.35,1.2);const sign=new T.Mesh(new T.PlaneGeometry(11,2.75),new T.MeshStandardMaterial({map:this.signs[id],roughness:.8}));sign.position.set(routeX(z,id),routeY(z,id)+8.4,z-mid-1.02);sign.rotation.y=Math.PI;g.add(sign);}
-  if(id==='gates'||id==='hybrid')for(const side of [-1,1])for(let z=start;z<start+32;z+=8){add(posts,side*6.4,1.7,z,1,3.4,1);for(let y=.6;y<3.2;y+=1)add(metal,side*6.4,y,z,.026,.026,8.1,0,routeHeading(z,id));add(lamps,side*6.4,3.2,z,.15,.08,.15);}
+  // The gates stage has its own timber gate (gate.js) and no fence outside it.
+  if(index===1&&id!=='gates'){const z=mid;for(const side of [-1,1])add(stone,side*7,5,z,1.8,10,2);add(wood,0,9,z,15,1.35,1.2);const sign=new T.Mesh(new T.PlaneGeometry(11,2.75),new T.MeshStandardMaterial({map:this.signs[id],roughness:.8}));sign.position.set(routeX(z,id),routeY(z,id)+8.4,z-mid-1.02);sign.rotation.y=Math.PI;g.add(sign);}
+  if(id==='gates'||id==='hybrid')for(const side of [-1,1])for(let z=start;z<start+32;z+=8){if(id==='gates'&&z<GATE_Z+12)continue;add(posts,side*6.4,1.7,z,1,3.4,1);for(let y=.6;y<3.2;y+=1)add(metal,side*6.4,y,z,.026,.026,8.1,0,routeHeading(z,id));add(lamps,side*6.4,3.2,z,.15,.08,.15);}
   if((id==='lagoon'||id==='hybrid')&&index===5){const z=mid;for(const side of [-1,1])add(stone,side*31,6.5,z,1.4,13,3);add(metal,0,13,z,65,.75,2);add(stone,-6,15,z,13,2.5,3);add(glass,-6,15.3,z-1.55,11,1.1,.04);add(lamps,-6,13.8,z-1.6,13,.09,.09);}
   if(id==='hybrid'&&index===10){const domeGeo=new T.SphereGeometry(38,32,14,0,Math.PI*2,0,Math.PI/2),dome=new T.Mesh(domeGeo,m.glass);dome.scale.y=.72;dome.position.set(routeX(mid,id),routeY(mid,id),0);g.add(dome);const ribs=new T.LineSegments(new T.WireframeGeometry(domeGeo),new T.LineBasicMaterial({color:0x466c70,transparent:true,opacity:.65}));ribs.position.copy(dome.position);ribs.scale.copy(dome.scale);g.add(ribs);}
   if(id==='visitor'&&index===25){
@@ -202,7 +205,7 @@ export class CircuitWorld {
   this.look.set(routeX(z+24,id),routeY(z+24,id)+2.25-drop-crane*3.3,z+24);const rig=game&&this.vehicle?this.vehicle.ride(dt,eye,this.look,{id,rough,move,hp:game.hp}):null;
   this.camera.position.copy(eye);this.camera.position.y+=crane*3.6+Math.sin(this.time*64)*shake*.12*move+(rig?rig.heave:Math.sin(z*1.2)*.025*rough*move);
   this.camera.lookAt(this.look);this.camera.rotateZ(roll);if(rig){this.camera.rotateY(rig.yaw);this.camera.rotateX(rig.pitch);this.camera.rotateZ(rig.roll);}this.camera.updateMatrixWorld();
-  this.lit=this.light.update(game,{z,camera:this.camera,time:this.time});
+  this.lit=this.light.update(game,{z,camera:this.camera,time:this.time});this.gate.update(id,this.camera,this.time,{height:this.renderer.domElement.height});
   // The canopy's dapple is pinned to the ground; open stages light the air from the shadow map alone.
   this.shafts=this.routeCanopy.update(z,id,this.light.key,{enabled:['gates','river','hybrid'].includes(id)});this.sky.mesh.visible=id!=='manor';
   this.air.update(game,{z,camera:this.camera,dt,time:this.time,key:this.light.key,canopy:this.shafts,pushers:this.pushers});

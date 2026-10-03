@@ -1,0 +1,19 @@
+{
+  "license": "CC0-1.0",
+  "licenseUrl": "https://polyhaven.com/license",
+  "retrieved": "2026-10-03",
+  "use": "Lost Circuit '94 north gate (ARCADE-ROADMAP A8): the timber of the gate towers, crossbeams, doors and palisade (src/arcade/gate.js).",
+  "assets": [
+    {
+      "files": ["textures/arcade/gate-planks-diff.jpg", "textures/arcade/gate-planks-nor.jpg"],
+      "title": "Weathered Brown Planks",
+      "creators": ["Dimitrios Savva (photography)", "Rico Cilliers (processing)"],
+      "source": "https://polyhaven.com/a/weathered_brown_planks",
+      "sourceSha256": {
+        "weathered_brown_planks_diff_1k.jpg": "94833feda44e025a9139f7b5723ea84e4f0258d3b54939a79e1013c133085e29",
+        "weathered_brown_planks_nor_gl_1k.jpg": "8d38f02f121c0e58eaedc19cd668faea21381ae3ff4d5332cd90de75e6683393"
+      },
+      "changes": "1K diffuse and OpenGL normal JPEGs used as downloaded. Runtime tint; UVs follow each face's world size (3.4 m per tile) and turn upright on vertical timbers."
+    }
+  ]
+}

@@ -57,6 +57,8 @@ function fieldEvent(e){
 }
 // Her calls, bite, pain and footfalls come from the modeled Rex's own timing.
 function bossCues(){
+ // The gate's doors hit their stops: timber on timber.
+ for(const cue of renderer.world.gate?.drain()||[])if(field.context&&mode==='playing'&&cue.type==='slam'){field.woodBreak(.45);field.groundImpact(.7,cue.at);renderer.shake=Math.max(renderer.shake,.25);}
  const boss=renderer.bossRex;if(!boss)return;const cam=renderer.world.camera.position;audio.modeledRex=boss.ready&&!!field.context;
  for(const cue of boss.drain()){
   if(!field.context||mode!=='playing')continue;
