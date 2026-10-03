@@ -18,6 +18,9 @@ export const TYPES = {
  rock:{hp:5,points:100,size:.16},spit:{hp:1,points:75,size:.10},supply:{hp:1,points:0,size:.13},barrel:{hp:2,points:250,size:.16}
 };
 const clamp=(v,a,b)=>Math.max(a,Math.min(b,v));
+// A Rex boss is fought in reverse: the vehicle brakes, then backs away while she
+// chases it. The clear phase holds longer so her fall can play out.
+export const DRIVE={rex:-9,twins:-8};
 export function project(e,aspect){
  const size=e.size*Math.min(1,aspect*1.2),w=size/aspect;
  const x=clamp(e.x,w*.38,1-w*.38),y=e.y;
@@ -33,6 +36,7 @@ export class Circuit {
   this.emit('stage',{stage:this.stage.id});
  }
  get stage(){return STAGES[this.path[this.stageIndex]];}
+ get clearHold(){return DRIVE[this.stage.boss]?5:3.5;}
  random(){this.rng=(Math.imul(this.rng,1664525)+1013904223)>>>0;return this.rng/4294967296;}
  emit(type,data={}){this.events.push({type,...data});}
  drain(){return this.events.splice(0);}
@@ -81,6 +85,8 @@ export class Circuit {
   for(const e of list){
    const projection=this.projector?this.projector(e,aspect):project(e,aspect);
    if(!projection||projection.visible===false)continue;
+   // A modeled boss supplies its own ray test against the rig.
+   if(projection.test){const part=projection.test(x,y);if(part){target=e;precise=part==='head';break;}continue;}
    const {x:cx,y:cy,w,h,hx,hy}=projection;
    const head=Math.hypot((x-hx)*aspect,y-hy)<Math.max(.035,h*.15);
    const body=((x-cx)/(w*.4))**2+((y-cy)/(h*.46))**2<1;
@@ -98,7 +104,7 @@ export class Circuit {
    return true;
   }
   target.hp-=precise?(target.boss&&target.weak?5:3):1;
-  if(target.boss&&precise&&target.weak){target.weakHits++;if(target.weakHits>=9){target.age=Math.floor(target.age/6.4)*6.4+6.4;target.weakHits=0;this.emit('stagger',{x:target.x,y:target.y});}}
+  if(target.boss&&precise&&target.weak){target.weakHits++;if(target.weakHits>=9){target.age=Math.floor(target.age/6.4)*6.4+6.4;target.weakHits=0;this.emit('stagger',{id:target.id,x:target.x,y:target.y});}}
   if(target.hp<=0)this.kill(target,precise);
   return true;
  }
@@ -109,7 +115,8 @@ export class Circuit {
   if(this.status!=='playing')return;
   dt=clamp(dt,0,.05);this.time+=dt;this.phaseTime+=dt;this.cooldown=Math.max(0,this.cooldown-dt);this.invulnerable=Math.max(0,this.invulnerable-dt);
   const cruise=this.stage.id==='manor'?14:this.stage.id==='fault'?27:24;
-  this.speed=this.phase==='ride'?cruise:this.phase==='intro'?8+16*clamp(this.phaseTime/3,0,1):7;
+  const drive=DRIVE[this.stage.boss],brake=clamp((this.phaseTime-.8)/1.8,0,1);
+  this.speed=this.phase==='ride'?cruise:this.phase==='intro'?8+16*clamp(this.phaseTime/3,0,1):drive&&this.phase==='boss'?5+(drive-5)*brake*brake*(3-2*brake):drive&&this.phase==='clear'?drive*(1-clamp((this.phaseTime-.4)/2.6,0,1)):7;
   if(this.focusTime>0)this.speed*=.52;
   this.travel+=dt*this.speed;
   this.focusTime=Math.max(0,this.focusTime-dt);this.chainTime=Math.max(0,this.chainTime-dt);if(!this.chainTime)this.combo=0;
@@ -139,7 +146,7 @@ export class Circuit {
    if(e.dead){e.fade+=dt;this.pose(e);continue;}
    const oldCycle=Math.floor(Math.max(0,e.age)/6.4);e.age+=dt*pace;
    if(e.age<0)continue;this.pose(e);
-   if(e.boss){if(Math.floor(e.age/6.4)>oldCycle){this.damage(e.kind==='mosa'?25:19);e.weakHits=0;this.emit('attack',{kind:e.kind});}}
+   if(e.boss){if(Math.floor(e.age/6.4)>oldCycle){this.damage(e.kind==='mosa'?25:19);e.weakHits=0;this.emit('attack',{kind:e.kind,id:e.id});}}
    else if(e.age>=e.life){
     e.dead=true;e.fade=0;if(!['supply','barrel','galli'].includes(e.kind))this.damage(e.kind==='rock'?14:9);
    }
@@ -148,7 +155,7 @@ export class Circuit {
   this.entities=this.entities.filter(e=>!e.dead||e.fade<1.1);
   if(this.status!=='playing')return;
   if(this.phase==='boss'&&this.entities.every(e=>e.dead)&&this.phaseTime>1.5){this.phase='clear';this.phaseTime=0;this.hp=Math.min(100,this.hp+12);this.score+=1500;this.emit('clear');}
-  if(this.phase==='clear'&&this.phaseTime>3.5){
+  if(this.phase==='clear'&&this.phaseTime>this.clearHold){
    if(this.stageIndex===this.path.length-1)this.finish();
    else{this.stageIndex++;this.stageTime=0;this.travel=0;this.phase='intro';this.phaseTime=0;this.entities=[];this.spawnTimer=1;this.hazardTimer=5;this.supplyTimer=9;this.bossSpawned=false;this.bridgeBroken=false;this.emit('stage',{stage:this.stage.id});}
   }

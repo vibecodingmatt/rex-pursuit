@@ -1,5 +1,14 @@
 # Rex: Pursuit handoff
 
+## Arcade roadmap and A1, the modeled Rex bosses (2026-10-03, local)
+
+- The user judged Lost Circuit as looking "developed by a high schooler" and asked for a roadmap to shocking fidelity, one drop per fresh chat. [ARCADE-ROADMAP.md](ARCADE-ROADMAP.md) holds the diagnosis, the bar and 13 drops.
+- A1 shipped locally. The River boss and the finale twins are Pursuit's hero Rex (`src/arcade/boss-rex.js`), loaded in the background with the 2D boss as fallback. She stands and roars, chases the reversing vehicle (rules `DRIVE`), lunges into a bite at the bumper, reels on a stagger and goes down in `DeathMotion`. During the clear the camera cranes up to show her lying there.
+- Hits use her rig: `projection.test`, then an exact skinned ray for wounds. Recorded gunfire, flesh impacts, engine, wind and her HRTF voice come from `ChaseAudio`.
+- The sandbox-frame method and its traps are in the [arcade reference](../.agents/skills/rex-pursuit-maintainer/references/lost-circuit.md).
+- Checks: `test-lost-circuit.mjs`, `npm run test:lost-circuit` (full flow, four viewports), `verify-circuit-ride.cjs`, `test:smoke`, `build`, `test:release`, the dist-only arcade flow, and focused captures in ignored `art/review/arcade-a1/` (`rex.cjs`, `perf.cjs`).
+- Jaw sync to the recorded calls can't be judged from headless captures; the user should listen. The user hasn't accepted the result yet. Nothing has been pushed.
+
 ## Portable agent onboarding (2026-10-03, documentation only)
 
 - Read [START-HERE.md](START-HERE.md) first in a new session. It identifies the correct repo despite an unrelated IDE tab, separates user feedback from developer assessment, records runtime checkpoint `a397b3b`, and provides a short cross-provider startup prompt. `AGENTS.md` and README route there.

@@ -4,7 +4,7 @@ Use for `arcade.html` and `src/arcade/`, the optional 1994-inspired rail shooter
 
 ## Intent to preserve
 
-The user asked for the speed, terrain travel and shooting rhythm of Sega's 1994 Jurassic Park arcade, with modern presentation and later-film encounters. They rejected static scenery, small cutouts and a gun that did not turn with its fire; they liked the boss fights. The rebuilt world and normal creatures are 3D. Bosses deliberately retain animated 2.5D artwork and existing attack windows. Their style mismatch remains an open quality problem, not a claim that all creatures are fully modeled.
+The user asked for the speed, terrain travel and shooting rhythm of Sega's 1994 Jurassic Park arcade, with modern presentation and later-film encounters. They rejected static scenery, small cutouts and a gun that did not turn with its fire; they liked the boss fights. The rebuilt world and normal creatures are 3D. The Rex bosses are the modeled hero Rex (A1). The Triceratops, Indominus, Mosasaurus and Indoraptor bosses still use 2.5D artwork with the same attack windows; [docs/ARCADE-ROADMAP.md](../../../../docs/ARCADE-ROADMAP.md) schedules their replacement.
 
 Art freedom is explicitly broad for this mode. Existing Pursuit visuals are reusable resources, not a requirement to constrain the arcade's art direction. Reuse solved rig/material work where helpful, but do not mistake reused assets or successful tests for satisfying the user's AAA reference. The user has not accepted the current rebuilt visuals.
 
@@ -20,7 +20,8 @@ Art freedom is explicitly broad for this mode. Existing Pursuit visuals are reus
 | `src/arcade/weapon.js` | Mounted gun, camera-relative vehicle frame, yaw/pitch, flash, muzzle projection and alignment diagnostics |
 | `src/arcade/renderer.js` | WebGL/Canvas2D composition, normal projection delegation, boss artwork, shot feedback, particles/labels, title artwork |
 | `src/arcade/puppet.js` | Boss image deformation; preserve individual atlas crop rectangles to avoid adjacent-cell slivers |
-| `src/arcade/audio.js`, `records.js` | Procedural score/effects, speed-responsive engine/wind and calls; isolated local records with storage-denied fallback |
+| `src/arcade/boss-rex.js` | The Rex bosses (River, finale twins) as Pursuit's hero Rex: background load with 2D fallback, sandbox frame, choreography from the rules' boss cycle, rig ray tests, wounds, sound cues and the death fall |
+| `src/arcade/audio.js`, `records.js` | Procedural score and UI tones (its synthesized gun, engine and wind go silent once Pursuit's `ChaseAudio` initializes in `main.js`, which supplies recorded gunfire, impacts, engine, wind and the Rex's HRTF voice); isolated local records with storage-denied fallback |
 | `public/arcade/` | Generated artwork and source/prompt metadata; architecture atlas is mapped onto 3D meshes |
 
 Shared dependencies include `src/chase/critters.js`, `raptor-models.js`, `flyers.js`, `brachio.js`, `mounted-gun.js`, `foliage.js`, `atmosphere.js` and `post.js`. Changes there can affect other modes. Arcade uses the opt-in `flyers.updateDirected()` rather than changing the shared flyer's ordinary update. Prefer an arcade adapter for behavior that is specific to this ride.
@@ -32,12 +33,14 @@ Shared dependencies include `src/chase/critters.js`, `raptor-models.js`, `flyers
 - Normal attackers have world-space entry, pacing, turning and final charge paths. Their positions depend on `spawnTravel` and encounter age; the shared rig supplies body/head points. Portrait narrows lateral entries, manor keeps them inside the walls and drops raptors from above. River/lagoon waves use air/water species to avoid land animals walking on water.
 - The bridge event records `bridgeOrigin = travel + 30`. Falling boards and the vehicle's leap use that fixed world-space gap. A fixed jump timer was wrong during Overdrive. Check a normal run and a slowed run whenever travel/jump timing changes.
 - The browser installs `game.projector` to use actual rendered normal-enemy targets. Pure rule tests use the fallback projection; passing them alone cannot validate rendered hit alignment. `main.js` synchronizes world/actors/weapon before shooting. A visible rig, its head/body targets and shot effects must agree in the same frame.
+- **Modeled Rex bosses (A1, 2026-10-03).** `boss-rex.js` drives `createRex` from `chase/creature.js`. The shared gait and death fall assume an identity parent, a floor at y=0 and a road sliding +z at `roadSpeed`. Each Rex therefore has a sandbox `Group`: it is zeroed while `rex.update` runs, then translated to her route position. She moves by her own ground speed, which is passed as `roadSpeed`, so planted feet hold in z. Sideways sandbox moves shift the gait's world anchors (`anchor`, `swingFrom`, `contact`, `landing`) back by the same x. Don't rotate the sandbox: the gait reads the actor's local yaw as world heading. The projector returns `test(x,y)`, which `rules.shoot` prefers: it is a proxy-sphere ray test, precise within 1.25 m of the head bone. A confirmed hit then runs one exact skinned ray for `damage.add`. In rules, `DRIVE` reverses the vehicle for Rex bosses and `clearHold` lengthens the clear so the fall plays. The camera cranes up during that clear (`world.js`). The bite starts when the weak window closes (cycle 5.8), so the jaws snap as the rules land damage at 6.4. Rules `attack` and `stagger` events now carry the boss `id`.
 - The mounted gun is physically attached to the camera's vehicle frame, aiming toward the reticle ray. Its shared model's original aim clamp was too narrow for this mode. Keep the barrel, muzzle flash and tracer start tied to the same muzzle transform across left/right/low aim and portrait. The gun's `diagnostics()` reports bore alignment and projected muzzle position.
 - `?test=1` gates mutating diagnostics and disables record writes. Normal snapshots/readiness remain available without it. Preserve separate route, difficulty and continued/one-credit record keys; do not mix these records with Pursuit or campaign progress.
 
 ## Rendering failures already solved
 
 | Failure | Current mechanism / maintenance implication |
+| A shared rig parented under a moving group slides its feet or falls through the floor | The gait and `DeathMotion` write local transforms from world-space math. Run them in an identity sandbox and translate afterwards (`boss-rex.js`). A test `step()` without `live` syncs only at the end, so a modeled boss integrates just one clamped frame; pass `live=true` for captures. |
 | --- | --- |
 | Vegetation vanishes later in the route | Shared foliage assumed a fixed Jeep frame. Arcade adapts `onBeforeCompile` distance fading to `cameraPosition.z`. Preserve the shared compile hook and cache key; inspect late travel if shader strings change. Install atmospheric fog integration before material compilation. |
 | Postprocessing reallocates continuously | Call `post.configure` at setup or actual configuration changes. Per-frame motion blur changes use `post.settings.motionBlur`, not repeated configure calls. |
@@ -92,7 +95,7 @@ At `arcade.html?test=1`, wait for `lostCircuit.ready`, start through the UI, the
 ```js
 lostCircuit.freeze(true);
 lostCircuit.seek('fault', 18.8);
-lostCircuit.step(1.2);
+lostCircuit.step(1.2, false, true); // third argument: sync the scene every substep (needed for modeled bosses)
 lostCircuit.render();
 lostCircuit.diagnostics(); // camera, actors, rig flags, muzzle, draws, triangles
 ```

@@ -28,16 +28,16 @@ export class RideAudio {
  }
  event(e){
   if(e.type==='threat')this.roar(9);
-  if(e.type==='shot'){this.hiss(.055,.13,2400);this.tone(170,.065,.09,'triangle',65);if(e.precise)this.tone(1350,.06,.035,'sine',780);}
+  if(e.type==='shot'){if(this.worldSounds!==false){this.hiss(.055,.13,2400);this.tone(170,.065,.09,'triangle',65);}if(e.precise)this.tone(1350,.06,.035,'sine',780);}
   if(e.type==='damage'||e.type==='blast'){this.hiss(.45,.5,850);this.tone(72,.65,.36,'sine',27);}
-  if(e.type==='boss')this.roar(e.kind==='indoraptor'?14:1);
+  if(e.type==='boss'&&!(this.modeledRex&&['rex','twins'].includes(e.kind)))this.roar(e.kind==='indoraptor'?14:1);
   if(e.type==='stage'){this.tone(220,.6,.13,'triangle',440);this.tone(330,.7,.1,'triangle',660);}
   if(e.type==='kill'){this.tone(e.boss?150:440,.18,.09,'triangle',e.boss?55:880);if(e.boss)this.roar(9);}
   if(e.type==='supply'||e.type==='focus'||e.type==='stagger'){this.tone(660,.4,.13,'sine',1320);this.tone(990,.5,.07);}
   if(e.type==='bridge'){this.hiss(1,.45,1100);this.tone(60,1,.4,'sawtooth',25);}
  }
  update(game){
-  if(this.paused||!this.context)return;const now=this.context.currentTime;this.engine.frequency.setTargetAtTime(35+game.speed*1.9+Math.sin(game.time*16)*2,now,.05);this.engineGain.gain.setTargetAtTime(.025+game.speed*.0008,now,.1);this.windFilter.frequency.setTargetAtTime(250+game.speed*62,now,.1);this.windGain.gain.setTargetAtTime(game.speed*.0025,now,.1);const b=Math.floor(game.time*(game.phase==='boss'?4.6:3.6));if(b===this.beat)return;this.beat=b;
+  if(this.paused||!this.context)return;const now=this.context.currentTime,beds=this.worldSounds===false?0:1;this.engine.frequency.setTargetAtTime(35+Math.abs(game.speed)*1.9+Math.sin(game.time*16)*2,now,.05);this.engineGain.gain.setTargetAtTime((.025+Math.abs(game.speed)*.0008)*beds,now,.1);this.windFilter.frequency.setTargetAtTime(250+Math.abs(game.speed)*62,now,.1);this.windGain.gain.setTargetAtTime(Math.abs(game.speed)*.0025*beds,now,.1);const b=Math.floor(game.time*(game.phase==='boss'?4.6:3.6));if(b===this.beat)return;this.beat=b;
   const root=[55,49,65.4,58.3][Math.floor(b/32)%4];
   if(b%4===0){this.tone(100,.22,.17,'sine',28);this.tone(root,.4,.08,'triangle');}
   if(b%4===2)this.hiss(.11,.065,1100);

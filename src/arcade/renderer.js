@@ -3,20 +3,28 @@ import {drawPuppet} from './puppet.js';
 import {CircuitWorld} from './world.js';
 import {CircuitActors} from './actors.js';
 import {CircuitWeapon} from './weapon.js';
+import {BossRex} from './boss-rex.js';
+import {createEffects} from '../chase/effects.js';
+import {dustTexture} from '../chase/foliage.js';
 // Individual cell padding avoids the generated atlas's occasional boundary overlap.
 const CUTS=[[0,0,.247,.471],[.249,0,.249,.482],[.507,0,.233,.48],[.738,0,.262,.445],[0,.489,.25,.511],[.252,.493,.249,.507],[.498,.478,.26,.522],[.754,.485,.246,.515]];
 const clamp=(v,a,b)=>Math.max(a,Math.min(b,v));
 const hash=n=>{const s=Math.sin(n*127.1+311.7)*43758.5453;return s-Math.floor(s);};
 export class RideRenderer {
  constructor(canvas){this.canvas=canvas;this.ctx=canvas.getContext('2d');this.terrain=document.createElement('canvas');this.terrain.id='terrain';this.terrain.setAttribute('aria-hidden','true');canvas.before(this.terrain);this.world=new CircuitWorld(this.terrain);this.images={};this.particles=[];this.labels=[];this.tracers=[];this.shake=0;this.flash=0;this.recoil=0;this.hitMark=0;this.age=0;this.reduced=matchMedia('(prefers-reduced-motion: reduce)').matches;this.resize();}
- async load(onProgress){let n=0;await Promise.all([this.world.load(),...['worlds','predators','wildlife','landmarks'].map(async key=>{const im=new Image();im.src=new URL(`./arcade/${key}.png`,document.baseURI).href;await im.decode();this.images[key]=im;onProgress(++n/6);})]);this.actors=new CircuitActors(this.world);await this.actors.load();onProgress(5/6);this.weapon=new CircuitWeapon(this.world);this.sync(null,{x:.5,y:.5});onProgress(1);}
+ async load(onProgress){let n=0;await Promise.all([this.world.load(),...['worlds','predators','wildlife','landmarks'].map(async key=>{const im=new Image();im.src=new URL(`./arcade/${key}.png`,document.baseURI).href;await im.decode();this.images[key]=im;onProgress(++n/6);})]);this.actors=new CircuitActors(this.world);await this.actors.load();onProgress(5/6);this.weapon=new CircuitWeapon(this.world);this.effects=createEffects(this.world.scene,dustTexture());this.world.overlay=this.effects.soft.render;this.bossRex=new BossRex(this.world);this.sync(null,{x:.5,y:.5});onProgress(1);}
+ /** The hero Rex streams in after the menu is usable; until then the 2D boss stands in. */
+ loadBosses(){this.bossLoad??=this.bossRex.load().catch(e=>{console.warn('Hero Rex unavailable; using the 2D boss.',e.message);});return this.bossLoad;}
  resize(){this.w=innerWidth;this.h=innerHeight;const dpr=Math.min(devicePixelRatio||1,1.6);this.canvas.width=Math.round(this.w*dpr);this.canvas.height=Math.round(this.h*dpr);this.ctx.setTransform(dpr,0,0,dpr,0,0);this.world.resize(this.w,this.h);}
- reset(){this.particles=[];this.labels=[];this.tracers=[];this.shake=0;this.flash=0;this.recoil=0;this.hitMark=0;this.actors?.reset();this.weapon?.reset();}
- sync(game,aim){if(!this.weapon)return;this.world.sync(game,{reduced:this.reduced,shake:this.shake});this.actors.sync(game);this.weapon.sync(game,aim);}
- project(e,aspect=this.w/this.h){return this.actors?.project(e,aspect)||project(e,aspect);}
+ reset(){this.particles=[];this.labels=[];this.tracers=[];this.shake=0;this.flash=0;this.recoil=0;this.hitMark=0;this.actors?.reset();this.weapon?.reset();this.bossRex?.reset();this.effects?.reset();}
+ sync(game,aim){if(!this.weapon)return;this.world.sync(game,{reduced:this.reduced,shake:this.shake});this.actors.sync(game);this.bossRex.sync(game);this.weapon.sync(game,aim);}
+ project(e,aspect=this.w/this.h){return this.bossRex?.project(e,aspect)||this.actors?.project(e,aspect)||project(e,aspect);}
  burst(x,y,color,count=20,power=1){for(let i=0;i<count;i++){const a=hash(i+this.age*71)*Math.PI*2,v=(50+hash(i*9+this.age)*180)*power;this.particles.push({x:x*this.w,y:y*this.h,vx:Math.cos(a)*v,vy:Math.sin(a)*v,life:.35+hash(i*3)*.6,max:1,color,size:1+hash(i*11)*4});}if(this.particles.length>200)this.particles.splice(0,this.particles.length-200);}
  event(e){
-  if(e.id){const actor=this.actors?.actors.get(e.id),p=actor&&this.project(actor.e);if(p?.visible&&e.type!=='shot')e={...e,x:p.x,y:p.y};}
+  this.bossRex?.event(e);
+  if(e.id){const boss=this.bossRex?.slots.find(s=>s.id===e.id&&s.started),actor=this.actors?.actors.get(e.id),p=boss?this.bossRex.project(boss.entity,this.w/this.h):actor&&this.project(actor.e);if(p?.visible&&e.type!=='shot')e={...e,x:boss?p.hx:p.x,y:boss?p.hy:p.y};}
+  // Rounds that meet her hide leave a wound and throw flecks and mist back toward the gun.
+  if(e.type==='shot'&&e.hit&&e.id){const wound=this.bossRex?.wound(e);if(wound){this.effects.burst(wound.point,true);this.lastWound=wound;}}
   if(e.type==='shot'){this.recoil=1;this.weapon?.fire();this.tracers.push({x:e.x*this.w,y:e.y*this.h,life:.065,hit:e.hit});if(e.hit){this.hitMark=.11;this.burst(e.x,e.y,e.precise?'#ffe0a0':'#b8e1d0',7,.4);}}
   if(e.type==='kill'){this.burst(e.x,e.y,e.boss?'#f5cf88':'#d4af6f',e.boss?50:20,1);this.labels.push({x:e.x*this.w,y:e.y*this.h,text:`${e.precise?'PRECISION ':''}+${e.points.toLocaleString()}`,life:1.1,color:'#ffe0a0'});if(e.boss)this.shake=.5;}
   if(e.type==='damage'||e.type==='attack'){this.shake=.7;this.flash=.5;}
@@ -25,7 +33,7 @@ export class RideRenderer {
   if(e.type==='supply'){this.burst(e.x,e.y,'#a8ffcb');this.labels.push({x:e.x*this.w,y:e.y*this.h,text:'REPAIR +22',life:1.2,color:'#a8ffcb'});}
   if(e.type==='bridge')this.shake=1.2;
  }
- update(dt){this.age+=dt;this.shake=Math.max(0,this.shake-dt);this.flash=Math.max(0,this.flash-dt);this.recoil=Math.max(0,this.recoil-dt*9);this.hitMark=Math.max(0,this.hitMark-dt);
+ update(dt){this.age+=dt;this.effects?.update(dt,0);this.shake=Math.max(0,this.shake-dt);this.flash=Math.max(0,this.flash-dt);this.recoil=Math.max(0,this.recoil-dt*9);this.hitMark=Math.max(0,this.hitMark-dt);
   for(const p of this.particles){p.x+=p.vx*dt;p.y+=p.vy*dt;p.vy+=150*dt;p.life-=dt;}this.particles=this.particles.filter(p=>p.life>0);
   for(const p of this.labels){p.y-=dt*35;p.life-=dt;}this.labels=this.labels.filter(p=>p.life>0);
   for(const p of this.tracers)p.life-=dt;this.tracers=this.tracers.filter(p=>p.life>0);
@@ -74,19 +82,24 @@ export class RideRenderer {
   }c.restore();
  }
  entity(e,time,game){
-  if(e.age<0)return;const c=this.ctx,w=this.w,h=this.h,p=project(e,w/h),size=p.h*h;
+  if(e.age<0)return;const c=this.ctx,w=this.w,h=this.h;
+  // A modeled boss is part of the lit 3D scene; only its weak-point mark is drawn here.
+  if(this.bossRex?.handles(e)){const p=this.bossRex.project(e,w/h);if(!e.dead&&e.weak&&p.visible)this.weakMark(e,p.hx*w,p.hy*h,Math.max(24,p.hr*h*1.25));return;}
+  const p=project(e,w/h),size=p.h*h;
   if(!['ptero','ichthy','mosa','spit'].includes(e.kind)){
    c.save();c.globalAlpha=e.alpha*.45;c.fillStyle='#030905';c.beginPath();c.ellipse(p.x*w,(p.y+p.h*.43)*h,size*.39,size*.045,0,0,7);c.fill();c.restore();
   }
   if(TYPES[e.kind].cell!==undefined)this.sprite(e.kind,p.x*w,p.y*h,size,{age:e.age,alpha:e.alpha,hit:e.hit>0,fall:e.dead?e.fade:0});else this.prop(e,p,time);
   if(e.dead)return;
-  if(e.boss&&e.weak){
-   const x=p.hx*w,y=p.hy*h,r=Math.max(21,size*.115),danger=e.attack>0;
-   c.save();c.strokeStyle=danger?'#ff895e':'#ffd68b';c.lineWidth=2;c.shadowColor=c.strokeStyle;c.shadowBlur=9;c.setLineDash([6,5]);c.beginPath();c.arc(x,y,r,0,7);c.stroke();c.setLineDash([]);c.shadowBlur=0;
-   c.lineWidth=4;c.beginPath();c.arc(x,y,r+6,-Math.PI/2,-Math.PI/2+Math.PI*2*(1-e.attack));c.stroke();c.fillStyle='#fff1d1';c.font='bold 8px Arial';c.textAlign='center';c.fillText(danger?'STOP THE ATTACK':'WEAK POINT',x,y-r-14);c.restore();
-  }else if(!e.boss&&e.age/e.life>.67&&!['supply','barrel','galli'].includes(e.kind)){
+  if(e.boss&&e.weak)this.weakMark(e,p.hx*w,p.hy*h,Math.max(21,size*.115));
+  else if(!e.boss&&e.age/e.life>.67&&!['supply','barrel','galli'].includes(e.kind)){
    c.save();c.strokeStyle='#ffb777';c.globalAlpha=.7;c.lineWidth=2;c.beginPath();c.arc(p.x*w,(p.y-p.h*.48)*h,12,-Math.PI/2,-Math.PI/2+7*(1-e.age/e.life));c.stroke();c.restore();
   }
+ }
+ weakMark(e,x,y,r){
+  const c=this.ctx,danger=e.attack>0;
+  c.save();c.strokeStyle=danger?'#ff895e':'#ffd68b';c.lineWidth=2;c.shadowColor=c.strokeStyle;c.shadowBlur=9;c.setLineDash([6,5]);c.beginPath();c.arc(x,y,r,0,7);c.stroke();c.setLineDash([]);c.shadowBlur=0;
+  c.lineWidth=4;c.beginPath();c.arc(x,y,r+6,-Math.PI/2,-Math.PI/2+Math.PI*2*(1-e.attack));c.stroke();c.fillStyle='#fff1d1';c.font='bold 8px Arial';c.textAlign='center';c.fillText(danger?'STOP THE ATTACK':'WEAK POINT',x,y-r-14);c.restore();
  }
  render(game,aim,{menu=false,time=0}={}){
   const c=this.ctx,w=this.w,h=this.h;let index=menu?0:game?.stage.bg||0;c.clearRect(0,0,w,h);
@@ -108,7 +121,7 @@ export class RideRenderer {
   }
   const vignette=c.createRadialGradient(w*.5,h*.48,h*.25,w*.5,h*.48,Math.max(w,h)*.8);vignette.addColorStop(0,'transparent');vignette.addColorStop(1,menu?'#020c0ac9':'#020c0a55');c.fillStyle=vignette;c.fillRect(0,0,w,h);
   if(!menu){
-   const fade=game.phase==='clear'?clamp((game.phaseTime-2.7)/.8,0,1):game.phase==='intro'?clamp(1-game.phaseTime/.6,0,1):0;
+   const fade=game.phase==='clear'?clamp((game.phaseTime-(game.clearHold??3.5)+.8)/.8,0,1):game.phase==='intro'?clamp(1-game.phaseTime/.6,0,1):0;
    if(fade){c.fillStyle=`rgba(3,12,10,${fade})`;c.fillRect(0,0,w,h);}
    if(game.focusTime>0){c.strokeStyle='#bcecdba0';c.lineWidth=5;c.strokeRect(3,3,w-6,h-6);}
    if(this.flash>0){c.fillStyle=`rgba(215,65,32,${this.flash*.22})`;c.fillRect(0,0,w,h);}

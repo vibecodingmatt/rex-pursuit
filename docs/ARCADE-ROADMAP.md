@@ -1,0 +1,201 @@
+# Lost Circuit '94: AAA arcade roadmap
+
+Started 2026-10-03. The user's goal: Sega's 1994 *Jurassic Park* arcade ride, rebuilt with everything Rex: Pursuit has learned, at a fidelity that shocks people. The current build (`a397b3b` plus docs) is playable and complete. The user's verdict: it "looks like a game developed by a high schooler." This roadmap breaks the upgrade into **drops**. Each drop fits one fresh chat in a 5-hour usage window on a limited plan, and each leaves something visibly or audibly better that the user can play.
+
+## How to run a drop
+
+- Start a **fresh conversation** in this folder and say: *"Do the next arcade drop in docs/ARCADE-ROADMAP.md."*
+- Read this file, then only the files the drop names. Skim `docs/START-HERE.md` for status; don't read `HANDOFF.md` end to end, and don't re-survey the codebase.
+- `src/arcade/*.js` is written in a dense one-statement-per-line style (100 KB in about 800 lines). Use `grep -n` to find what you need and read with offsets. Printing whole files costs a large share of the window.
+- Finish the "Must" items before any "Stretch" items. If the window runs short, cut Stretch and record where work stopped in the progress log.
+- **Commit locally on `feature/lost-circuit-arcade`** at the end of each drop. **Never push.** Pushing `main` deploys the live site. Publish only when the user says "ship it" (or "push to prod"), then follow the release gate in the [verification reference](../.agents/skills/rex-pursuit-maintainer/references/verification-and-release.md).
+- Test proportionally: `node scripts/test-lost-circuit.mjs`, `npm run test:smoke`, `npm run build`, plus the drop's focused checks. Run the full arcade browser suite (`npm run test:lost-circuit`) only for drops that change flow, input or HUD, and before shipping.
+- Keep screenshots to 3–5 comparable before/after captures in `art/review/arcade-<drop>/`. The user plays and judges feel and sound; that costs fewer tokens than more captures.
+- Work alone. Don't use helper agents.
+- Update the progress log below, the Lost Circuit section of `docs/START-HERE.md`, and the [maintenance reference](../.agents/skills/rex-pursuit-maintainer/references/lost-circuit.md) when a drop changes a module's ownership or a failure mode.
+
+## Why it reads as amateur (diagnosis, 2026-10-03)
+
+Taken from the code and the ride-audit captures, not from the previous self-audit:
+
+1. **The bosses are stickers.** Every boss is a PNG drawn by `puppet.js` on a Canvas2D layer *above* the WebGL scene. They get no scene light, shadow, fog or ground contact, and they draw over the gun: in `live/river-boss.png` the Rex stands on top of the receiver. The finale's two Rexes are the same image. This is the most damaging single problem, because the bosses are the money shots.
+2. **The feedback is flat.** Hits are 2D `fillRect` squares, tracers are 2D lines, and score pops are 11 px Arial.
+3. **The sound is synthesized beeps.** A gunshot is a noise burst plus a triangle oscillator, and the engine is a triangle wave. Pursuit's recorded .50-cal, impacts, engine, jungle beds and HRTF Rex voice are all unused.
+4. **There's no vehicle and no mass.** The camera is a dolly on a sine spline with a sine bob, and the gun sits on a grey slab. A hit only flashes the screen red.
+5. **It's a spawner, not a director.** One timer cycles the stage roster every 1.4–2 s. Every land attacker runs the same pace-turn-charge path and damages you automatically at 4.2 s.
+6. **The environment is built from a box kit.** Rocks are squashed icosahedra that read as bread loaves. Buildings are instanced boxes, lava is flat orange boxes and fences are thin lines. The terrain is one vertex-coloured brown under one flat fog per stage.
+7. **There are no quality tiers.** Pursuit and Breach have `graphics.js` tiers and a frame governor; the arcade has neither.
+
+## The bar
+
+**The over-the-shoulder test:** someone who watches 30 seconds of play should assume it's a console game. In practice:
+
+1. **One world, one light.** Everything in gameplay is a lit 3D object in the scene: no 2D art except the HUD. Every creature casts a shadow, touches the ground, takes fog and takes the stage's light.
+2. **Choreograph, don't spawn.** Each attack has an authored origin, a telegraph at least 0.8 s before contact, the contact itself, and a consequence you can see.
+3. **Contact sells force.** Creatures touch the vehicle, the vehicle reacts (suspension, dents, glass), and the camera carries the hit.
+4. **Real sound, placed in 3D.** Recordings only for world sounds, positioned where they happen. Designed tones only for UI.
+5. **Reuse what Rex already proved.** The hero Rex and her death fall, gore pools, debris physics, soft smoke, weather, the Jeep with its livery and driver, the Pursuit road, the visitor center and the Safari sculpts are all shipped and accepted. Adapting them is cheaper and better than reinventing them.
+6. **Keep what the user liked.** Boss attack windows, the amber weak point, the nine-hit interrupt, infinite fire, chains, Overdrive and continues all stay.
+7. **Performance is a feature.** Every new effect gets a tier fallback. Shader inputs stay bounded for mobile precision ([rendering reference](../.agents/skills/rex-pursuit-maintainer/references/animation-and-rendering.md)).
+8. **Judge with same-view captures.** Compare the same moment, camera and size before and after. A passing test doesn't prove that something looks good.
+
+## Already in the arcade (don't rebuild)
+
+- A real curved route with streamed 32 m chunks, the shared foliage kit, the HDR post chain (AO, bloom, volumetrics, motion blur), planar-reflection water, and the bridge collapse anchored to travel (`world.js`).
+- Rigged normal enemies from shared critters and flyers with world-space approach paths (`actors.js`), and a physically aimed mounted gun with its muzzle, belt and cases (`weapon.js`).
+- Deterministic rules with seeded spawns, chains, Overdrive, continues and records (`rules.js`), plus a full pure and browser test suite.
+
+---
+
+## A1: The King is real *(flagship: 3D Rex bosses)*: done 2026-10-03
+
+**What you'll see:** the River boss and both kings in the finale are the game's hero 3D Rex, the same sculpted, skinned animal as Pursuit.
+
+- She bursts out of the treeline. In the river she wades out of the water.
+- The vehicle throws itself into reverse and she chases you.
+- The amber window rides her real head. Nine precise hits snap her head aside and she stumbles back. If you don't stop her, her lunge ends in a bite that jolts the vehicle.
+- She roars with the real recordings, her jaw synced to them and her voice placed in 3D. Her footfalls shake the camera and kick dust.
+- Tranquilized, she goes down face first in Pursuit's physics fall.
+- Gunfire, impacts and the engine become real recordings.
+
+**Must:**
+- New `src/arcade/boss-rex.js`. It loads `createRex` (`chase/creature.js`) in the background after the menu is ready, and falls back to the 2D boss if the model isn't ready yet.
+  - She runs on a moving "treadmill" frame anchored to her world position, so the shared gait sees `roadSpeed` equal to her ground speed.
+  - The rules' boss cycle (`e.cycle`, `e.attack`, `e.weak`, stagger) maps to distance, lunge, jaw and recoil. The death fall comes from `DeathMotion` with her frame frozen in the world.
+- `rules.js`: the drive speed per boss (reverse for the Rex), a longer clear hold so the fall plays out, and a `projection.test(x, y)` hook so hits use her real body. Pure-rule tests keep the fallback 2D projection.
+- `renderer.js`: skip the sprite for 3D bosses, draw the weak-point ring at her projected head, and anchor labels to her head.
+- `main.js`: `ChaseAudio` for her voice, footfalls, bite and pain, plus real gun, impact and engine sounds. `RideAudio` keeps the score and UI tones. Pause, mute and reset cover both.
+- `effects.js` footfall dust and hide bursts in world space; `ImpactDamage` wounds where rounds land.
+
+**Stretch:** the Triceratops boss as a hero-scale 3D Safari sculpt; splash sheets around her legs in the river.
+
+**Checks:** `test-lost-circuit.mjs`, `test:smoke`, `build`, `verify-circuit-ride.cjs` and a focused Rex capture script. Captures: the River entrance, a lunge, a stagger, the fall, and the finale twins, on desktop and portrait.
+
+## A2: Weight *(the vehicle, the camera and the soundscape)*
+
+**What you'll see:**
+- You ride in Pursuit's park Jeep (`jeep.js`, `park-livery.js`, `park-driver.js`), looking forward over the hood with the driver at the wheel and the gun on its mount. Water stages keep the platform until A6.
+- A spring-damper rig drives the camera: braking dives, launch squat, cornering roll, terrain bumps, and hits that knock the camera away from where they came from.
+- Damage shows on the vehicle: claw scrapes, dents, a cracked windshield below 50%, and hood smoke below 25%.
+- Every stage gets its own ambience bed (jungle, river, cave rumble, lagoon, rain on glass, night insects), with reverb that tightens in the cave and the conservatory.
+- A Quality setting with `graphics.js` tiers and a frame governor.
+
+**Must:** a vehicle and camera rig module; tier plumbing into `world.js`, `post` and the actors; ambience and reverb routing through `ChaseAudio`; vehicle damage states.
+**Stretch:** a recorded score. Shopping list: CC0 tense percussion or orchestral loops from Freesound or Pixabay, put in `audio_reference/arcade-music/`.
+**Checks:** `test:lost-circuit` (HUD and flow), `verify-circuit-ride.cjs` (muzzle alignment must survive the new mount), `test:smoke`, `build`, and performance at 1600×900 on High and Low.
+
+## A3: Impact *(every shot lands in the world)*
+
+**What you'll see:**
+- HDR tracer streaks fired in 3D from the muzzle.
+- Impacts that match the material: dirt kicks and pebbles on the ground, hide flecks and blood mist on animals, sparks on rock and metal, spouts in water.
+- Raptors that die tumble with their momentum and skid (Ravine death dynamics); close kills splatter the lens; spent brass bounces on the hood.
+- Score pops become crisp world-anchored arcade numerals coloured by chain.
+- A 50 ms hit-stop and a low thump on boss staggers.
+- A dynamic reticle: bloom under sustained fire, a hit confirm, and a head marker.
+
+**Read:** `chase/effects.js`, `combat-fx.js`, `chunks.js`, `soft-smoke.js`, `screen-blood.js`, `ravine/death-dynamics.js`, `ravine/wounds.js`, and the arcade `renderer.js`.
+**Checks:** `verify-circuit-ride.cjs`, `test:smoke`, `build`, and performance. Captures: a ground hit, a raptor kill, a boss stagger, and the reticle at rest and firing.
+
+## A4: The director *(authored encounters)*
+
+**What you'll play:** each stage runs from a beat sheet instead of a roster timer.
+
+- A raptor pack flanks the vehicle and one leaps onto the hood. It's a contact attack with its own animation: shoot it off before it bites.
+- Dilophosaur spit hits the windshield and smears your view.
+- A Gallimimus flock of 20–30 stampedes across the road ahead.
+- Pteranodons dive at the camera in formation.
+- An ambusher bursts through a wall of branches.
+- Every attack is telegraphed by sound and motion at least 0.8 s ahead. Three seeded variations per stage keep runs different but deterministic for tests.
+
+**Must:** beat-sheet data and a pure director in `rules.js`, contact attacks in `actors.js`, and updated `test-lost-circuit.mjs` timing assertions. Keep the boss mechanics unchanged.
+**Checks:** `npm run test:lost-circuit` and `verify-circuit-live.cjs`. The automated classic run must still finish without continues on Arcade.
+
+## A5: Through the gates *(the environment template, plus a 3D Triceratops)*
+
+**What you'll see:** the opening stage rebuilt as the art template for every later stage.
+
+- The great wooden gate with burning torches swings open as you drive through.
+- Electric fences with insulators, warning signs and sparking cut wires.
+- Pursuit's road surface: ruts, puddles, tyre tracks and clutter (`chase/environment.js`).
+- Scanned rock in place of the blobs, layered understory, light shafts through the canopy, and a colour grade per stage.
+- If A1's stretch didn't do it, the Triceratops boss becomes the 3D Safari sculpt at hero scale. It charges, locks its horns on the bumper and shoves the vehicle sideways.
+
+**Read:** `world.js`, `chase/environment.js`, `foliage.js`, `safari-models.js`, `critters.js`.
+**Checks:** `verify-circuit-ride.cjs` (environment captures), `test:smoke`, `build`, and performance.
+
+## A6: River of giants
+
+**What you'll see:**
+- A park tour boat with a proper hull, wake and bow spray.
+- A living river: flow toward you, foam lines at the banks and rocks, colour by depth, wet shores.
+- The 1994 moment: a Brachiosaurus walks across the river and the boat passes under her belly.
+- Ichthyosaurs leap with real splashes, and the Rex from A1 wades in a sheet of spray.
+
+**Read:** the water section of `world.js`, `chase/river.js`, `ford.js` (spray and foam methods), `brachio.js`, `actors.js`.
+
+## A7: The falling world
+
+**What you'll see:**
+- A lava tube with real lava: flowing crust with glowing cracks, heat shimmer and embers, plus stalactites and scanned walls.
+- An exit into a volcanic canyon under an ash sky with an eruption column, and flaming boulders that bounce with physics.
+- A real rope suspension bridge with sagging cables that tears apart plank by plank under you.
+- The jump: 0.6 s of slow motion over the gap, then a hard landing.
+
+**Read:** the cave, canyon and bridge code in `world.js`, `soft-smoke.js`, `chunks.js`. Keep the bridge gap anchored to travel; the slowed-bridge test must still pass.
+
+## A8: Nobody is in control *(Indominus and the promenade)*
+
+**What you'll see:**
+- Indominus as a true 3D animal. It reuses the hero Rex rig, re-proportioned: longer arms and claws, a narrower skull with brow ridges, a pale hide with dark striping, and osteoderms.
+- An active-camouflage shader that gives refraction shimmer and Fresnel edges, and drops when she's hit.
+- The promenade, monorail and aviary rebuilt as modeled pieces instead of boxes.
+
+**Risk:** re-proportioning a skinned rig can break the gait IK. Prototype the bone scaling in `creature-lab.html` first, and fall back to hide, shader and silhouette props if it fights back.
+
+## A9: Something in the water *(Mosasaurus)*
+
+**What you'll see:** an open lagoon. The Mosasaurus (a new sculpt from a build script in the style of `scripts/build-brachio.mjs`) breaches beside the boat, raises a displacement wave and a rain of spray, and slams back down. Its bite window keeps the existing interrupt.
+
+## A10: Do not turn out the lights *(conservatory and Indoraptor)*
+
+**What you'll see:**
+- The conservatory at night in a storm (`weather.js`), with lightning through the glass and a flashlight beam from the gun (`night.js`).
+- Raptors crash through the glass roof, and the panes shatter.
+- The Indoraptor is the shared raptor rig re-proportioned and reskinned black and gold, stalking along the walls.
+- The conservatory is rebuilt as a real glasshouse.
+
+## A11: When giants ruled *(the finale)*
+
+**What you'll see:**
+- The visitor center from `chase/visitor-center.js`: you drive up the steps and into the rotunda.
+- Raptors among the skeleton displays, then both kings burst in.
+- The "When dinosaurs ruled the earth" banner falls and the skeletons collapse.
+- A closing shot leads into the results.
+
+## A12: The cabinet *(presentation)*
+
+**What you'll see:**
+- An attract mode built from live 3D gameplay, with a 3D title that replaces the 2D Rex key art.
+- A HUD redesign in an arcade-cabinet style, with a rank-letter flourish on the results screen.
+- Three-letter initials on a local top-ten board, and a "CONTINUE? 9…" countdown.
+- Gamepad support.
+
+**Stretch:** local two-player co-op with a second reticle on a gamepad. The original cabinet had two players.
+
+## A13: Ship gate
+
+Physical phone performance and the Low tier, Safari/iOS, the full verification suite, and a release only when the user says "ship it".
+
+## Backlog (not scheduled)
+
+- Seat-rumble "moving seat" emulation: haptics on gamepads and phones.
+- A branching route choice at the River (the original offered none; it would be new).
+- Daily seeded challenge runs.
+
+## Progress log
+
+| Drop | Status | Date | Notes |
+| --- | --- | --- | --- |
+| A1 The King is real | local, `feature/lost-circuit-arcade` | 2026-10-03 | New `boss-rex.js`: Pursuit's hero Rex as the River boss and both finale kings. It loads after the menu; the 2D boss covers until then.<br>**Motion:** a sandbox frame keeps the shared gait and `DeathMotion` exact (see the arcade reference). She stands and roars at 24 m, the vehicle brakes and reverses (rules `DRIVE` rex -9, twins -8), she charges at up to 19 m/s, stalks through the weak window, then lunges. The bite opens as the window closes and snaps at the rules' damage. Nine head hits make her reel (`stunned` pose) and stop. Tranquilized, she falls face first and the camera cranes up during a 5 s clear. She wades at -0.85 m in the river; twins sit ±3.5 m apart (narrower in portrait).<br>**Hits:** the rig's ray test, precise within 1.25 m of the head bone, then an exact skinned ray for wounds; amber ring and labels at her projected head.<br>**Sound:** `ChaseAudio` gives recorded gunfire, flesh impacts, engine and wind, and HRTF roars, bite, pain and footfalls with jaw sync. Dust, spray and camera shake follow her feet. `RideAudio` keeps the score and UI tones. Boss cards sit above her, and the clear card waits 2.1 s.<br>**Checks:** test-lost-circuit.mjs, `npm run test:lost-circuit` (full flow, four viewports), verify-circuit-ride, test:smoke, build, test:release, dist flow. Frame interval with one or two Rexes matched the plain jungle (4.2 ms median, headless). Captures: `art/review/arcade-a1/`.<br>**Not done:** the Stretch items (3D Triceratops, river splash sheets). Hit sparks are still 2D (A3). The X3595 shader warning seen under ANGLE wasn't investigated. |
+| Roadmap | done | 2026-10-03 | Diagnosis from code and captures; 13 drops. |

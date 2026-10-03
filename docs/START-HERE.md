@@ -25,6 +25,7 @@ The current feature is **Lost Circuit '94**, a selectable side mode at `arcade.h
 | `d2893fb` | Researched the 1994 Sega Jurassic Park shooter and added four-stage classic / seven-stage extended routes, with modern-film bosses. The first implementation used still scenery and animated image creatures. |
 | User feedback | Rejected the small paper-like dinosaurs, arbitrary-looking arrivals, static travel and gunfire disconnected from gun orientation. Explicitly liked the boss fights. Asked for a demanding self-audit against a modern AAA reference and allowed substantial creative freedom. |
 | `a397b3b` | Replaced traversal with a moving Three.js world, normal enemies with 3D actors, and the gun with a physically aimed mount. Reworked environments, water, lighting, creature approaches and bridge travel. Preserved the successful boss mechanics and artwork. |
+| Roadmap + A1 (2026-10-03) | New [ARCADE-ROADMAP.md](ARCADE-ROADMAP.md): an independent diagnosis and 13 drops. A1 replaced the 2D Rex bosses with Pursuit's modeled hero Rex (reverse chase, bite, stagger, physics fall, rig hit tests) and moved world sounds to recorded audio. |
 | Current assessment | The implementation and automated routes pass their checks. **The AAA quality target is not met. The user has not accepted this rebuilt visual version yet.** The preceding agent's self-audit is not user approval or an independent review. |
 
 This work is committed locally and has **not been published**. Current instructions are to commit locally and not push until publication is requested. A push to `main` automatically deploys GitHub Pages, even for documentation changes. Older release authorizations in [HANDOFF.md](HANDOFF.md) refer to earlier work and do not authorize this feature's release.
@@ -34,7 +35,8 @@ This work is committed locally and has **not been published**. Current instructi
 | Need | Read |
 | --- | --- |
 | What the user wanted, 1994 research sources, controls, routes and asset provenance | [LOST-CIRCUIT.md](LOST-CIRCUIT.md) |
-| Honest quality verdict, remaining gaps and evidence limits | [ARCADE-QUALITY-AUDIT.md](ARCADE-QUALITY-AUDIT.md) |
+| **Next arcade upgrade drop** | [ARCADE-ROADMAP.md](ARCADE-ROADMAP.md): read it, then only the files the drop names |
+| Honest quality verdict, remaining gaps and evidence limits | [ARCADE-QUALITY-AUDIT.md](ARCADE-QUALITY-AUDIT.md) (2026-10-02; the roadmap's diagnosis is newer) |
 | How to change the arcade safely: code ownership, clocks, coordinate systems, rendering traps and checks | [Lost Circuit maintenance reference](../.agents/skills/rex-pursuit-maintainer/references/lost-circuit.md) |
 | Other modes and shared systems | [Maintainer skill](../.agents/skills/rex-pursuit-maintainer/SKILL.md), then only its relevant reference |
 | Dated decisions and earlier fixes | Latest relevant section of [HANDOFF.md](HANDOFF.md); older sections are history |

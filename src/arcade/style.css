@@ -9,3 +9,6 @@
 #terrain{position:fixed;inset:0;width:100%;height:100%;pointer-events:none;z-index:0}#ride{z-index:1}body[data-screen=playing] .grain{opacity:.025}
 .menu{z-index:2}.screen-shade,.grain{z-index:1}
 #hud{z-index:2}
+
+/* Cards that arrive while a modeled boss holds the centre of the frame sit above her. */
+#announcement.over{top:16%}#announcement.over>strong{font-size:clamp(26px,3.8vw,54px);margin:8px 0}

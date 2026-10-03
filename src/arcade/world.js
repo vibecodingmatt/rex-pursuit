@@ -4,6 +4,7 @@ import {Water} from 'three/addons/objects/Water.js';
 import {createFoliageKit,WIND,dustTexture} from '../chase/foliage.js';
 import {createSky,createEnvironmentMap,createCanopy,installAtmosphericFog} from '../chase/atmosphere.js';
 import {createPost} from '../chase/post.js';
+import {DRIVE} from './rules.js';
 
 const clamp=T.MathUtils.clamp;
 export const noise=n=>{const v=Math.sin(n*127.1+311.7)*43758.5453;return v-Math.floor(v);};
@@ -163,8 +164,11 @@ export class CircuitWorld {
   // Anchor the leap to the actual gap, so Overdrive cannot land us in midair.
   const leap=id==='fault'&&game?.bridgeBroken?(z-game.bridgeOrigin+30)/60:-1;
   const drop=leap>0&&leap<1?-Math.sin(leap*Math.PI)*2.3*move:0;
-  this.camera.position.set(routeX(z,id)+Math.sin(z*.11)*.10*move,routeY(z,id)+2.65+Math.sin(z*1.2)*.025*rough*move+Math.sin(this.time*64)*shake*.12*move-drop,z);
-  this.look.set(routeX(z+24,id),routeY(z+24,id)+2.25-drop,z+24);this.camera.lookAt(this.look);this.camera.rotateZ(roll);this.camera.updateMatrixWorld();
+  // After a Rex goes down the camera cranes up off the vehicle, so her fall reads
+  // from above instead of foreshortened behind her own head.
+  const crane=game?.phase==='clear'&&DRIVE[game.stage.boss]?T.MathUtils.smootherstep(game.phaseTime,.2,2.6)*move:0;
+  this.camera.position.set(routeX(z,id)+Math.sin(z*.11)*.10*move,routeY(z,id)+2.65+crane*3.6+Math.sin(z*1.2)*.025*rough*move+Math.sin(this.time*64)*shake*.12*move-drop,z);
+  this.look.set(routeX(z+24,id),routeY(z+24,id)+2.25-drop-crane*3.3,z+24);this.camera.lookAt(this.look);this.camera.rotateZ(roll);this.camera.updateMatrixWorld();
   this.sun.position.set(this.camera.position.x-35,this.camera.position.y+55,z+35);this.sun.target.position.set(this.camera.position.x,routeY(z,id),z+35);this.sun.target.updateMatrixWorld();
   const forest=['gates','river','hybrid'].includes(id);this.canopy.enabled=forest;this.canopy.height=routeY(z,id)+19;this.canopy.offset.set(this.camera.position.x-12,z);this.canopy.caster.position.set(this.canopy.offset.x,this.canopy.height,z+12);this.sky.mesh.visible=id!=='manor';
   this.water.visible=this.spray.visible=['river','lagoon'].includes(id);if(this.water.visible){this.water.position.set(routeX(z,id),-.35,z+80);this.water.material.uniforms.time.value=this.time;this.water.material.uniforms.waterColor.value.set(palettes[id].water).multiplyScalar(.48);const positions=this.spray.geometry.attributes.position;for(let i=0;i<positions.count;i++){const age=(this.time*1.7+noise(i))%1,side=i%2?1:-1,zz=z+7-age*12;positions.setXYZ(i,routeX(zz,id)+side*(1.7+age*3)+noise(i+8)*.5,-.25+Math.sin(age*Math.PI)*(.4+noise(i+2)),zz);}positions.needsUpdate=true;}
@@ -173,5 +177,5 @@ export class CircuitWorld {
   WIND.value=this.time;this.sky.update(this.camera,this.time);this.sky.uniforms.zenith.value.set(palettes[id].sky);this.sky.uniforms.horizon.value.set(palettes[id].fog);this.sky.uniforms.night.value=id==='manor'?.85:id==='visitor'?.55:0;this.sky.uniforms.storm.value=id==='fault'?.65:0;this.post.settings.motionBlur=reduced?0:.65;
  }
  resize(w,h){this.camera.aspect=w/h;this.camera.fov=w<h?76:62;this.camera.updateProjectionMatrix();this.renderer.setSize(w,h,false);}
- render(){if(this.ready){this.renderer.info.reset();if(this.post.supported)this.post.render(this.scene,this.camera,{time:this.time,sun:this.sun,canopy:this.canopy.caster.visible?this.canopy:null});else this.renderer.render(this.scene,this.camera);}}
+ render(){if(this.ready){this.renderer.info.reset();if(this.post.supported)this.post.render(this.scene,this.camera,{time:this.time,sun:this.sun,canopy:this.canopy.caster.visible?this.canopy:null,overlay:this.overlay});else this.renderer.render(this.scene,this.camera);}}
 }
