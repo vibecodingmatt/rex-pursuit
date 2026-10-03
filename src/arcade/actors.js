@@ -5,6 +5,7 @@ import {createBrachio} from '../chase/brachio.js';
 import {routeX,routeY,groundAt,routeHeading,noise} from './world.js';
 import {project as bossProject,TYPES} from './rules.js';
 import {loadIchthy,createIchthy} from './ichthy.js';
+import {makeProp as buildProp,tickProps} from './props.js';
 
 const species={raptor:'raptor',dilo:'dilophosaurus',galli:'gallimimus',trike:'triceratops'};
 const sizes={raptor:4.5,dilo:5.8,galli:6.4,trike:8.8};
@@ -34,6 +35,7 @@ export class CircuitActors {
  reset(){for(const a of this.actors.values())if(a.mesh)disposeProp(a.mesh);this.actors.clear();this.critters.reset({empty:true});this.flyers.reset({empty:true});for(const s of this.shadows)s.visible=false;}
  makeProp(kind){
   if(kind==='ichthy'&&this.ichthy){const mesh=createIchthy(this.ichthy);mesh.scale.setScalar(1.15);this.scene.add(mesh);return mesh;}
+  const built=buildProp(kind);if(built){this.scene.add(built);return built;}
   const group=new T.Group(),material=new T.MeshStandardMaterial({color:kind==='supply'?0x5ac4a8:kind==='barrel'?0xc67230:kind==='spit'?0xaadc67:0x99917d,metalness:kind==='barrel'?.5:0,roughness:.8});
   if(kind==='ichthy'){
    material.color.set(0x3e8291);material.roughness=.33;const body=new T.Mesh(new T.SphereGeometry(1,20,12),material);body.scale.set(.5,.6,2.4);group.add(body);
@@ -49,7 +51,7 @@ export class CircuitActors {
  }
  sync(game){
   if(!game)return;if(this.stage!==game.stage.id){this.reset();this.stage=game.stage.id;}
-  const dt=clamp(game.time-this.lastTime,0,.05);this.lastTime=game.time;
+  const dt=clamp(game.time-this.lastTime,0,.05);this.lastTime=game.time;tickProps(game.time);
   const live=new Set(game.entities.filter(e=>!e.boss).map(e=>e.id));
   for(const [id,a]of this.actors)if(!live.has(id)){if(a.c)a.c.on=false;if(a.mesh)disposeProp(a.mesh);this.actors.delete(id);}
   let shadow=0;
@@ -58,17 +60,19 @@ export class CircuitActors {
    if(!a){const kind=species[e.kind],c=kind?this.critters.huntSpawn(kind,Math.sign(e.lane-.5),30):e.kind==='ptero'?this.flyers.huntSpawn('pteranodon',Math.sign(e.lane-.5)):null;a={e,c,mesh:c?null:this.makeProp(e.kind),position:new T.Vector3(),head:new T.Vector3(),yaw:0,dead:false};this.actors.set(e.id,a);if(c&&kind)c.scale=sizes[e.kind];}
    const age=Math.max(0,e.age),life=e.life,side=e.lane<.5?-1:1,id=game.stage.id,cruise=id==='manor'?14:id==='fault'?27:24;
    const animal=!!species[e.kind],windup=life-.9,charge=clamp((age-windup)/.9,0,1),parallel=40-age*2.5;
-   const relative=animal?T.MathUtils.lerp(40-Math.min(age,windup)*2.5,3,charge):(cruise+6)*(life-age)+5;
+   // Crates and barrels stand still beside the track; everything else closes on the vehicle.
+   const fixed=e.kind==='supply'||e.kind==='barrel',relative=animal?T.MathUtils.lerp(40-Math.min(age,windup)*2.5,3,charge):fixed?cruise*(life-age)+5:(cruise+6)*(life-age)+5;
    const z=e.spawnTravel+cruise*age+relative;
    // Pace the vehicle out of roadside cover, then turn into a short, committed
    // charge. Ground-relative stride uses the derivative of this actual path.
    const enter=T.MathUtils.smoothstep(age,0,windup),cross=e.kind==='galli';
    const width=(id==='manor'?7.5:animal?32:16)*Math.min(1,this.world.camera.aspect*1.25),span=cross?width*1.75:width-1.6;
-   const off=side*(width-span*enter)+Math.sin(age*2+e.seed)*.28;
+   const off=fixed?side*(2.4+e.seed%1*1.8):side*(width-span*enter)+Math.sin(age*2+e.seed)*.28;
    const lateral=-side*span*6*clamp(age/windup,0,1)*(1-clamp(age/windup,0,1))/windup;
    const forward=animal?(age<windup?cruise-2.5:cruise-(40-windup*2.5-3)/.9):-6;
    const x=routeX(z,id)+off,y=groundAt(x,z,id);a.yaw=Math.atan2(lateral,forward)+routeHeading(z,id);
    if(animal){const from=Math.atan2(lateral,cruise-2.5),to=Math.atan2(-side*.1,Math.min(-3,cruise-(40-windup*2.5-3)/.9)),turn=T.MathUtils.smoothstep(age,windup-.3,windup+.2);a.yaw=from+Math.atan2(Math.sin(to-from),Math.cos(to-from))*turn+routeHeading(z,id);}
+   if(fixed)a.yaw=routeHeading(z,id)+e.seed*.3-.9;
    a.position.set(x,y,z);let lift=0;
    // Pteranodons cruise high, then dive to eye level at the vehicle.
    if(e.kind==='ptero')lift=T.MathUtils.lerp(6.2+Math.sin(age*1.3+e.seed)*1.2,this.world.camera.position.y-groundAt(x,z,id)+.3,T.MathUtils.smoothstep(age,life-1.35,life-.35))-(a.flinch||0)**2*.6;
@@ -78,11 +82,14 @@ export class CircuitActors {
    if(id==='manor'&&e.kind==='raptor')lift=Math.max(0,1-age/.8)**2*11;
    if(e.kind==='barrel'||e.kind==='supply')lift=e.kind==='barrel'?.8:.55;
    a.position.y+=lift;
-   if(e.dead){if(!a.dead){a.dead=true;a.deathPosition=a.position.clone();if(a.c&&species[e.kind]){Object.assign(a.c,{look:0,tailYaw:0,crouch:0,pant:0});a.c.hp=1;this.critters.strike(a.c,new T.Vector3(0,.1,1),1,999);}else if(a.c){a.c.on=false;}}if(a.mesh){a.mesh.position.copy(a.deathPosition);a.mesh.position.y-=e.fade*2;a.mesh.rotation.z+=dt*1.8;a.mesh.scale.setScalar(Math.max(0,1-e.fade));}continue;}
+   if(e.dead){if(!a.dead){a.dead=true;a.deathPosition=a.position.clone();
+    // A shot crate tumbles away from the gun; a barrel goes up with its blast.
+    if(a.mesh&&fixed){const blast=e.kind==='barrel',r=Math.random;v.subVectors(a.position,this.world.camera.position).setY(0).normalize();a.tumble={v:new T.Vector3(v.x*(blast?5:3.5)+(r()-.5)*2,blast?9:4.5,v.z*(blast?5:3.5)),spin:new T.Vector3(r()-.5,r()-.5,r()-.5).normalize().multiplyScalar(blast?14:8),r:blast?.75:.55};}if(a.c&&species[e.kind]){Object.assign(a.c,{look:0,tailYaw:0,crouch:0,pant:0});a.c.hp=1;this.critters.strike(a.c,new T.Vector3(0,.1,1),1,999);}else if(a.c){a.c.on=false;}}if(a.tumble)this.tumble(a,e,dt,id);else if(a.mesh){a.mesh.position.copy(a.deathPosition);a.mesh.position.y-=e.fade*2;a.mesh.rotation.z+=dt*1.8;a.mesh.scale.setScalar(Math.max(0,1-e.fade));}continue;}
    if(a.c){const c=a.c;c.p.copy(a.position);c.fade=1;c.on=true;
     if(e.kind==='ptero')this.fly(a,c,e,age,life,dt);
     else this.animate(a,c,e,age,life,windup,lateral,forward,dt);
    }else if(a.mesh.userData.swim)this.swim(a,e,age,life,dt,y);
+   else if(e.kind!=='ichthy')this.prop(a,e,age,dt,y);
    else{a.mesh.position.copy(a.position);a.mesh.rotation.set(e.kind==='ichthy'?Math.sin(age*2)*.3:e.kind==='rock'?age*.7:0,a.yaw,e.kind==='rock'?age:.0);}
    if(lift<1.5&&e.kind!=='ichthy'){const s=this.shadows[shadow++];if(s){s.visible=true;s.position.set(x,y+.11,z);s.rotation.y=a.yaw;s.scale.set(e.kind==='trike'?4.2:2.8,1,e.kind==='trike'?6.2:4.2);}}
   }
@@ -145,6 +152,26 @@ export class CircuitActors {
   a.mesh.userData.swim(a.swimPhase,.13-.06*air+.16*a.flinch,a.stroke);a.mesh.position.copy(a.position);
   a.mesh.rotation.set(-Math.atan2(rise,6),a.yaw+(a.side||1)*.4*a.flinch,.22*Math.sin(age*1.7+e.seed)*air);
   if(a.lastLift!==undefined&&(a.lastLift<0)!==(h<0))this.onSplash?.(v.set(a.position.x,water,a.position.z),Math.min(1.3,.5+Math.abs(rise)*.12));a.lastLift=h;
+ }
+ prop(a,e,age,dt,ground){
+  const m=a.mesh,k=e.kind;a.flinch=Math.max(0,(a.flinch||0)-dt*3);m.position.copy(a.position);
+  if(k==='rock'){m.rotation.set(age*.7,a.yaw,age);
+   // Dust streams off a thrown rock and billows where it skips along the ground.
+   if(this.effects&&(a.dustT=(a.dustT||0)-dt)<=0){a.dustT=.06;const low=a.position.y-ground<1.6;this.effects.groundDust(v.copy(a.position),p.set(0,low?1.2:.3,0),{size:low?1.1:.55,opacity:low?.42:.22,life:low?1.6:.9});}
+  }else if(k==='spit'){
+   // A wobbling, stretching blob leads its droplets.
+   const w=Math.sin(age*15+e.seed);m.rotation.set(0,a.yaw,age*2);m.children[0].scale.set(.38*(1-.12*w),.38*(1+.1*w),.38*(1.4+.25*w));
+   m.children.forEach((d,i)=>{if(i)d.position.x=Math.sin(age*9+i*1.7)*.05*i;});
+  }else{
+   // A hit rocks it on its base, away from the shot.
+   const rock=Math.sin(Math.min(1,a.flinch)*Math.PI)*(a.side||1)*.22;m.rotation.set(0,a.yaw,rock);m.position.y+=Math.abs(rock)*.4;
+  }
+ }
+ tumble(a,e,dt,id){
+  const t=a.tumble,m=a.mesh,at=a.deathPosition;t.v.y-=9.8*dt;at.addScaledVector(t.v,dt);const g=groundAt(at.x,at.z,id)+t.r;
+  if(at.y<g){at.y=g;if(t.v.y<-1.5){t.v.y*=-.35;t.v.x*=.6;t.v.z*=.6;t.spin.multiplyScalar(.55);}else{t.v.set(t.v.x*.9,0,t.v.z*.9);t.spin.multiplyScalar(.9);}}
+  const w=t.spin.length();if(w>1e-3)m.quaternion.premultiply(this.roll.setFromAxisAngle(v.copy(t.spin).divideScalar(w),w*dt));
+  m.position.copy(at);m.scale.setScalar(Math.max(0,1-Math.max(0,e.fade-.85)/.25));
  }
  /** A round that hit actor `id` at screen x: twist about where it landed. */
  hit(id,precise,x){
