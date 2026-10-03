@@ -9,7 +9,7 @@ const species={raptor:'raptor',dilo:'dilophosaurus',galli:'gallimimus',trike:'tr
 const sizes={raptor:4.5,dilo:5.8,galli:6.4,trike:8.8};
 const v=new T.Vector3(),head=new T.Vector3(),p=new T.Vector3(),up=new T.Vector3(0,1,0);
 const clamp=T.MathUtils.clamp;
-function disposeProp(root){const geometries=new Set(),materials=new Set();root.traverse(o=>{if(o.isMesh){geometries.add(o.geometry);(Array.isArray(o.material)?o.material:[o.material]).forEach(m=>materials.add(m));}});geometries.forEach(g=>g.dispose());materials.forEach(m=>m.dispose());root.removeFromParent();}
+function disposeProp(root){const geometries=new Set(),materials=new Set();root.traverse(o=>{if(o.isMesh){geometries.add(o.geometry);(Array.isArray(o.material)?o.material:[o.material]).forEach(m=>materials.add(m));}});geometries.forEach(g=>{if(!g.userData.shared)g.dispose();});materials.forEach(m=>{if(!m.userData.shared)m.dispose();});root.removeFromParent();}
 
 export class CircuitActors {
  constructor(world){
@@ -32,8 +32,8 @@ export class CircuitActors {
    const snout=new T.Mesh(new T.ConeGeometry(.27,1.6,16),material);snout.rotation.x=Math.PI/2;snout.position.z=2.6;group.add(snout);
    for(const side of [-1,1]){const fin=new T.Mesh(new T.ConeGeometry(.6,2,3),material);fin.scale.z=.14;fin.rotation.z=-side*1.05;fin.position.set(side*.85,-.22,.4);group.add(fin);const tail=fin.clone();tail.position.set(0,side*.6,-2.1);tail.rotation.z=side<0?Math.PI:0;tail.rotation.y=Math.PI/2;group.add(tail);const eye=new T.Mesh(new T.SphereGeometry(.095,10,8),new T.MeshStandardMaterial({color:0x0b1111,roughness:.1}));eye.position.set(side*.38,.23,1.4);group.add(eye);}
   }else{
-   const geo=kind==='rock'?new T.IcosahedronGeometry(1.3,1):kind==='spit'?new T.SphereGeometry(.38,12,8):kind==='barrel'?new T.CylinderGeometry(.65,.65,1.6,20):new T.BoxGeometry(1.5,1.1,1.1);const mesh=new T.Mesh(geo,material);group.add(mesh);
-   if(kind==='rock'){material.map=this.world.materials.rock.map;material.normalMap=this.world.materials.rock.normalMap;}
+   const geo=kind==='rock'?this.world.geometry.thrown:kind==='spit'?new T.SphereGeometry(.38,12,8):kind==='barrel'?new T.CylinderGeometry(.65,.65,1.6,20):new T.BoxGeometry(1.5,1.1,1.1);// Thrown rocks are the scanned crag (shared with the canyon talus), about 2.7 m long.
+   const mesh=new T.Mesh(geo,kind==='rock'?this.world.rocks.thrownMaterial:material);if(kind==='rock'){mesh.scale.setScalar(1.5);material.dispose();}group.add(mesh);
    if(kind==='supply'){const white=new T.MeshBasicMaterial({color:0xcbffe4});for(const [x,y]of [[.8,.18],[.18,.8]]){const cross=new T.Mesh(new T.BoxGeometry(x,y,.03),white);cross.position.z=-.57;group.add(cross);}}
    if(kind==='barrel'){const metal=new T.MeshStandardMaterial({color:0x343c36,metalness:.65,roughness:.5});for(const y of [-.55,.55]){const band=new T.Mesh(new T.TorusGeometry(.66,.06,6,24),metal);band.rotation.x=Math.PI/2;band.position.y=y;group.add(band);}}
   }

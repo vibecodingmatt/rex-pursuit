@@ -1,0 +1,42 @@
+{
+  "license": "CC0-1.0",
+  "licenseUrl": "https://polyhaven.com/license",
+  "retrieved": "2026-10-03",
+  "use": "Lost Circuit '94 ground (ARCADE-ROADMAP A4): scanned roadside boulders, stones and canyon crags, and the terrain material's track, verge and forest-floor scans.",
+  "assets": [
+    {
+      "file": "arcade-rocks.glb",
+      "title": "Rock Moss Set 01, Rock Moss Set 02, Boulder 01",
+      "creators": ["Kless Gyzen (Rock Moss Sets)", "Rico Cilliers (Boulder 01)"],
+      "sources": ["https://polyhaven.com/a/rock_moss_set_01", "https://polyhaven.com/a/rock_moss_set_02", "https://polyhaven.com/a/boulder_01"],
+      "sourceSha256": {
+        "rock_moss_set_01.bin (1k glTF)": "de8360e6175879aaf02c171911069cf5f1852547f9ca7f10e440085dbcc3315e",
+        "rock_moss_set_02.bin (1k glTF)": "2df9d8eaaca4207529b0f613d4886d3962d0b9ffc0cdfd2bc4bf35dbcd391cb5",
+        "boulder_01.bin (1k glTF)": "7f5b06503d62bd95bfe9c6b8a354a5cc8ff04a4d271a8cf87a3e3125db4232d7"
+      },
+      "changes": "1K glTF downloads. Each rock welded, re-centred with its base at y=0 and decimated to a near and a far LOD: Boulder_0-5 (Rock Moss Set 01) 1,700 / 420 triangles, Stone_0-6 (Rock Moss Set 02) 760 / 200, Crag_0 (Boulder 01) 2,600 / 640. Original 1K textures re-encoded as JPEG quality 88. Runtime tint, moss and buried-base shading.",
+      "preparation": "art/prepare_arcade_rocks.py"
+    },
+    {
+      "files": ["textures/arcade/track-diff.jpg", "textures/arcade/track-nor.jpg"],
+      "title": "Forest Ground 05",
+      "creator": "Charlotte Baglioni",
+      "source": "https://polyhaven.com/a/forest_ground_05",
+      "changes": "1K diffuse and OpenGL normal maps re-encoded as JPEG quality 85. Normalised by its mean as the track's grain; the stage palette sets the colour."
+    },
+    {
+      "files": ["textures/arcade/verge-diff.jpg", "textures/arcade/verge-nor.jpg"],
+      "title": "Forest Ground 01",
+      "creator": "Rob Tuytel",
+      "source": "https://polyhaven.com/a/forrest_ground_01",
+      "changes": "1K diffuse and OpenGL normal maps re-encoded as JPEG quality 85. Runtime tint for the verge."
+    },
+    {
+      "files": ["textures/arcade/forest-floor-diff.jpg", "textures/arcade/forest-floor-nor.jpg"],
+      "title": "Brown Mud Leaves 01",
+      "creator": "Rob Tuytel",
+      "source": "https://polyhaven.com/a/brown_mud_leaves_01",
+      "changes": "1K diffuse and OpenGL normal maps re-encoded as JPEG quality 85. Runtime tint; sampled twice (once axis-swapped) to hide tiling."
+    }
+  ]
+}

@@ -15,7 +15,8 @@ Art freedom is explicitly broad for this mode. Existing Pursuit visuals are reus
 | `arcade.html`, `src/arcade/style.css` | Separate entry, menu/routes, instructions, HUD, pause/results, responsive controls, canvas stacking |
 | `src/arcade/main.js` | Loading, user input, fixed 60 Hz simulation, events/HUD, pause/audio lifecycle, test-only diagnostics |
 | `src/arcade/rules.js` | Pure seeded `Circuit`, stage definitions, vehicle distance/speed, normal/boss timings, hits, score, Overdrive, continues, pure projection fallback |
-| `src/arcade/world.js` | Route/ground functions, moving camera, nine streamed 32 m chunks, vegetation/cliffs, scene landmarks, water, bridge planks/leap, HDR post |
+| `src/arcade/world.js` | Route functions and the land/terrain heights (`landY`, `terrainY`, `groundAt`), moving camera, nine streamed 32 m chunks, trees, scene landmarks, water, bridge planks/leap, HDR post |
+| `src/arcade/ground.js` | A4 ground: terrain chunk geometry (route-space attributes, analytic normals), the blended ground material and its per-stage styles, the scanned rock kit (`arcade-rocks.glb`, LODs, moss/base shader, contact decals), surface roots, merged still clutter, and the per-chunk scatter of rocks, clumped planting and track clutter |
 | `src/arcade/actors.js` | World-space normal encounters, species adapters, ground/air/water placement, deaths, actual body/head projection |
 | `src/arcade/weapon.js` | Mounted gun, camera-relative vehicle frame, yaw/pitch, flash, muzzle projection and alignment diagnostics |
 | `src/arcade/renderer.js` | WebGL/Canvas2D composition, normal projection delegation, boss artwork, shot feedback, particles/labels, title artwork |
@@ -49,6 +50,12 @@ Shared dependencies include `src/chase/critters.js`, `raptor-models.js`, `flyers
 | Trees penetrate the lava roof | Cave chunks suppress tree generation. Check the cave exit and transition to the exposed canyon, not just one tunnel screenshot. |
 | Lagoon reads as a flooded hallway | Shore railings and stepped seating sit out on the banks; the center remains open water. Avoid reinstating central colonnades. |
 | Menu/controls disappear behind the scene | `#terrain` is the lower WebGL canvas; `#ride` is transparent Canvas2D above it; menu/HUD/overlays need their intended stacking and pointer access. Test an actual Start click/tap after canvas changes. |
+| Ground seams every 256 m or blocky noise on phones | The ground shader reads route-space coordinates: lateral offset and z wrapped every `WRAP` (256 m) at a chunk seam. Every noise period, stripe and texture scale must divide 256 (texture scales ×.5, ×.75, ×2, ×3 and rock ×.125 do; ×.7 or ×.12 would leave a seam). Never feed raw world z. |
+| Fallen fronds render as grey "snow" slabs | The shared leaf shader finds litter by world height near 0, which only holds on Pursuit's flat road. The arcade's compile patch adds `vLift` (height above the plant's own root) and tests that instead. |
+| Arcade bushes never drew | `kit.bushes` are single leaf-card geometries, not `{wood, leaves}`; instancing the missing fields made empty meshes. Use `kit.bushes[0]` with `kit.materials.shrub`. |
+| Chunk disposal recompiles shared programs | Merged still clutter uses the kit's materials, and rocks share their scan's geometry and material (`userData.shared`). `disposeChunk` and the prop disposal skip both. |
+| River frame cost doubles with ground detail | The planar water reflection re-renders the scene. Meshes tagged `userData.noReflect` (grass, pebbles, contact decals, merged litter) are hidden for the mirror pass only. |
+| Creatures float or sink on rolling verges | `landY` is the single land surface for terrain, trees, rocks and `groundAt`. `terrainY` adds the river channel, the gorge and the canyon walls, which creatures don't use. River and lagoon keep the old `groundAt` reference for swimmers and flyers. |
 | Static overlay gun shoots sideways | Old launcher artwork is unused in gameplay. The mounted receiver, belt, flash and tracer share the world-space gun. Do not restore an independently drawn screen-space barrel. |
 
 Low motion suppresses shake/banking and motion blur while essential route travel continues. Pause must suspend simulation **and** AudioContext; freezing test time is not a pause test. Permanent engine/wind nodes are reused; short sound sources remain bounded and are stopped/reset. Preserve gesture-based audio unlock.

@@ -5,8 +5,9 @@ import {createFoliageKit,WIND,dustTexture} from '../chase/foliage.js';
 import {createSky,createEnvironmentMap,createCanopy,installAtmosphericFog} from '../chase/atmosphere.js';
 import {createPost} from '../chase/post.js';
 import {DRIVE} from './rules.js';
+import {terrainGeometry,groundMaterial,loadRocks,rootGeometry,mergeStill,scatter} from './ground.js';
 
-const clamp=T.MathUtils.clamp;
+const TAU=Math.PI*2,clamp=T.MathUtils.clamp,smooth=(a,b,x)=>{const t=clamp((x-a)/(b-a),0,1);return t*t*(3-2*t);};
 export const noise=n=>{const v=Math.sin(n*127.1+311.7)*43758.5453;return v-Math.floor(v);};
 const palettes={
  gates:{sky:0x85b3bf,fog:0x91ada0,sun:0xffedba,ground:0x888774,leaf:0x567d40,water:0x436e69},
@@ -23,7 +24,12 @@ const palettes={
 export function routeX(z,id){return id==='manor'?Math.sin(z*.004)*3:Math.sin(z*.009)*14+Math.sin(z*.0035)*13;}
 export function routeY(z,id){return ['manor','river','lagoon'].includes(id)?0:Math.sin(z*.009)*1.6+Math.sin(z*.024)*.35;}
 export function routeHeading(z,id){return Math.atan2((routeX(z+1,id)-routeX(z-1,id))/2,1);}
-export function groundAt(x,z,id){const off=Math.abs(x-routeX(z,id));return routeY(z,id)+Math.max(0,off-6)*.06;}
+// Open ground: the bank rise and roll, with hummocks off the track. Creatures, trees and rocks stand on it.
+export function landY(off,z,id){const ax=Math.abs(off),edge=Math.max(0,ax-6),y=routeY(z,id);if(['manor','hybrid','visitor'].includes(id))return y+edge*.018;return y+edge*.07+Math.sin(z*.12+off*.16)*Math.min(3,edge*.05)+Math.sin(z*.53+off*.71)*Math.sin(z*.31-off*.47)*.24*clamp((ax-5.5)/4,0,1);}
+// Swimmers and flyers on the water stages keep their original reference height.
+export function groundAt(x,z,id){const off=x-routeX(z,id);return ['river','lagoon'].includes(id)?routeY(z,id)+Math.max(0,Math.abs(off)-6)*.06:landY(off,z,id);}
+// The terrain itself: land cut by the river channel and the bridge gorge, and raised into the canyon walls.
+export function terrainY(off,z,id,{river,bridge,canyon}={}){const ax=Math.abs(off);let y=landY(off,z,id);if(river)y-=3*(1-smooth(23,30,ax));if(bridge)y-=14*(1-smooth(17.5,22,ax));if(canyon)y+=clamp((ax-12)/18,0,1)*(27+Math.sin(z*.07)*3)+Math.sin(z*.41+ax*.3)*.8*clamp((ax-12)/6,0,1);return y;}
 
 function labelTexture(text,sub='ISLAND TRANSIT AUTHORITY'){
  const c=document.createElement('canvas');c.width=1024;c.height=256;const x=c.getContext('2d');x.fillStyle='#132d29';x.fillRect(0,0,1024,256);x.strokeStyle='#bcb078';x.lineWidth=10;x.strokeRect(15,15,994,226);x.textAlign='center';x.fillStyle='#eee1b7';x.font='bold 76px Georgia';x.fillText(text,512,121);x.font='20px Arial';x.fillText(sub,512,191);return new T.CanvasTexture(c);
@@ -47,13 +53,14 @@ export class CircuitWorld {
   this.practicalLights=Array.from({length:4},(_,i)=>{const light=new T.PointLight(i%2?0x87c8dd:0xffc47c,0,19,2);this.scene.add(light);return light;});
  }
  async load(){
-  const loader=new T.TextureLoader();const [soil,normal,rock,rockNormal,branch]=await Promise.all(['ravine/gravel-diff.jpg','ravine/gravel-nor_gl.jpg','ravine/sandstone-diff.jpg','ravine/sandstone-nor_gl.jpg','jungle-branch.png'].map(p=>loader.loadAsync(`./textures/${p}`)));
-  for(const t of [soil,normal,rock,rockNormal]){t.wrapS=t.wrapT=T.RepeatWrapping;t.anisotropy=8;}soil.colorSpace=rock.colorSpace=branch.colorSpace=T.SRGBColorSpace;
+  const loader=new T.TextureLoader();const [soil,rock,rockNormal,branch,verge,vergeNormal,floor,floorNormal,track,trackNormal]=await Promise.all(['ravine/gravel-diff.jpg','ravine/sandstone-diff.jpg','ravine/sandstone-nor_gl.jpg','jungle-branch.png','arcade/verge-diff.jpg','arcade/verge-nor.jpg','arcade/forest-floor-diff.jpg','arcade/forest-floor-nor.jpg','arcade/track-diff.jpg','arcade/track-nor.jpg'].map(p=>loader.loadAsync(`./textures/${p}`)));
+  for(const t of [soil,rock,rockNormal,verge,vergeNormal,floor,floorNormal,track,trackNormal]){t.wrapS=t.wrapT=T.RepeatWrapping;t.anisotropy=8;}soil.colorSpace=rock.colorSpace=branch.colorSpace=verge.colorSpace=floor.colorSpace=track.colorSpace=T.SRGBColorSpace;
   this.kit=createFoliageKit(branch);this.scene.environment=createEnvironmentMap(this.renderer);this.scene.environmentIntensity=.55;
   // The shared foliage kit normally lives in a stationary Jeep frame. Here the
   // camera travels, so distance fading must be relative to the moving camera.
-  for(const mat of Object.values(this.kit.materials)){const compile=mat.onBeforeCompile;mat.onBeforeCompile=shader=>{compile(shader);shader.vertexShader=shader.vertexShader.replaceAll('vPlantWorld.z)', '(vPlantWorld.z-cameraPosition.z))').replace('abs(anchor.z-6.)','abs(anchor.z-cameraPosition.z-6.)');};const key=mat.customProgramCacheKey.bind(mat);mat.customProgramCacheKey=()=>key()+'-arcade-world';}
-  this.materials.ground=new T.MeshStandardMaterial({map:soil,normalMap:normal,normalScale:new T.Vector2(.55,.55),roughness:.92,vertexColors:true});
+  // Leaves lying flat on the ground are found by height; Pursuit's road sits at y=0, the arcade's rolls, so use height above the plant's own root.
+  for(const mat of Object.values(this.kit.materials)){const compile=mat.onBeforeCompile;mat.onBeforeCompile=shader=>{compile(shader);shader.vertexShader=shader.vertexShader.replaceAll('vPlantWorld.z)', '(vPlantWorld.z-cameraPosition.z))').replace('abs(anchor.z-6.)','abs(anchor.z-cameraPosition.z-6.)').replace('varying float vFade;','varying float vFade;varying float vLift;').replace('bend=h*h;','bend=h*h;vLift=position.y-base;');shader.fragmentShader=shader.fragmentShader.replace('varying float vFade;','varying float vFade;varying float vLift;').replace('smoothstep(.12,.4,vPlantWorld.y)','smoothstep(.12,.4,vLift)');};const key=mat.customProgramCacheKey.bind(mat);mat.customProgramCacheKey=()=>key()+'-arcade-world';}
+  this.materials.ground=groundMaterial(this.kit,{rock,rockNormal,gravel:soil,verge,vergeNormal,floor,floorNormal,track,trackNormal});
   this.materials.rock=new T.MeshStandardMaterial({map:rock,normalMap:rockNormal,normalScale:new T.Vector2(.75,.75),color:0x899080,roughness:.94});
   this.materials.bark=new T.MeshStandardMaterial({map:rock,normalMap:rockNormal,color:0x665b43,roughness:.97});
   this.materials.leaf=new T.MeshStandardMaterial({map:branch,alphaTest:.38,side:T.DoubleSide,color:0x688a44,roughness:.86});
@@ -69,35 +76,42 @@ export class CircuitWorld {
   this.materials.lava=new T.MeshStandardMaterial({color:0x531b12,emissive:0xff4a0c,emissiveIntensity:2,roughness:.5});
   this.materials.water=new T.MeshStandardMaterial({color:0x518d86,metalness:.45,roughness:.25,transparent:true,opacity:.91});
   this.wave={value:0};this.materials.water.envMapIntensity=1.3;this.materials.water.onBeforeCompile=s=>{s.uniforms.uRideTime=this.wave;s.vertexShader=s.vertexShader.replace('#include <common>','#include <common>\nuniform float uRideTime;').replace('#include <begin_vertex>','#include <begin_vertex>\nvec3 wavePos=(modelMatrix*vec4(position,1.)).xyz; transformed.y+=sin(wavePos.x*.7+uRideTime*1.3)*.10+sin(wavePos.z*.55-uRideTime*2.)*.13;').replace('#include <beginnormal_vertex>','#include <beginnormal_vertex>\nvec3 normalPos=(modelMatrix*vec4(position,1.)).xyz; objectNormal=normalize(vec3(-cos(normalPos.x*.7+uRideTime*1.3)*.07,1.,-cos(normalPos.z*.55-uRideTime*2.)*.0715));');};
-  this.geometry={trunk:new T.CylinderGeometry(.22,.48,1,7,2),leaf:new T.PlaneGeometry(1,1),rock:new T.IcosahedronGeometry(1,1),crown:new T.SphereGeometry(1,9,6),box:new T.BoxGeometry(1,1,1),pole:new T.CylinderGeometry(.09,.12,1,8)};
+  this.geometry={trunk:new T.CylinderGeometry(.22,.48,1,7,2),leaf:new T.PlaneGeometry(1,1),crown:new T.SphereGeometry(1,9,6),box:new T.BoxGeometry(1,1,1),pole:new T.CylinderGeometry(.09,.12,1,8)};
+  this.rocks=await loadRocks();this.geometry.thrown=this.rocks.thrown;this.geometry.blob=this.rocks.blobGeometry;this.geometry.roots=[3,8,13].map(rootGeometry);
+  // Track pebbles keep the kit's scrubbed stone without its moss, which assumes Pursuit's road at x=0.
+  this.materials.pebble=new T.MeshStandardMaterial({map:this.kit.textures.ground.dirt,normalMap:this.kit.textures.ground.dirtNormal,normalScale:new T.Vector2(1.6,1.6),color:0x6f6a60,roughness:.88});
   const scan=await new GLTFLoader().loadAsync('./models/ravine-outcrop.glb');scan.scene.updateMatrixWorld(true);const source=scan.scene.getObjectByName('Ravine_Outcrop_LOD');this.geometry.outcrop=source.geometry.clone().applyMatrix4(source.matrixWorld);this.geometry.outcrop.computeBoundingBox();const box=this.geometry.outcrop.boundingBox,center=box.getCenter(new T.Vector3());this.geometry.outcrop.translate(-center.x,-box.min.y,-center.z);this.materials.outcrop=source.material;this.materials.outcrop.color.set(0xc5b89e);this.materials.outcrop.side=T.DoubleSide;this.materials.outcrop.roughness=.93;
   this.canopy=createCanopy(this.scene,this.sun,{width:90,height:19});this.post.configure({ao:innerWidth>700?{samples:4,steps:4}:false,aoAmount:.65,volumetric:{steps:10,resolution:.4}});
   const normals=new Uint8Array(256*256*4);for(let y=0;y<256;y++)for(let x=0;x<256;x++){const u=x/256*Math.PI*2,v=y/256*Math.PI*2,dx=Math.cos(u*7+Math.sin(v*3))*.23+Math.cos(u*19+v*11)*.1,dy=Math.cos(v*9+u*3)*.22+Math.cos(v*21-u*7)*.1,n=new T.Vector3(-dx,-dy,1).normalize(),i=(y*256+x)*4;normals.set([128+n.x*127,128+n.y*127,128+n.z*127,255],i);}const normalTexture=new T.DataTexture(normals,256,256);normalTexture.wrapS=normalTexture.wrapT=T.RepeatWrapping;normalTexture.magFilter=normalTexture.minFilter=T.LinearFilter;normalTexture.needsUpdate=true;
   this.water=new Water(new T.PlaneGeometry(250,500),{textureWidth:innerWidth>700?1024:512,textureHeight:innerWidth>700?1024:512,waterNormals:normalTexture,sunDirection:new T.Vector3(-.5,.8,-.4).normalize(),sunColor:0xfff0c9,waterColor:0x236e75,distortionScale:.85,fog:true});this.water.rotation.x=-Math.PI/2;this.water.visible=false;this.scene.add(this.water);
+  // The mirror pass skips small ground clutter (grass, pebbles, contact shadows, litter); it barely reads in the reflection.
+  const reflect=this.water.onBeforeRender;this.water.onBeforeRender=(...a)=>{const hidden=[];for(const c of this.chunks)for(const o of c.children)if(o.userData.noReflect&&o.visible){o.visible=false;hidden.push(o);}reflect.apply(this.water,a);for(const o of hidden)o.visible=true;};
   const sprayGeometry=new T.BufferGeometry();sprayGeometry.setAttribute('position',new T.BufferAttribute(new Float32Array(180*3),3));this.spray=new T.Points(sprayGeometry,new T.PointsMaterial({map:dustTexture(),size:.38,color:0xdaf8ef,transparent:true,opacity:.6,depthWrite:false}));this.spray.frustumCulled=false;this.scene.add(this.spray);
   this.signs={gates:labelTexture('JURASSIC PARK','ISLA NUBLAR • NORTH GATE'),river:labelTexture('RIVER OF GIANTS'),fault:labelTexture('SERVICE CROSSING','UNSTABLE GROUND • DO NOT STOP'),hybrid:labelTexture('INNOVATION VALLEY'),lagoon:labelTexture('LAGOON OBSERVATORY'),manor:labelTexture('THE CONSERVATORY'),visitor:labelTexture('VISITOR CENTER','WHEN GIANTS RULED THE EARTH')};
   this.ready=true;
  }
  instances(parent,geo,mat,items,shadow=true){
   if(!items.length)return;const mesh=new T.InstancedMesh(geo,mat,items.length);mesh.castShadow=shadow;mesh.receiveShadow=true;
-  items.forEach((item,i)=>{const [x,y,z,sx,sy,sz,rx=0,ry=0,rz=0,tint]=item;this.dummy.position.set(x,y,z);this.dummy.rotation.set(rx,ry,rz);this.dummy.scale.set(sx,sy,sz);this.dummy.updateMatrix();mesh.setMatrixAt(i,this.dummy.matrix);if(tint!==undefined){this.color.setScalar(tint);mesh.setColorAt(i,this.color);}});mesh.computeBoundingSphere();parent.add(mesh);return mesh;
+  items.forEach((item,i)=>{const [x,y,z,sx,sy,sz,rx=0,ry=0,rz=0,tint]=item;this.dummy.position.set(x,y,z);this.dummy.rotation.set(rx,ry,rz);this.dummy.scale.set(sx,sy,sz);this.dummy.updateMatrix();mesh.setMatrixAt(i,this.dummy.matrix);if(tint!==undefined){if(Array.isArray(tint))this.color.setRGB(...tint);else this.color.setScalar(tint);mesh.setColorAt(i,this.color);}});mesh.computeBoundingSphere();parent.add(mesh);return mesh;
  }
  makeChunk(index){
   const id=this.id,m=this.materials,start=index*32,mid=start+16,g=new T.Group();g.position.z=mid;g.userData.index=index;this.scene.add(g);
   const river=id==='river'||id==='lagoon',canyon=id==='fault',interior=id==='manor',urban=['hybrid','visitor'].includes(id),bridge=canyon&&mid>280&&mid<640,cave=canyon&&mid<280;
-  const geo=new T.BufferGeometry(),v=[],uv=[],colors=[],indices=[],cols=42,rows=8,baseColor=new T.Color(palettes[id].ground);
+  const flags={river,canyon,cave,bridge,urban},hAt=(off,z)=>terrainY(off,z,id,flags),baseColor=new T.Color(palettes[id].ground);
+  if(!interior){const terrain=new T.Mesh(terrainGeometry(index,id,flags,{routeX,height:hAt}),m.ground);terrain.receiveShadow=true;g.add(terrain);}
+  else{const geo=new T.BufferGeometry(),v=[],uv=[],colors=[],indices=[],cols=42,rows=8;
   for(let j=0;j<=rows;j++)for(let i=0;i<=cols;i++){
    const z=start+j*4,off=(i/cols-.5)*180,edge=Math.max(0,Math.abs(off)-6),height=routeY(z,id)+(interior||urban?edge*.018:edge*.07+Math.sin(z*.12+off*.16)*Math.min(3,edge*.05));
    let y=height;if(river&&Math.abs(off)<27)y-=3;if(bridge&&Math.abs(off)<21)y-=14;if(canyon)y+=clamp((Math.abs(off)-12)/18,0,1)*(27+Math.sin(z*.07)*3);
    v.push(routeX(z,id)+off,y,z-mid);uv.push(off*.14,z*.14);const c=baseColor.clone().multiplyScalar(.86+noise(i*13+j*11+index*99)*.2);if(Math.abs(off)>6&&!canyon&&!interior&&!urban)c.lerp(new T.Color(0x536e3b),.75);if(Math.abs(off)<5.7)c.multiplyScalar(1.19);colors.push(c.r,c.g,c.b);
    if(j<rows&&i<cols){const a=j*(cols+1)+i;indices.push(a,a+cols+1,a+1,a+1,a+cols+1,a+cols+2);}
   }
-  geo.setAttribute('position',new T.Float32BufferAttribute(v,3));geo.setAttribute('uv',new T.Float32BufferAttribute(uv,2));geo.setAttribute('color',new T.Float32BufferAttribute(colors,3));geo.setIndex(indices);geo.computeVertexNormals();const terrain=new T.Mesh(geo,interior?m.floor:m.ground);terrain.receiveShadow=true;g.add(terrain);
-  // Separate continuous track: ruts in the jungle, submerged channel on water routes.
-  if(!river&&!bridge){const pos=[],tex=[],col=[],idx=[];for(let j=0;j<=16;j++)for(let k=0;k<=8;k++){const z=start+j*2,off=(k/8-.5)*11,yy=routeY(z,id)+.08+(interior||urban?0:Math.sin(k*1.7)*.018);pos.push(routeX(z,id)+off,yy,z-mid);tex.push(off*.23,z*.2);const c=baseColor.clone().multiplyScalar(k===2||k===6?.53:interior?1.12:.84);col.push(c.r,c.g,c.b);if(j<16&&k<8){const a=j*9+k;idx.push(a,a+9,a+1,a+1,a+9,a+10);}}
-   const road=new T.BufferGeometry();road.setAttribute('position',new T.Float32BufferAttribute(pos,3));road.setAttribute('uv',new T.Float32BufferAttribute(tex,2));road.setAttribute('color',new T.Float32BufferAttribute(col,3));road.setIndex(idx);road.computeVertexNormals();const mesh=new T.Mesh(road,interior?m.floor:m.ground);mesh.receiveShadow=true;g.add(mesh);
+  geo.setAttribute('position',new T.Float32BufferAttribute(v,3));geo.setAttribute('uv',new T.Float32BufferAttribute(uv,2));geo.setAttribute('color',new T.Float32BufferAttribute(colors,3));geo.setIndex(indices);geo.computeVertexNormals();const terrain=new T.Mesh(geo,m.floor);terrain.receiveShadow=true;g.add(terrain);}
+  // The conservatory's floor runs as a separate marble track; outdoors the ground material paints the track.
+  if(interior){const pos=[],tex=[],col=[],idx=[];for(let j=0;j<=16;j++)for(let k=0;k<=8;k++){const z=start+j*2,off=(k/8-.5)*11,yy=routeY(z,id)+.08+(interior||urban?0:Math.sin(k*1.7)*.018);pos.push(routeX(z,id)+off,yy,z-mid);tex.push(off*.23,z*.2);const c=baseColor.clone().multiplyScalar(k===2||k===6?.53:interior?1.12:.84);col.push(c.r,c.g,c.b);if(j<16&&k<8){const a=j*9+k;idx.push(a,a+9,a+1,a+1,a+9,a+10);}}
+   const road=new T.BufferGeometry();road.setAttribute('position',new T.Float32BufferAttribute(pos,3));road.setAttribute('uv',new T.Float32BufferAttribute(tex,2));road.setAttribute('color',new T.Float32BufferAttribute(col,3));road.setIndex(idx);road.computeVertexNormals();const mesh=new T.Mesh(road,m.floor);mesh.receiveShadow=true;g.add(mesh);
   }
-  const trunks=[],leaves=[],rocks=[],wood=[],posts=[],stone=[],metal=[],lamps=[],glass=[],palms=[],ferns=[],bushes=[],grass=[],outcrops=[],treeFerns=[],lava=[],facades=[];
+  const trunks=[],leaves=[],wood=[],posts=[],stone=[],metal=[],lamps=[],glass=[],palms=[],ferns=[],bushes=[],grass=[],outcrops=[],treeFerns=[],lava=[],facades=[];
   const add=(arr,off,y,z,sx,sy,sz,rx=0,ry=0,rz=0,tint)=>arr.push([routeX(z,id)+off,routeY(z,id)+y,z-mid,sx,sy,sz,rx,ry,rz,tint]);
   if(bridge){const points=[],faces=[];for(let j=0;j<=16;j++)for(let i=0;i<=24;i++){const z=start+j*2;points.push(routeX(z,id)+(i/24-.5)*50,routeY(z,id)-10,z-mid);if(j<16&&i<24){const k=j*25+i;faces.push(k,k+25,k+1,k+1,k+25,k+26);}}const waterGeometry=new T.BufferGeometry();waterGeometry.setAttribute('position',new T.Float32BufferAttribute(points,3));waterGeometry.setIndex(faces);waterGeometry.computeVertexNormals();g.add(new T.Mesh(waterGeometry,m.water));}
   if(cave){
@@ -106,19 +120,25 @@ export class CircuitWorld {
    for(const side of [-1,1])for(let z=start;z<start+32;z+=2)add(lava,side*(8.3+Math.sin(z*.23)),.05,z,1.2+noise(z)*1.5,.03,2.2,0,routeHeading(z,id));
   }
   if(bridge){for(let z=start;z<start+32;z+=.72)add(wood,0,-.12,z,10.6,.25,.64,0,routeHeading(z,id));for(const side of [-1,1])for(let z=start;z<start+32;z+=4){add(posts,side*5.35,1.05,z,.8,2.5,.8);add(metal,side*5.35,1.8,z,.07,.07,4.1,0,routeHeading(z,id));}}
+  // Rocks, clumped planting and track clutter (ground.js); rock buckets are keyed by their scan.
+  const rockBuckets=new Map(),blobs=[],pebbles=[],stillItems={bark:[],shrub:[],palm:[],fern:[]},kit=this.kit,C=kit.clutter,matrix=new T.Matrix4(),q=new T.Quaternion(),e=new T.Euler(),sv=new T.Vector3(),pv=new T.Vector3();
+  const buckets={grass,fern:ferns,bush:bushes,treeFern:treeFerns,blob:blobs,pebble:pebbles};
+  const put=(bucket,off,y,z,sx,sy,sz,rx=0,ry=0,rz=0,tint)=>{let arr=buckets[bucket];if(!arr){if(!rockBuckets.has(bucket))rockBuckets.set(bucket,[]);arr=rockBuckets.get(bucket);}arr.push([routeX(z,id)+off,y,z-mid,sx,sy,sz,rx,ry,rz,tint]);};
+  const still=(kind,off,y,z,yaw,scale,tone)=>{matrix.compose(pv.set(routeX(z,id)+off,y,z-mid),q.setFromEuler(e.set(0,yaw,0)),sv.setScalar(scale));const m2=matrix.clone();
+   if(kind==='limb'){const limb=C.limbs[stillItems.bark.length%2];stillItems.bark.push({geometry:limb.wood,matrix:m2});stillItems.shrub.push({geometry:limb.leaves,matrix:m2,tone});}
+   else if(kind==='root')stillItems.bark.push({geometry:this.geometry.roots[Math.floor(noise(z*3.1+off)*3)],matrix:matrix.compose(pv.set(routeX(z,id)+off,y,z-mid),q.setFromEuler(e.set(0,yaw,0)),sv.set(scale*.9,scale*.9,scale*3.2)).clone(),tone});
+   else if(kind==='branch')stillItems.bark.push({geometry:C.branches[Math.floor(noise(z*7.3+off)*3)],matrix:m2,tone});
+   else stillItems[kind==='fernFrond'?'fern':'palm'].push({geometry:kind==='fernFrond'?C.fernFronds[0]:C.palmFronds[Math.floor(noise(z*5.7+off)*2)],matrix:m2,tone});};
   if(!interior){
    // Trees have tapered trunks, crowns and layered branch cards; understory hides entrances.
    const count=cave?0:canyon?3:urban?6:15;
    for(let i=0;i<count;i++){const seed=index*73+i*19,z=start+noise(seed)*32,side=i%2?1:-1,off=side*((river?29:urban?12:8)+noise(seed+1)*(canyon?35:29)),height=9+noise(seed+2)*12;
-    const base=groundAt(routeX(z,id)+off,z,id)-routeY(z,id);
+    const ground=Math.min(hAt(off,z),hAt(off+.6,z),hAt(off-.6,z)),base=ground-routeY(z,id);
     add(i%3===0?palms:trunks,off,base,z,height,height,height,0,seed,side*.015,.85+noise(seed+3)*.3);
+    // Surface roots fan out from the giants' buttresses and dive into the litter.
+    if(i%3!==0&&!urban)for(let k=0,n=3+Math.floor(noise(seed+5)*3);k<n;k++){const a=seed+k*TAU/n+noise(seed+k)*.8;still('root',off+Math.sin(a)*.35,ground-.04,z+Math.cos(a)*.35,a,.8+height*.04+noise(seed+k+9)*.5,[.85,.82,.75]);}
    }
-   for(let i=0;i<(canyon?36:130);i++){const seed=index*101+i*23,z=start+noise(seed)*32,side=i%2?1:-1,off=side*((river?28:6.7)+noise(seed+1)**2*20),s=.9+noise(seed+2)*2.5;
-    if(i%4===0||canyon)add(rocks,off,s*.25,z,s,s*.65,s*.75,noise(seed),seed,0,.65+noise(seed+1)*.5);
-    const base=groundAt(routeX(z,id)+off,z,id)-routeY(z,id);
-    if(!canyon){if(i%9===0)add(treeFerns,off,base,z,3.4,3.4,3.4,0,seed);else if(i%2===0)add(bushes,off,base,z,.95,.95,.95,0,seed);else add(ferns,off,base,z,s,s,s,0,seed);}
-   }
-   if(!canyon)for(let i=0;i<170;i++){const seed=index*173+i*17,z=start+noise(seed)*32,off=(i%2?1:-1)*((river?28:5.8)+noise(seed+1)*7),s=.8+noise(seed+2)*1.5;add(grass,off,groundAt(routeX(z,id)+off,z,id)-routeY(z,id)+.05,z,s,s,s,0,seed);}
+   scatter(index,id,flags,{height:hAt,put,still,rocks:this.rocks.kinds});
    if(canyon)for(const side of [-1,1])for(let i=0;i<3;i++){const z=start+i*12,scale=2.1+noise(index*3+i)*.3;add(outcrops,side*19,-2,z,scale,scale*1.3,scale,0,-side*Math.PI/2);}
   }
   if(interior||urban||id==='lagoon'){
@@ -147,19 +167,25 @@ export class CircuitWorld {
    for(let i=0;i<16;i++){const angle=i/16*Math.PI*2,x=Math.sin(angle)*24,z=Math.cos(angle)*24;if(Math.abs(x)<7)continue;const column=new T.Mesh(new T.CylinderGeometry(.65,.85,11,16),m.stone);column.position.set(x,5.5,z);column.castShadow=true;root.add(column);const wall=new T.Mesh(new T.PlaneGeometry(9,9),m.visitorFacade);wall.position.set(Math.sin(angle)*27,4.5,Math.cos(angle)*27);wall.rotation.y=angle+Math.PI;root.add(wall);}
    const banner=new T.Mesh(new T.PlaneGeometry(17,4),new T.MeshStandardMaterial({map:labelTexture('VISITOR CENTER','WHEN GIANTS RULED THE EARTH'),roughness:.8}));banner.position.set(0,9,-23.5);banner.rotation.y=Math.PI;root.add(banner);
   }
-  const kit=this.kit,giant=kit.giants[Math.abs(index)%kit.giants.length],palm=kit.palms[Math.abs(index)%kit.palms.length];
+  const giant=kit.giants[Math.abs(index)%kit.giants.length],palm=kit.palms[Math.abs(index)%kit.palms.length];
   this.instances(g,giant.wood,kit.materials.bark,trunks);this.instances(g,giant.leaves,kit.materials.canopy,trunks,false);this.instances(g,palm.wood,kit.materials.bark,palms);this.instances(g,palm.fronds,kit.materials.palm,palms,false);
-  this.instances(g,kit.ferns[Math.abs(index)%3],kit.materials.fern,ferns,false);const bush=kit.bushes[Math.abs(index)%3];this.instances(g,bush.wood,kit.materials.bark,bushes);this.instances(g,bush.leaves,kit.materials.shrub,bushes,false);this.instances(g,kit.grass[Math.abs(index)%2],kit.materials.grass,grass,false);
+  this.instances(g,kit.ferns[Math.abs(index)%3],kit.materials.fern,ferns,false);// Kit bushes are single leaf-card geometries (no wood); the 3.5 m one, scaled per clump.
+  this.instances(g,kit.bushes[0],kit.materials.shrub,bushes,false);const tufts=this.instances(g,kit.grass[Math.abs(index)%2],kit.materials.grass,grass,false);if(tufts)tufts.userData.noReflect=true;
   const treeFern=kit.treeFerns[Math.abs(index)%2];this.instances(g,treeFern.wood,kit.materials.bark,treeFerns);this.instances(g,treeFern.fronds,kit.materials.fern,treeFerns,false);this.instances(g,this.geometry.outcrop,m.outcrop,outcrops);
-  this.instances(g,this.geometry.leaf,m.leaf,leaves,false);this.instances(g,this.geometry.rock,m.rock,rocks);const deck=this.instances(g,this.geometry.box,m.wood,wood);if(bridge){g.userData.deck=deck;g.userData.planks=wood;}this.instances(g,this.geometry.pole,m.metal,posts);this.instances(g,this.geometry.box,m.stone,stone);this.instances(g,this.geometry.box,m.metal,metal);this.instances(g,this.geometry.box,m.lamp,lamps,false);this.instances(g,this.geometry.box,m.glass,glass,false);this.instances(g,this.geometry.box,m.lava,lava,false);
+  this.instances(g,this.geometry.leaf,m.leaf,leaves,false);
+  for(const [kind,items]of rockBuckets){const mesh=this.instances(g,kind.near,kind.material,items);mesh.userData.lod=kind;}
+  for(const mesh of [this.instances(g,this.geometry.blob,this.rocks.blob,blobs,false),this.instances(g,C.pebbles[Math.abs(index)%3],m.pebble,pebbles)])if(mesh)mesh.userData.noReflect=true;
+  for(const [name,items]of Object.entries(stillItems)){const geometry=mergeStill(items);if(!geometry)continue;const mesh=new T.Mesh(geometry,kit.materials[name]);mesh.castShadow=name==='bark';mesh.receiveShadow=true;mesh.userData.noReflect=true;g.add(mesh);}const deck=this.instances(g,this.geometry.box,m.wood,wood);if(bridge){g.userData.deck=deck;g.userData.planks=wood;}this.instances(g,this.geometry.pole,m.metal,posts);this.instances(g,this.geometry.box,m.stone,stone);this.instances(g,this.geometry.box,m.metal,metal);this.instances(g,this.geometry.box,m.lamp,lamps,false);this.instances(g,this.geometry.box,m.glass,glass,false);this.instances(g,this.geometry.box,m.lava,lava,false);
   this.instances(g,this.geometry.leaf,interior?m.manorFacade:id==='visitor'?m.visitorFacade:m.modernFacade,facades);
   return g;
  }
- disposeChunk(g){this.scene.remove(g);g.traverse(o=>{if(o.isInstancedMesh){o.dispose();return;}if(o.isLineSegments){o.geometry.dispose();o.material.dispose();return;}if(o.isMesh&&!Object.values(this.geometry).includes(o.geometry))o.geometry.dispose();if(o.isMesh&&!Object.values(this.materials).includes(o.material))o.material.dispose();});}
- setStage(id){if(this.id===id)return;for(const g of this.chunks)this.disposeChunk(g);this.chunks=[];this.id=id;const p=palettes[id];this.scene.background=new T.Color(p.sky);this.scene.fog=new T.Fog(p.fog,id==='manor'?28:55,id==='manor'?155:210);this.sun.color.set(p.sun);this.sun.intensity=id==='manor'?1.6:3.1;this.hemi.intensity=id==='manor'?1.7:2.5;this.hemi.color.set(p.sky).lerp(new T.Color(0xffffff),.5);this.materials.leaf.color.set(p.leaf).multiplyScalar(1.45);this.materials.canopy.color.set(p.leaf).multiplyScalar(.77);this.materials.water.color.set(p.water);}
+ disposeChunk(g){this.scene.remove(g);const shared=new Set([...Object.values(this.materials),...Object.values(this.kit.materials)]);g.traverse(o=>{if(o.isInstancedMesh){o.dispose();return;}if(o.isLineSegments){o.geometry.dispose();o.material.dispose();return;}if(o.isMesh&&!Object.values(this.geometry).includes(o.geometry))o.geometry.dispose();if(o.isMesh&&!shared.has(o.material)&&!o.material.userData.shared)o.material.dispose();});}
+ setStage(id){if(this.id===id)return;for(const g of this.chunks)this.disposeChunk(g);this.chunks=[];this.id=id;const p=palettes[id];this.scene.background=new T.Color(p.sky);this.scene.fog=new T.Fog(p.fog,id==='manor'?28:55,id==='manor'?155:210);this.sun.color.set(p.sun);this.sun.intensity=id==='manor'?1.6:3.1;this.hemi.intensity=id==='manor'?1.7:2.5;this.hemi.color.set(p.sky).lerp(new T.Color(0xffffff),.5);this.materials.ground.setStage(id);this.rocks.setStage(id);this.materials.leaf.color.set(p.leaf).multiplyScalar(1.45);this.materials.canopy.color.set(p.leaf).multiplyScalar(.77);this.materials.water.color.set(p.water);}
  sync(game,{reduced=false,time=0,shake=0}={}){
   if(!this.ready)return;const id=game?.stage.id||'gates';this.setStage(id);this.distance=game?.travel??time*4;this.time=game?.time??time;this.wave.value=this.time;
   const first=Math.floor(this.distance/32)-1;for(const g of this.chunks.filter(g=>g.userData.index<first||g.userData.index>first+8)){this.disposeChunk(g);this.chunks.splice(this.chunks.indexOf(g),1);}for(let i=first;i<=first+8;i++)if(!this.chunks.some(g=>g.userData.index===i))this.chunks.push(this.makeChunk(i));
+  // Scanned rocks drop to their far LOD beyond 70 m.
+  for(const chunk of this.chunks){const far=chunk.position.z-this.distance>70;if(chunk.userData.far!==far){chunk.userData.far=far;for(const o of chunk.children)if(o.userData.lod)o.geometry=far?o.userData.lod.far:o.userData.lod.near;}}
   const z=this.distance,move=reduced?0:1,rough=id==='fault'?1.7:1,roll=Math.sin(z*.071)*.007*move;
   // Anchor the leap to the actual gap, so Overdrive cannot land us in midair.
   const leap=id==='fault'&&game?.bridgeBroken?(z-game.bridgeOrigin+30)/60:-1;

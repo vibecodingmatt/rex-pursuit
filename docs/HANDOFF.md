@@ -1,5 +1,15 @@
 # Rex: Pursuit handoff
 
+## Arcade A4, ground truth (2026-10-03, local)
+
+- A4 shipped locally on `feature/lost-circuit-arcade`. `src/arcade/ground.js` owns the terrain geometry and material, the rock kit and the chunk scatter; `world.js` calls it from `makeChunk`. The [roadmap's progress log](ARCADE-ROADMAP.md#progress-log) lists what changed.
+- New CC0 assets with provenance in `public/models/arcade-ground.source.json`: `models/arcade-rocks.glb` (built by `art/prepare_arcade_rocks.py` from 1K Poly Haven glTF downloads kept in ignored `art/review/arcade-a4/src/`) and six 1K ground textures in `public/textures/arcade/`. The arcade no longer loads `ravine/gravel-nor_gl.jpg`; Ravine's file stays.
+- `groundAt` changed for land stages: creatures now stand on the same rolling land as the terrain and trees (`landY`). The user should watch raptor and Gallimimus approaches for foot contact.
+- The bushes that had never drawn now do, so roadside cover is much denser. Attackers emerge from real cover, which the approach code always intended; the user should judge whether they're readable in time.
+- Traps found (in the [arcade reference](../.agents/skills/rex-pursuit-maintainer/references/lost-circuit.md)): every terrain noise period and texture scale must divide the 256 m wrap; the shared leaf shader's litter test needed height above the root; disposal must spare kit and shared rock resources.
+- Focused tools in ignored `art/review/arcade-a4/`: `look.cjs` (stage captures, HUD hidden, render timing), `closeup.cjs` (boulder or track close-up), `perf2.cjs` (same-method render cost per stage; run it on a stash of the old build to compare), `sheet.ps1` (contact sheets).
+- The user hasn't seen A4 yet. Nothing has been pushed.
+
 ## Arcade roadmap and A1, the modeled Rex bosses (2026-10-03, local)
 
 - The user judged Lost Circuit as looking "developed by a high schooler" and asked for a roadmap to shocking fidelity, one drop per fresh chat. [ARCADE-ROADMAP.md](ARCADE-ROADMAP.md) holds the diagnosis, the bar and 16 drops (A4–A6, added the same day, polish the shared environment and creature animation).
