@@ -18,7 +18,7 @@ export class CircuitActors {
   this.critters=createCritters(this.scene,{jungle,capacities:{compy:1,lizard:1,galli:7,raptor:8,dilophosaurus:6,triceratops:5,parasaurolophus:1,pachycephalosaurus:1,stegosaurus:1}});
   this.flyers=createFlyers(this.scene,{jungle});this.critters.reset({empty:true});this.flyers.reset({empty:true});
   this.brachio=createBrachio(this.scene,{jungle});
-  this.shadowTexture=this.makeShadow();this.shadows=[];
+  this.basis=new T.Matrix4();this.roll=new T.Quaternion();this.shadowTexture=this.makeShadow();this.shadows=[];
   // Soft contact shade under grounded animals; the sun's shadow map casts the real shadow.
   const mat=new T.MeshBasicMaterial({map:this.shadowTexture,transparent:true,opacity:.34,depthWrite:false,polygonOffset:true,polygonOffsetFactor:-2});
   for(let i=0;i<20;i++){const mesh=new T.Mesh(new T.PlaneGeometry(1,1).rotateX(-Math.PI/2),mat);mesh.visible=false;this.scene.add(mesh);this.shadows.push(mesh);}
@@ -65,7 +65,8 @@ export class CircuitActors {
    const x=routeX(z,id)+off,y=groundAt(x,z,id);a.yaw=Math.atan2(lateral,forward)+routeHeading(z,id);
    if(animal){const from=Math.atan2(lateral,cruise-2.5),to=Math.atan2(-side*.1,Math.min(-3,cruise-(40-windup*2.5-3)/.9)),turn=T.MathUtils.smoothstep(age,windup-.3,windup+.2);a.yaw=from+Math.atan2(Math.sin(to-from),Math.cos(to-from))*turn+routeHeading(z,id);}
    a.position.set(x,y,z);let lift=0;
-   if(e.kind==='ptero')lift=5.5+Math.sin(age*2+e.seed)*1.6;
+   // Pteranodons cruise high, then dive to eye level at the vehicle.
+   if(e.kind==='ptero')lift=T.MathUtils.lerp(6.2+Math.sin(age*1.3+e.seed)*1.2,this.world.camera.position.y-groundAt(x,z,id)+.3,T.MathUtils.smoothstep(age,life-1.35,life-.35))-(a.flinch||0)**2*.6;
    if(e.kind==='ichthy')lift=-.65+Math.sin(clamp(age/life,0,1)*Math.PI)*3.5;
    if(e.kind==='rock')lift=1+Math.max(0,3-age)*2;
    if(e.kind==='spit')lift=2.4;
@@ -74,7 +75,7 @@ export class CircuitActors {
    a.position.y+=lift;
    if(e.dead){if(!a.dead){a.dead=true;a.deathPosition=a.position.clone();if(a.c&&species[e.kind]){Object.assign(a.c,{look:0,tailYaw:0,crouch:0,pant:0});a.c.hp=1;this.critters.strike(a.c,new T.Vector3(0,.1,1),1,999);}else if(a.c){a.c.on=false;}}if(a.mesh){a.mesh.position.copy(a.deathPosition);a.mesh.position.y-=e.fade*2;a.mesh.rotation.z+=dt*1.8;a.mesh.scale.setScalar(Math.max(0,1-e.fade));}continue;}
    if(a.c){const c=a.c;c.p.copy(a.position);c.fade=1;c.on=true;
-    if(e.kind==='ptero'){c.flinch=e.hit>0?.7:0;c.q.setFromEuler(new T.Euler(-.08,a.yaw,Math.sin(age*2)*.2));c.phase=(age*1.4)%1;c.amp=.8;c.fold=.03;c.scale=2;}
+    if(e.kind==='ptero')this.fly(a,c,e,age,life,dt);
     else this.animate(a,c,e,age,life,windup,lateral,forward,dt);
    }else{a.mesh.position.copy(a.position);a.mesh.rotation.set(e.kind==='ichthy'?Math.sin(age*2)*.3:e.kind==='rock'?age*.7:0,a.yaw,e.kind==='rock'?age:.0);}
    if(lift<1.5&&e.kind!=='ichthy'){const s=this.shadows[shadow++];if(s){s.visible=true;s.position.set(x,y+.11,z);s.rotation.y=a.yaw;s.scale.set(e.kind==='trike'?4.2:2.8,1,e.kind==='trike'?6.2:4.2);}}
@@ -113,12 +114,30 @@ export class CircuitActors {
   else c.peck=(kind==='trike'?.5*Math.max(gather,.6*charging):kind==='dilo'?-.25*gather:0)-snap*.7;
   if(kind==='dilo')c.frill=clamp((age/life-.23)*3.8,0,1);
  }
+ // Pteranodons fly on flyers.js's terms: they face their real velocity, bank into the
+ // turn, glide between bursts of wingbeats, tuck into a dive at the vehicle and flare
+ // at the last moment. A hit kicks them into a sideways lurch.
+ fly(a,c,e,age,life,dt){
+  const ease=k=>Math.min(1,dt*k),step=T.MathUtils.smoothstep,pos=a.position;
+  if(a.lastPos&&dt>0)p.subVectors(pos,a.lastPos).divideScalar(dt);else p.set(Math.sin(a.yaw),0,Math.cos(a.yaw)).multiplyScalar(6);
+  (a.lastPos||(a.lastPos=new T.Vector3())).copy(pos);
+  const heading=Math.atan2(p.x,p.z),rate=a.lastHeading===undefined||dt<=0?0:Math.atan2(Math.sin(heading-a.lastHeading),Math.cos(heading-a.lastHeading))/dt;a.lastHeading=heading;
+  a.flinch=Math.max(0,(a.flinch||0)-dt*2.5);
+  a.bank=(a.bank||0)+(clamp(-Math.atan2(Math.hypot(p.x,p.z)*rate,9.8),-.9,.9)-(a.bank||0))*ease(4);
+  const dive=step(age,life-1.35,life-.5),flare=step(age,life-.45,life-.2),beating=flare>0||a.flinch>.3||dive<.05&&Math.sin(age*1.15+e.seed*3)>.15;
+  c.amp+=((beating?.8:.06)*(1-dive*(1-flare))-c.amp)*ease(4);c.phase=(c.phase+dt*(beating?1.7:.25))%1;c.fold=.55*dive*(1-flare);c.scale=2;
+  // Face the velocity (diving pitches the nose down), then roll about it.
+  v.copy(p).normalize();if(v.lengthSq()<.5)v.set(Math.sin(a.yaw),0,Math.cos(a.yaw));head.crossVectors(up,v).normalize();
+  c.q.setFromRotationMatrix(this.basis.makeBasis(head,p.crossVectors(v,head),v));
+  c.q.premultiply(this.roll.setFromAxisAngle(v,a.bank+Math.sin(age*.9+e.seed)*.08+(a.side||1)*.7*Math.sin(Math.min(1,a.flinch)*Math.PI)));
+ }
  /** A round that hit actor `id` at screen x: twist about where it landed. */
  hit(id,precise,x){
-  const a=this.actors.get(id);if(!a||a.dead||!a.c||a.e.kind==='ptero')return;const cam=this.world.camera,pr=this.project(a.e,cam.aspect);
+  const a=this.actors.get(id);if(!a||a.dead||!a.c)return;const cam=this.world.camera,pr=this.project(a.e,cam.aspect);
   // Torque about up from a push along the view, applied off the body's centre line.
   v.setFromMatrixColumn(cam.matrixWorld,0);p.setFromMatrixColumn(cam.matrixWorld,2).negate();const off=pr.visible===false?0:x-pr.x;
   a.side=Math.sign((v.z*p.x-v.x*p.z)*off||Math.sin(a.yaw)*p.z-Math.cos(a.yaw)*p.x)||1;
+  if(a.e.kind==='ptero'){a.flinch=1;return;}
   const amp=precise?1:a.e.kind==='trike'?.6:.4;a.heavyAmp=a.heavy>0?Math.max(a.heavyAmp,amp):amp;a.heavy=1;a.flinch=1;a.hitHead=precise;
  }
  project(e,aspect){
