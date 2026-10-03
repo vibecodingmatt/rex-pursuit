@@ -13,6 +13,7 @@ Started 2026-10-03. The user's goal: Sega's 1994 *Jurassic Park* arcade ride, re
 - Test proportionally: `node scripts/test-lost-circuit.mjs`, `npm run test:smoke`, `npm run build`, plus the drop's focused checks. Run the full arcade browser suite (`npm run test:lost-circuit`) only for drops that change flow, input or HUD, and before shipping.
 - Keep screenshots to 3–5 comparable before/after captures in `art/review/arcade-<drop>/`. The user plays and judges feel and sound; that costs fewer tokens than more captures.
 - Work alone. Don't use helper agents.
+- **Unattended runs:** if the user is leaving and wants drops to continue, use the `usage-autopilot` skill (`~/.claude/skills/usage-autopilot/`). It paces work to the 5-hour window with `budget.cjs`, commits each piece, writes the "Stopped here" note at the wrap, and sleeps through the reset. On 2026-10-03 one window covered A6, A2, A3 and half of A7.
 - Update the progress log below, the Lost Circuit section of `docs/START-HERE.md`, and the [maintenance reference](../.agents/skills/rex-pursuit-maintainer/references/lost-circuit.md) when a drop changes a module's ownership or a failure mode.
 
 ## Why it reads as amateur (diagnosis, 2026-10-03)
