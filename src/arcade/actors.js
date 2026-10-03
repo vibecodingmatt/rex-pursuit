@@ -4,12 +4,16 @@ import {createFlyers} from '../chase/flyers.js';
 import {createBrachio} from '../chase/brachio.js';
 import {routeX,routeY,groundAt,routeHeading,noise} from './world.js';
 import {project as bossProject,TYPES} from './rules.js';
+import {loadIchthy,createIchthy} from './ichthy.js';
 
 const species={raptor:'raptor',dilo:'dilophosaurus',galli:'gallimimus',trike:'triceratops'};
 const sizes={raptor:4.5,dilo:5.8,galli:6.4,trike:8.8};
 const v=new T.Vector3(),head=new T.Vector3(),p=new T.Vector3(),up=new T.Vector3(0,1,0);
 const clamp=T.MathUtils.clamp;
-function disposeProp(root){const geometries=new Set(),materials=new Set();root.traverse(o=>{if(o.isMesh){geometries.add(o.geometry);(Array.isArray(o.material)?o.material:[o.material]).forEach(m=>materials.add(m));}});geometries.forEach(g=>{if(!g.userData.shared)g.dispose();});materials.forEach(m=>{if(!m.userData.shared)m.dispose();});root.removeFromParent();}
+function disposeProp(root){const geometries=new Set(),materials=new Set();root.traverse(o=>{if(o.isMesh){geometries.add(o.geometry);(Array.isArray(o.material)?o.material:[o.material]).forEach(m=>materials.add(m));}});geometries.forEach(g=>{if(!g.userData.shared)g.dispose();});materials.forEach(m=>{if(!m.userData.shared)m.dispose();});root.traverse(o=>o.customDepthMaterial?.dispose());root.removeFromParent();}
+// The ichthyosaur breaches twice: a long leap, a short dive, then a lunge at the vehicle.
+// Returns height above the water reference and its rate of change.
+function leap(age,life){for(const [a0,a1,H]of [[.03,.58,3],[.62,1.02,2.1]]){const t0=a0*life,t1=a1*life;if(age<t1){const u=clamp((age-t0)/(t1-t0),0,1);return[-1.1+(H+1.1)*Math.sin(Math.PI*u),age<t0?0:(H+1.1)*Math.PI*Math.cos(Math.PI*u)/(t1-t0)];}}return[-1.1,0];}
 
 export class CircuitActors {
  constructor(world){
@@ -23,12 +27,13 @@ export class CircuitActors {
   const mat=new T.MeshBasicMaterial({map:this.shadowTexture,transparent:true,opacity:.34,depthWrite:false,polygonOffset:true,polygonOffsetFactor:-2});
   for(let i=0;i<20;i++){const mesh=new T.Mesh(new T.PlaneGeometry(1,1).rotateX(-Math.PI/2),mat);mesh.visible=false;this.scene.add(mesh);this.shadows.push(mesh);}
  }
- async load(){await this.critters.ready();}
+ async load(){await this.critters.ready();this.ichthy=await loadIchthy().catch(e=>{console.warn('Ichthyosaur unavailable:',e.message);return null;});}
  // Ground animals push the planting aside as they run through it (world.js reads these).
  pushers(){const out=[];for(const a of this.actors.values()){const k=a.e.kind;if(a.dead||!a.c||k==='ptero')continue;out.push({x:a.position.x,z:a.position.z,r:k==='trike'?3.6:k==='galli'?1.8:2.3,s:1});}return out;}
  makeShadow(){const c=document.createElement('canvas');c.width=c.height=64;const x=c.getContext('2d'),g=x.createRadialGradient(32,32,4,32,32,32);g.addColorStop(0,'#000b');g.addColorStop(1,'#0000');x.fillStyle=g;x.fillRect(0,0,64,64);return new T.CanvasTexture(c);}
  reset(){for(const a of this.actors.values())if(a.mesh)disposeProp(a.mesh);this.actors.clear();this.critters.reset({empty:true});this.flyers.reset({empty:true});for(const s of this.shadows)s.visible=false;}
  makeProp(kind){
+  if(kind==='ichthy'&&this.ichthy){const mesh=createIchthy(this.ichthy);mesh.scale.setScalar(1.15);this.scene.add(mesh);return mesh;}
   const group=new T.Group(),material=new T.MeshStandardMaterial({color:kind==='supply'?0x5ac4a8:kind==='barrel'?0xc67230:kind==='spit'?0xaadc67:0x99917d,metalness:kind==='barrel'?.5:0,roughness:.8});
   if(kind==='ichthy'){
    material.color.set(0x3e8291);material.roughness=.33;const body=new T.Mesh(new T.SphereGeometry(1,20,12),material);body.scale.set(.5,.6,2.4);group.add(body);
@@ -67,7 +72,7 @@ export class CircuitActors {
    a.position.set(x,y,z);let lift=0;
    // Pteranodons cruise high, then dive to eye level at the vehicle.
    if(e.kind==='ptero')lift=T.MathUtils.lerp(6.2+Math.sin(age*1.3+e.seed)*1.2,this.world.camera.position.y-groundAt(x,z,id)+.3,T.MathUtils.smoothstep(age,life-1.35,life-.35))-(a.flinch||0)**2*.6;
-   if(e.kind==='ichthy')lift=-.65+Math.sin(clamp(age/life,0,1)*Math.PI)*3.5;
+   if(e.kind==='ichthy')lift=a.mesh?.userData.swim?leap(age,life)[0]:-.65+Math.sin(clamp(age/life,0,1)*Math.PI)*3.5;
    if(e.kind==='rock')lift=1+Math.max(0,3-age)*2;
    if(e.kind==='spit')lift=2.4;
    if(id==='manor'&&e.kind==='raptor')lift=Math.max(0,1-age/.8)**2*11;
@@ -77,7 +82,8 @@ export class CircuitActors {
    if(a.c){const c=a.c;c.p.copy(a.position);c.fade=1;c.on=true;
     if(e.kind==='ptero')this.fly(a,c,e,age,life,dt);
     else this.animate(a,c,e,age,life,windup,lateral,forward,dt);
-   }else{a.mesh.position.copy(a.position);a.mesh.rotation.set(e.kind==='ichthy'?Math.sin(age*2)*.3:e.kind==='rock'?age*.7:0,a.yaw,e.kind==='rock'?age:.0);}
+   }else if(a.mesh.userData.swim)this.swim(a,e,age,life,dt,y);
+   else{a.mesh.position.copy(a.position);a.mesh.rotation.set(e.kind==='ichthy'?Math.sin(age*2)*.3:e.kind==='rock'?age*.7:0,a.yaw,e.kind==='rock'?age:.0);}
    if(lift<1.5&&e.kind!=='ichthy'){const s=this.shadows[shadow++];if(s){s.visible=true;s.position.set(x,y+.11,z);s.rotation.y=a.yaw;s.scale.set(e.kind==='trike'?4.2:2.8,1,e.kind==='trike'?6.2:4.2);}}
   }
   this.critters.updateDirected(dt);this.flyers.updateDirected();for(let i=shadow;i<this.shadows.length;i++)this.shadows[i].visible=false;
@@ -131,13 +137,22 @@ export class CircuitActors {
   c.q.setFromRotationMatrix(this.basis.makeBasis(head,p.crossVectors(v,head),v));
   c.q.premultiply(this.roll.setFromAxisAngle(v,a.bank+Math.sin(age*.9+e.seed)*.08+(a.side||1)*.7*Math.sin(Math.min(1,a.flinch)*Math.PI)));
  }
+ // Swim and leap: the spine wave slows in the air and thrashes when hit; the body pitches
+ // along its arc and twists in flight; crossing the surface throws spray (main.js).
+ swim(a,e,age,life,dt,water){
+  const [h,rise]=leap(age,life),air=clamp((h+.2)/.6,0,1),TAU=Math.PI*2;a.flinch=Math.max(0,(a.flinch||0)-dt*2.5);
+  const rate=7-3.5*air+a.flinch*9;a.swimPhase=((a.swimPhase||0)+dt*rate)%TAU;a.stroke=((a.stroke||0)+dt*rate*.5)%TAU;
+  a.mesh.userData.swim(a.swimPhase,.13-.06*air+.16*a.flinch,a.stroke);a.mesh.position.copy(a.position);
+  a.mesh.rotation.set(-Math.atan2(rise,6),a.yaw+(a.side||1)*.4*a.flinch,.22*Math.sin(age*1.7+e.seed)*air);
+  if(a.lastLift!==undefined&&(a.lastLift<0)!==(h<0))this.onSplash?.(v.set(a.position.x,water,a.position.z),Math.min(1.3,.5+Math.abs(rise)*.12));a.lastLift=h;
+ }
  /** A round that hit actor `id` at screen x: twist about where it landed. */
  hit(id,precise,x){
-  const a=this.actors.get(id);if(!a||a.dead||!a.c)return;const cam=this.world.camera,pr=this.project(a.e,cam.aspect);
+  const a=this.actors.get(id);if(!a||a.dead)return;const cam=this.world.camera,pr=this.project(a.e,cam.aspect);
   // Torque about up from a push along the view, applied off the body's centre line.
   v.setFromMatrixColumn(cam.matrixWorld,0);p.setFromMatrixColumn(cam.matrixWorld,2).negate();const off=pr.visible===false?0:x-pr.x;
   a.side=Math.sign((v.z*p.x-v.x*p.z)*off||Math.sin(a.yaw)*p.z-Math.cos(a.yaw)*p.x)||1;
-  if(a.e.kind==='ptero'){a.flinch=1;return;}
+  if(!a.c||a.e.kind==='ptero'){a.flinch=1;return;}
   const amp=precise?1:a.e.kind==='trike'?.6:.4;a.heavyAmp=a.heavy>0?Math.max(a.heavyAmp,amp):amp;a.heavy=1;a.flinch=1;a.hitHead=precise;
  }
  project(e,aspect){

@@ -122,7 +122,10 @@ function frame(now){const dt=Math.min(.1,(now-last)/1000);last=now;
 }
 requestAnimationFrame(frame);
 async function load(){
- try{await renderer.load(p=>$('load-status').textContent=`Preparing the island · ${Math.round(p*100)}%`);ready=true;$('start').disabled=false;$('start-label').textContent='START THE RIDE';$('load-status').textContent='';updateBest();void renderer.loadBosses();}
+ try{await renderer.load(p=>$('load-status').textContent=`Preparing the island · ${Math.round(p*100)}%`);ready=true;
+  // A leaping ichthyosaur throws a ring of spray where it breaks the surface.
+  renderer.actors.onSplash=(at,strength)=>{field.splash('step',at,strength);for(let i=0;i<8;i++){const r=i/8*Math.PI*2;renderer.effects.spume(at.clone().setY(at.y-.2),at.clone().set(Math.cos(r)*2.4*strength,3.4*strength+Math.random(),Math.sin(r)*2.4*strength),{size:1.1,opacity:.24,life:1.5});}};
+  $('start').disabled=false;$('start-label').textContent='START THE RIDE';$('load-status').textContent='';updateBest();void renderer.loadBosses();}
  catch{$('load-status').textContent='The island could not load. Check your connection and reload this page.';$('start-label').textContent='RELOAD TO RETRY';$('start').disabled=false;$('start').onclick=()=>location.reload();}
 }void load();
 window.lostCircuit={get ready(){return ready;},get mode(){return mode;},snapshot:()=>game?.snapshot(),get audioState(){return audio.context?.state||'uninitialized';},get art(){return Object.fromEntries(Object.entries(renderer.images).map(([key,im])=>[key,{width:im.width,height:im.height}]));}};
