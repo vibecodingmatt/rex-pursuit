@@ -59,7 +59,7 @@ export class Circuit {
   if(pattern==='flank')for(let i=0;i<count;i++)this.spawn(kind,{x:.5+(i%2?side:-side)*(.24+.07*(i>>1)),delay:i*.35});
   else if(pattern==='stampede')for(let i=0;i<count;i++)this.spawn('galli',{x:.5+side*(.12+this.random()*.32),delay:i*.13});
   else if(pattern==='formation')for(let i=0;i<count;i++)this.spawn('ptero',{x:.5+(i-(count-1)/2)*.13,delay:i*.12});
-  else if(pattern==='ambush'){const e=this.spawn(kind,{x:.5+side*.3});e.ambush=true;e.life=2.4;}
+  else if(pattern==='ambush'){const e=this.spawn(kind,{x:.5+side*.3,delay:.9});e.ambush=true;e.life=2.4;}
   else for(let i=0;i<count;i++)this.spawn(kind,{delay:i*.45});
   this.emit('beat',{pattern,kind,side,text:(typeof call==='string'?call:call?.[kind]||'').replace('{side}',named)});
  }

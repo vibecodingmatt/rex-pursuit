@@ -9,7 +9,7 @@ import {makeProp as buildProp,tickProps} from './props.js';
 
 const species={raptor:'raptor',dilo:'dilophosaurus',galli:'gallimimus',trike:'triceratops'};
 const sizes={raptor:4.5,dilo:5.8,galli:6.4,trike:8.8};
-const v=new T.Vector3(),head=new T.Vector3(),p=new T.Vector3(),up=new T.Vector3(0,1,0);
+const v=new T.Vector3(),head=new T.Vector3(),p=new T.Vector3(),up=new T.Vector3(0,1,0),dummy=new T.Object3D();
 const clamp=T.MathUtils.clamp;
 function disposeProp(root){const geometries=new Set(),materials=new Set();root.traverse(o=>{if(o.isMesh){geometries.add(o.geometry);(Array.isArray(o.material)?o.material:[o.material]).forEach(m=>materials.add(m));}});geometries.forEach(g=>{if(!g.userData.shared)g.dispose();});materials.forEach(m=>{if(!m.userData.shared)m.dispose();});root.traverse(o=>o.customDepthMaterial?.dispose());root.removeFromParent();}
 // The ichthyosaur breaches twice: a long leap, a short dive, then a lunge at the vehicle.
@@ -23,7 +23,7 @@ export class CircuitActors {
   this.critters=createCritters(this.scene,{jungle,capacities:{compy:1,lizard:1,galli:26,raptor:10,dilophosaurus:6,triceratops:5,parasaurolophus:1,pachycephalosaurus:1,stegosaurus:1}});
   this.flyers=createFlyers(this.scene,{jungle});this.critters.reset({empty:true});this.flyers.reset({empty:true});
   this.brachio=createBrachio(this.scene,{jungle});
-  this.basis=new T.Matrix4();this.roll=new T.Quaternion();this.shadowTexture=this.makeShadow();this.shadows=[];this.corpses=[];
+  this.basis=new T.Matrix4();this.roll=new T.Quaternion();this.shadowTexture=this.makeShadow();this.shadows=[];this.corpses=[];this.walls=new Map();
   // Soft contact shade under grounded animals; the sun's shadow map casts the real shadow.
   const mat=new T.MeshBasicMaterial({map:this.shadowTexture,transparent:true,opacity:.34,depthWrite:false,polygonOffset:true,polygonOffsetFactor:-2});
   for(let i=0;i<20;i++){const mesh=new T.Mesh(new T.PlaneGeometry(1,1).rotateX(-Math.PI/2),mat);mesh.visible=false;this.scene.add(mesh);this.shadows.push(mesh);}
@@ -34,7 +34,7 @@ export class CircuitActors {
  setQuality(t){this.critters.setQuality(t);this.flyers.setQuality?.(t);this.brachio.setQuality?.(t);loadIchthy(t.detail?'ichthy.bin':'ichthy-low.bin').then(m=>{this.ichthy=m;}).catch(()=>{});}
  pushers(){const out=[];for(const a of this.actors.values()){const k=a.e.kind;if(a.dead||!a.c||k==='ptero')continue;out.push({x:a.position.x,z:a.position.z,r:k==='trike'?3.6:k==='galli'?1.8:2.3,s:1});}return out;}
  makeShadow(){const c=document.createElement('canvas');c.width=c.height=64;const x=c.getContext('2d'),g=x.createRadialGradient(32,32,4,32,32,32);g.addColorStop(0,'#000b');g.addColorStop(1,'#0000');x.fillStyle=g;x.fillRect(0,0,64,64);return new T.CanvasTexture(c);}
- reset(){for(const a of this.actors.values())if(a.mesh)disposeProp(a.mesh);this.actors.clear();this.corpses=[];this.critters.reset({empty:true});this.flyers.reset({empty:true});for(const s of this.shadows)s.visible=false;}
+ reset(){for(const [id,w]of this.walls)this.dropWall(id,w);for(const a of this.actors.values())if(a.mesh)disposeProp(a.mesh);this.actors.clear();this.corpses=[];this.critters.reset({empty:true});this.flyers.reset({empty:true});for(const s of this.shadows)s.visible=false;}
  makeProp(kind){
   if(kind==='ichthy'&&this.ichthy){const mesh=createIchthy(this.ichthy);mesh.scale.setScalar(1.15);this.scene.add(mesh);return mesh;}
   const built=buildProp(kind);if(built){this.scene.add(built);return built;}
@@ -60,7 +60,7 @@ export class CircuitActors {
   const camZ=this.world.camera.position.z;for(const k of this.corpses){k.t+=dt;if(k.t>4||k.c.p.z<camZ-6||this.corpses.length>3&&k===this.corpses[0])k.c.on=false;}this.corpses=this.corpses.filter(k=>k.c.on);
   let shadow=0;
   for(const e of game.entities){
-   if(e.boss||e.age<0)continue;let a=this.actors.get(e.id);
+   if(e.boss||e.age<0){if(e.ambush&&!e.boss&&!e.dead)this.brushWall(e,game);continue;}let a=this.actors.get(e.id);
    if(!a){const kind=species[e.kind],c=kind?this.critters.huntSpawn(kind,Math.sign(e.lane-.5),30):e.kind==='ptero'?this.flyers.huntSpawn('pteranodon',Math.sign(e.lane-.5)):null;a={e,c,mesh:c?null:this.makeProp(e.kind),position:new T.Vector3(),head:new T.Vector3(),yaw:0,dead:false,burst:!!e.ambush};this.actors.set(e.id,a);if(c&&kind)c.scale=sizes[e.kind];}
    const age=Math.max(0,e.age),life=e.life,side=e.lane<.5?-1:1,id=game.stage.id,cruise=id==='manor'?14:id==='fault'?27:24;
    const animal=!!species[e.kind],windup=life-.9,charge=clamp((age-windup)/.9,0,1),parallel=40-age*2.5;
@@ -79,6 +79,7 @@ export class CircuitActors {
    if(fixed)a.yaw=routeHeading(z,id)+e.seed*.3-.9;
    a.position.set(x,y,z);let lift=0;
    // An ambusher bursts out of the planting: leaves, twigs and dust where it breaks cover.
+   if(a.burst)this.breakWall(e.id);
    if(a.burst&&this.effects){a.burst=false;for(let i=0;i<34;i++)this.effects.speck(v.set(x,y+.6+Math.random()*1.4,z),p.set((Math.random()-.5)*5,1+Math.random()*3,(Math.random()-.5)*5),i%3?[.08,.2,.04]:[.16,.11,.05],.03+Math.random()*.04,.7+Math.random()*.5);this.effects.groundDust(v.set(x,y+.2,z),p.set(0,1,0),{size:.9,growth:3,opacity:.45,life:1.4});}
    // Pteranodons cruise high, then dive to eye level at the vehicle.
    if(e.kind==='ptero')lift=T.MathUtils.lerp(6.2+Math.sin(age*1.3+e.seed)*1.2,this.world.camera.position.y-groundAt(x,z,id)+.3,T.MathUtils.smoothstep(age,life-1.35,life-.35))-(a.flinch||0)**2*.6;
@@ -101,12 +102,37 @@ export class CircuitActors {
    else{a.mesh.position.copy(a.position);a.mesh.rotation.set(e.kind==='ichthy'?Math.sin(age*2)*.3:e.kind==='rock'?age*.7:0,a.yaw,e.kind==='rock'?age:.0);}
    if(lift<1.5&&e.kind!=='ichthy'){const s=this.shadows[shadow++];if(s){s.visible=true;s.position.set(x,y+.11,z);s.rotation.y=a.yaw;s.scale.set(e.kind==='trike'?4.2:2.8,1,e.kind==='trike'?6.2:4.2);}}
   }
-  this.critters.updateDirected(dt,{cull:false});this.flyers.updateDirected();for(let i=shadow;i<this.shadows.length;i++)this.shadows[i].visible=false;
+  this.tickWalls(dt,live);this.critters.updateDirected(dt,{cull:false});this.flyers.updateDirected();for(let i=shadow;i<this.shadows.length;i++)this.shadows[i].visible=false;
   if(game.stage.id==='river'&&game.stageTime>5&&game.stageTime<28){const z=500;this.brachio.show(routeX(z,'river')-10,z,Math.PI/2);this.brachio.mesh.position.y=routeY(z,'river')-1.3;this.brachio.mesh.scale.setScalar(1.45);this.brachio.rearAt(Math.max(0,game.stageTime-19));this.brachio.mesh.visible=true;}else this.brachio.mesh.visible=false;
   for(const a of this.actors.values()){
    if(a.c?.rig){a.head.copy(a.c.rig.head);a.position.copy(a.c.rig.body);}
    else if(a.c&&species[a.e.kind]){const c=a.c,spheres=c.kind.spheres;head.copy(spheres?.[1]?.p||v.set(0,c.kind.centre+.1,.3)).multiplyScalar(c.scale).applyAxisAngle(up,c.yaw).add(c.p);a.head.copy(head);a.position.copy(c.p).add(v.set(0,c.kind.centre*c.scale,0));}
    else a.head.copy(a.position);
+  }
+ }
+ // An ambusher's cover: fern and shrub clumps between it and the road that shiver harder
+ // through the 0.9 s before it breaks out, then fly apart toward the vehicle.
+ brushWall(e,game){
+  let w=this.walls.get(e.id);const id=game.stage.id,kit=this.world.kit;
+  if(!w&&kit?.ferns){const side=e.lane<.5?-1:1,z=e.spawnTravel+17,x0=routeX(z,id)+side*8*Math.min(1,this.world.camera.aspect*1.25),group=new T.Group(),items=[];
+   const ferns=new T.InstancedMesh(kit.ferns[0],kit.materials.fern,4),bush=new T.InstancedMesh(kit.bushes[0],kit.materials.shrub,2);
+   for(const m of [ferns,bush]){m.castShadow=m.receiveShadow=true;m.frustumCulled=false;group.add(m);}
+   for(let i=0;i<6;i++){const pos=new T.Vector3(x0-side*(.7+(i%2)*.8),0,z+(i-2.5)*.85);pos.y=groundAt(pos.x,pos.z,id)-.1;
+    items.push({mesh:i<4?ferns:bush,slot:i<4?i:i-4,pos,rot:new T.Euler(0,Math.random()*6.28,0),scale:i<4?1.7+Math.random()*.6:.95+Math.random()*.3,vel:new T.Vector3(),spin:new T.Vector3(),phase:Math.random()*6.28});}
+   this.scene.add(group);w={group,items,side,t:0,burst:false,rustle:0};this.walls.set(e.id,w);}
+  if(w)w.rustle=clamp(1+e.age/.9,0,1);
+ }
+ breakWall(id){const w=this.walls.get(id);if(!w||w.burst)return;w.burst=true;const cam=this.world.camera.position,r=Math.random;for(const it of w.items){it.vel.set(-w.side*(3+r()*4),3+r()*3.5,(cam.z-it.pos.z)*.12+(r()-.5)*3);it.spin.set((r()-.5)*8,0,w.side*(2+r()*5));}}
+ dropWall(id,w){w.group.removeFromParent();for(const m of w.group.children)m.dispose();this.walls.delete(id);}
+ tickWalls(dt,live){
+  for(const [id,w]of this.walls){
+   if(!w.burst&&!live.has(id)){this.dropWall(id,w);continue;}
+   if(w.burst&&(w.t+=dt)>1.8){this.dropWall(id,w);continue;}
+   for(const it of w.items){
+    if(w.burst){it.vel.y-=9.8*dt;it.pos.addScaledVector(it.vel,dt);it.rot.x+=it.spin.x*dt;it.rot.z+=it.spin.z*dt;}
+    const shiver=w.burst?0:w.rustle**2*.24*Math.sin(this.lastTime*29+it.phase);
+    dummy.position.copy(it.pos);dummy.rotation.set(it.rot.x+shiver,it.rot.y,it.rot.z+shiver*.7);dummy.scale.setScalar(it.scale*(w.burst?clamp(1-(w.t-.9)/.9,0,1):1));dummy.updateMatrix();it.mesh.setMatrixAt(it.slot,dummy.matrix);}
+   for(const m of w.group.children)m.instanceMatrix.needsUpdate=true;
   }
  }
  // The directed path writes yaw and stride directly, bypassing Safari's steering, so this
