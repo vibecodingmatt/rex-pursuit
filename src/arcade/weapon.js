@@ -1,7 +1,5 @@
 import * as T from 'three';
 import {createMountedGun} from '../chase/mounted-gun.js';
-import {box,tube} from '../chase/vehicle-geometry.js';
-import {WATER_STAGES} from './vehicle.js';
 
 // A physical mount, with the accepted detailed receiver, moving belt and cases.
 // Aim, muzzle flash and every tracer all use this one world-space muzzle.
@@ -10,14 +8,11 @@ export class CircuitWeapon {
   this.world=world;this.body=new T.Group();world.scene.add(this.body);
   const metal=new T.MeshStandardMaterial({color:0x56615a,metalness:.66,roughness:.51}),black=new T.MeshStandardMaterial({color:0x15201d,roughness:.7}),paint=new T.MeshStandardMaterial({color:0x4e6252,metalness:.35,roughness:.67});
   this.gun=createMountedGun(this.body,world.scene,{steel:metal,black,paint,fabric:paint},null,{mountZ:.25});this.gun.hands.visible=true;
-  // The deck and rails stand in for a boat on water stages; on land the Jeep carries the gun.
-  this.platform=new T.Group();this.body.add(this.platform);
-  box(this.platform,paint,[3.1,.2,2.2],[0,.48,1.8]);box(this.platform,black,[3.12,.07,2.2],[0,.62,1.8]);
-  for(const side of [-1,1]){tube(this.platform,metal,[side*1.52,.6,.5],[side*1.52,1.25,3.1],.055);tube(this.platform,metal,[side*1.5,.5,1.7],[side*1.5,1.18,1.7],.05);}
+  // The Jeep (land) or the tour boat (water, A9) carries the gun; both live in vehicle.js.
   this.target=new T.Vector3();this.muzzle=new T.Vector3();this.pivot=new T.Vector3();this.forward=new T.Vector3();this.screen=new T.Vector3();this.ray=new T.Raycaster();this.lastTime=0;this.shot=null;
  }
  sync(game,aim){
-  const cam=this.world.camera,time=game?.time||0,dt=Math.max(0,Math.min(.05,time-this.lastTime));this.lastTime=time;this.body.visible=!!game;if(!game)return;this.platform.visible=WATER_STAGES.has(game.stage.id);
+  const cam=this.world.camera,time=game?.time||0,dt=Math.max(0,Math.min(.05,time-this.lastTime));this.lastTime=time;this.body.visible=!!game;if(!game)return;
   this.body.position.set(0,-2.58,-1.25).applyQuaternion(cam.quaternion).add(cam.position);this.body.quaternion.copy(cam.quaternion).multiply(new T.Quaternion().setFromAxisAngle(new T.Vector3(0,1,0),Math.PI));this.body.updateMatrixWorld(true);
   this.ray.setFromCamera(new T.Vector2(aim.x*2-1,1-aim.y*2),cam);this.ray.ray.at(70,this.target);
   this.gun.update(dt,time,game.speed,this.target,false,{ammo:100,reload:0,result:null});

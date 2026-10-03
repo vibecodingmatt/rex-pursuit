@@ -1,11 +1,13 @@
 import * as T from 'three';
 import {createJeep} from '../chase/jeep.js';
+import {createBoat,BOAT_EYE} from './boat.js';
 
 // Pursuit's park Jeep, driven forward along the route with the warden at the wheel, and
 // the spring-damper rig that carries the camera: braking dives, launch squat, cornering
 // roll, terrain bumps, and hits that knock the camera away from where they land. The
 // camera rides the Jeep rigidly, so the hood holds still in view while the world tilts.
-// Water stages keep the old platform until the boat (A9).
+// A9: on the water stages the park's tour launch (boat.js) carries the gun instead, on
+// softer springs: it rides a swell, lifts its bow with speed and leans into turns.
 
 /** The gunner's eye in Jeep coordinates (Jeep forward is -Z), standing in the rear tub. */
 const EYE=new T.Vector3(0,2.7,.85);
@@ -44,21 +46,25 @@ export class CircuitVehicle{
   this.pitch=new Spring(55,8.5);this.roll=new Spring(65,9);this.heave=new Spring(110,13);this.yaw=new Spring(90,11);
   // A8: a sideways shove (the Triceratops' horn lock) slides the whole Jeep and camera.
   this.slide=new Spring(60,13);this.push=0;
+  this.boat=createBoat(world.scene);this.boat.root.visible=false;this.swell=0;
   this.rig={pitch:0,roll:0,heave:0,yaw:0,slide:0};this.lastSpeed=null;this.lastHeading=null;this.bump=0;this.visible=true;this.smokeWait=0;
   // Damage shows on the Jeep: claw scrapes on the hood as integrity falls, the folded
   // windshield cracks below 50%, and the engine smokes below 25%.
   this.scrapes=[[.42,-1.42,.4,85],[-.5,-1.62,-.5,70],[.08,-1.25,.25,55]].map(([x,z,turn,below],i)=>{const d=decal(clawTexture(11+i*7),[.55,.55]);d.position.set(x,1.395,z);d.rotation.set(-Math.PI/2,0,turn);d.userData.below=below;j.body.add(d);return d;});
   const hinge=this.hinge=new T.Group();hinge.position.set(0,1.45,-1.03);hinge.rotation.x=-1.6;j.body.add(hinge);
   this.crack=decal(crackTexture(),[1.55,.7]);this.crack.position.set(0,.44,.07);this.crack.rotation.x=.18;this.crack.translateZ(.012);this.crack.material.side=T.DoubleSide;hinge.add(this.crack);
+  // On the boat the claws gouge the teak foredeck; heavy blows bend the bow pulpit.
+  const b=this.boat;this.boatScrapes=[[.55,-4.1,.5,85],[-.6,-5.3,-.4,70],[.15,-3.35,.2,55]].map(([x,z,turn,below],i)=>{const d=decal(clawTexture(31+i*5),[.7,.7]);d.position.set(x,b.deckY(x,z)+.012,z);d.rotation.set(-Math.PI/2,0,turn);d.userData.below=below;b.root.add(d);return d;});
  }
  /** Integrity (0-100) to visible damage; hood smoke needs `this.effects` (renderer). */
  damage(hp,dt){
-  for(const d of this.scrapes){const o=T.MathUtils.clamp((d.userData.below-hp)/8,0,1);d.visible=o>0;d.material.opacity=o;}
+  for(const d of [...this.scrapes,...this.boatScrapes]){const o=T.MathUtils.clamp((d.userData.below-hp)/8,0,1);d.visible=o>0;d.material.opacity=o;}
   const c=T.MathUtils.clamp((50-hp)/22,0,1);this.crack.visible=c>0;this.crack.material.opacity=c;
   // A heavy blow has knocked the folded windshield frame askew (the arcade's dent).
-  const bent=T.MathUtils.clamp((65-hp)/30,0,1);this.dent=(this.dent??0)+(bent-(this.dent??0))*Math.min(1,dt*6);this.hinge.rotation.set(-1.6+this.dent*.05,this.dent*.07,-this.dent*.06);this.crackFrame?.rotation.copy(this.hinge.rotation);
+  const bent=T.MathUtils.clamp((65-hp)/30,0,1);this.dent=(this.dent??0)+(bent-(this.dent??0))*Math.min(1,dt*6);this.hinge.rotation.set(-1.6+this.dent*.05,this.dent*.07,-this.dent*.06);this.boat.pulpit.rotation.set(this.dent*.012,this.dent*.02,-this.dent*.03);
   if(hp<25&&this.effects&&this.visible&&dt>0&&(this.smokeWait-=dt)<=0){const heavy=1-hp/25;this.smokeWait=.07-.035*heavy;
-   const j=this.jeep.body;j.localToWorld(offset.set((Math.random()-.5)*.7,1.55,-1.7));up.set(0,0,-1).transformDirection(j.matrixWorld).multiplyScalar(this.lastSpeed||0);up.y+=2.2+heavy;
+   // The Jeep's engine smokes under the hood; the boat's bow locker (its pump and battery) under the hatch.
+   if(this.water)this.boat.hatch.localToWorld(offset.set((Math.random()-.5)*.6,.05,(Math.random()-.5)*.5));else this.jeep.body.localToWorld(offset.set((Math.random()-.5)*.7,1.55,-1.7));const j=this.water?this.boat.root:this.jeep.body;up.set(0,0,-1).transformDirection(j.matrixWorld).multiplyScalar(this.lastSpeed||0);up.y+=2.2+heavy;
    this.effects.haze(offset,up,{life:1.6+heavy,size:.8,growth:3.5,opacity:.28+.24*heavy,color:heavy>.6?0x2a2724:0x5a5550,drag:.25,rise:.8});}
  }
  /** A blow from world point `from` (or straight ahead): the camera is knocked away from it. */
@@ -67,20 +73,37 @@ export class CircuitVehicle{
   if(from){offset.subVectors(from,cam.position).applyQuaternion(q.copy(cam.quaternion).invert());const l=Math.hypot(offset.x,offset.z)||1;side=offset.x/l;front=-offset.z/l;}
   strength*=this.move??1;this.roll.v+=side*2.4*strength;this.yaw.v-=side*1.6*strength;this.pitch.v+=(.4+front*1.0)*strength;this.heave.v-=.9*strength;
  }
+ /**
+  * The boat's ride: a long swell (bigger on the open lagoon) heaves and pitches the hull,
+  * the bow lifts with speed and with the throttle and drops when the driver backs off,
+  * the hull leans into a turn rather than out of it, and at speed the bow now and then
+  * slaps a wave.
+  */
+ float(dt,speed,accel,turn,id,move){
+  const s=this.swell+=dt,big=id==='lagoon'?1.8:1,run=Math.min(1,speed/24);
+  const swell=(Math.sin(s*1.13)*.055+Math.sin(s*1.71+1.1)*.03+Math.sin(s*2.9+.4)*.012)*big;
+  const slap=Math.max(0,Math.sin(s*2.35+Math.sin(s*.37)*2))**18*run;
+  this.rig.pitch=this.pitch.step((.007*run+T.MathUtils.clamp(accel*.003,-.03,.03)+Math.sin(s*.93+.6)*.006*big+Math.cos(s*1.71+1.1)*.004*big-slap*.012)*move,dt);
+  this.rig.roll=this.roll.step((-T.MathUtils.clamp(speed*turn*.005,-.04,.04)+Math.sin(s*.71+2)*.009*big+Math.sin(s*1.37)*.004*big)*move,dt);
+  this.rig.heave=this.heave.step((swell+slap*.05)*move,dt);this.rig.yaw=this.yaw.step(Math.sin(s*.53)*.004*big*move,dt);this.rig.slide=this.slide.step(0,dt);this.push=0;
+ }
  /** Sideways shove target in metres (+ is the camera's right); a pusher sets it every frame it pushes. */
  shove(x){this.push=x;}
- reset(){for(const s of [this.pitch,this.roll,this.heave,this.yaw,this.slide])s.reset();this.push=0;this.rig.slide=0;this.lastSpeed=this.lastHeading=null;}
+ reset(){for(const s of [this.pitch,this.roll,this.heave,this.yaw,this.slide])s.reset();this.push=0;this.swell=0;this.rig.slide=0;this.lastSpeed=this.lastHeading=null;}
  /**
   * Place the Jeep under the eye and step the rig. `eye` is the route camera point (no
   * crane or shake), `look` its aim point. Returns the rig offsets for the camera.
   */
  ride(dt,eye,look,{id,rough=1,move=1,hp=100}){
-  const water=WATER_STAGES.has(id);this.visible=!water;this.jeep.root.visible=!water;this.move=move;
+  const water=WATER_STAGES.has(id);this.water=water;this.jeep.root.visible=!water;this.boat.root.visible=water;this.move=move;
+  // A hull floats on soft springs; the Jeep sits on stiff ones.
+  if(water!==this.wasWater){this.wasWater=water;for(const [s,k,c,kw,cw]of [[this.pitch,55,8.5,16,4.4],[this.roll,65,9,13,3.8],[this.heave,110,13,22,5.5]]){s.k=water?kw:k;s.c=water?cw:c;}}
   const heading=Math.atan2(look.x-eye.x,look.z-eye.z);
   if(dt>0){
    const speed=this.lastEye?Math.hypot(eye.x-this.lastEye.x,eye.z-this.lastEye.z)/dt:0,accel=this.lastSpeed===null?0:T.MathUtils.clamp((speed-this.lastSpeed)/dt,-30,30);
    const turn=this.lastHeading===null?0:Math.atan2(Math.sin(heading-this.lastHeading),Math.cos(heading-this.lastHeading))/dt;
    this.lastSpeed=speed;this.lastHeading=heading;
+   if(water)this.float(dt,speed,accel,turn,id,move);else{
    // Washboard and potholes scale with the stage's roughness and with speed.
    this.bump+=dt*Math.min(1,speed/14);const b=this.bump,shake=rough*Math.min(1,speed/20)*move;
    const ground=(Math.sin(b*23)*.6+Math.sin(b*37+1.3)*.3+Math.max(0,Math.sin(b*3.1))**12*2.4)*.018*shake;
@@ -88,14 +111,14 @@ export class CircuitVehicle{
    this.rig.pitch=this.pitch.step(T.MathUtils.clamp(accel*.0035,-.06,.06)*move+Math.sin(b*17.3)*.004*shake,dt);
    this.rig.roll=this.roll.step(T.MathUtils.clamp(speed*turn*.006,-.05,.05)*move+Math.sin(b*13.1+.7)*.005*shake,dt);
    // A shove slides the Jeep and swings its nose with the push.
-   this.rig.heave=this.heave.step(ground,dt);this.rig.yaw=this.yaw.step(-this.push*.055*move,dt);this.rig.slide=this.slide.step(this.push*move,dt);this.push=0;
+   this.rig.heave=this.heave.step(ground,dt);this.rig.yaw=this.yaw.step(-this.push*.055*move,dt);this.rig.slide=this.slide.step(this.push*move,dt);this.push=0;}
   }
   this.lastEye=(this.lastEye||new T.Vector3()).copy(eye);
   if(this.rig.slide){const dx=-Math.cos(heading)*this.rig.slide,dz=Math.sin(heading)*this.rig.slide;eye.x+=dx;eye.z+=dz;look.x+=dx;look.z+=dz;}
   // Jeep forward is -Z: face it down the route, tilted with the rig, its eye on the camera point.
-  const j=this.jeep.root;e.set(this.rig.pitch,heading+Math.PI+this.rig.yaw,this.rig.roll);j.quaternion.setFromEuler(e);
-  j.position.copy(eye).sub(offset.copy(EYE).applyQuaternion(j.quaternion));j.position.y+=this.rig.heave;j.updateMatrixWorld(true);
-  this.jeep.driver.update(dt,this.world.time,this.lastSpeed||0,true);this.damage(hp,dt);
+  const j=water?this.boat.root:this.jeep.root;e.set(this.rig.pitch,heading+Math.PI+this.rig.yaw,this.rig.roll);j.quaternion.setFromEuler(e);
+  j.position.copy(eye).sub(offset.copy(water?BOAT_EYE:EYE).applyQuaternion(j.quaternion));j.position.y+=this.rig.heave;j.updateMatrixWorld(true);
+  if(!water)this.jeep.driver.update(dt,this.world.time,this.lastSpeed||0,true);this.damage(hp,dt);
   return this.rig;
  }
 }
