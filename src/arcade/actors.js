@@ -30,6 +30,8 @@ export class CircuitActors {
  }
  async load(){await this.critters.ready();this.ichthy=await loadIchthy().catch(e=>{console.warn('Ichthyosaur unavailable:',e.message);return null;});}
  // Ground animals push the planting aside as they run through it (world.js reads these).
+ /** A graphics tier (graphics.js TIERS): shared animal models and the ichthyosaur's mesh. */
+ setQuality(t){this.critters.setQuality(t);this.flyers.setQuality?.(t);this.brachio.setQuality?.(t);loadIchthy(t.detail?'ichthy.bin':'ichthy-low.bin').then(m=>{this.ichthy=m;}).catch(()=>{});}
  pushers(){const out=[];for(const a of this.actors.values()){const k=a.e.kind;if(a.dead||!a.c||k==='ptero')continue;out.push({x:a.position.x,z:a.position.z,r:k==='trike'?3.6:k==='galli'?1.8:2.3,s:1});}return out;}
  makeShadow(){const c=document.createElement('canvas');c.width=c.height=64;const x=c.getContext('2d'),g=x.createRadialGradient(32,32,4,32,32,32);g.addColorStop(0,'#000b');g.addColorStop(1,'#0000');x.fillStyle=g;x.fillRect(0,0,64,64);return new T.CanvasTexture(c);}
  reset(){for(const a of this.actors.values())if(a.mesh)disposeProp(a.mesh);this.actors.clear();this.critters.reset({empty:true});this.flyers.reset({empty:true});for(const s of this.shadows)s.visible=false;}

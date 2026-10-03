@@ -2,7 +2,7 @@ import {Circuit,STAGES,project,grade} from './rules.js';
 import {RideRenderer} from './renderer.js';
 import {RideAudio} from './audio.js';
 import {readRecord,saveRecord} from './records.js';
-import {ChaseAudio} from '../chase/audio.js';import {StageAmbience} from './ambience.js';
+import {ChaseAudio} from '../chase/audio.js';import {StageAmbience} from './ambience.js';import {CircuitQuality} from './quality.js';
 // RideAudio keeps the score and UI cues; Pursuit's recorded library supplies the
 // world: gunfire, impacts, engine, wind, and the Rex's voice placed at her head.
 const $=id=>document.getElementById(id),canvas=$('ride'),renderer=new RideRenderer(canvas),audio=new RideAudio(),field=new ChaseAudio(),ambience=new StageAmbience(field);let fieldInit=null;
@@ -92,6 +92,7 @@ $('start').addEventListener('click',start);$('restart').addEventListener('click'
 $('continue').addEventListener('click',()=>{if(game?.continueRun()){showMode('playing');void audio.unlock();unlockField();canvas.focus({preventScroll:true});processEvents();updateHud();}});
 $('focus').addEventListener('click',()=>{if(mode==='playing'){game.activateFocus();processEvents();canvas.focus({preventScroll:true});}});
 $('sound').addEventListener('click',()=>{audio.mute(!audio.muted);if(field.muted!==audio.muted)field.mute();$('sound').textContent=audio.muted?'SOUND OFF':'SOUND ON';$('sound').setAttribute('aria-pressed',String(audio.muted));$('sound').setAttribute('aria-label',audio.muted?'Enable sound':'Mute sound');if(mode==='playing')void audio.unlock();});
+let quality=null;function qualityLabel(){$('quality').textContent=`QUALITY ${quality?.label||'AUTO'}`;}$('quality').onclick=()=>{quality?.cycle();qualityLabel();};
 function motionLabel(){$('motion').textContent=renderer.reduced?'MOTION LOW':'MOTION FULL';$('motion').setAttribute('aria-pressed',String(renderer.reduced));}motionLabel();
 $('motion').addEventListener('click',()=>{renderer.reduced=!renderer.reduced;motionLabel();});
 $('difficulty').addEventListener('change',updateBest);
@@ -120,7 +121,7 @@ function step(dt){
  announcementTime=Math.max(0,announcementTime-dt);radioTime=Math.max(0,radioTime-dt);$('announcement').style.opacity=String(Math.min(1,announcementTime*2));$('radio').style.opacity=String(Math.min(1,radioTime));
 }
 let hudTick=0;
-function frame(now){const dt=Math.min(.1,(now-last)/1000);last=now;
+function frame(now){const raw=now-last,dt=Math.min(.1,raw/1000);last=now;if(quality&&!frozen&&!document.hidden&&quality.sample(raw,mode==='playing'))qualityLabel();
  if(!frozen){if(mode==='menu'&&!document.hidden)clock+=dt;if(mode==='playing'){accumulator+=dt;while(accumulator>=1/60){step(1/60);accumulator-=1/60;}hudTick+=dt;if(hudTick>.08){updateHud();hudTick=0;}}}
  renderer.render(game,aim,{menu:mode==='menu',time:game?.time??clock});bossCues();requestAnimationFrame(frame);
 }
@@ -128,11 +129,15 @@ requestAnimationFrame(frame);
 async function load(){
  try{await renderer.load(p=>$('load-status').textContent=`Preparing the island · ${Math.round(p*100)}%`);ready=true;
   // A leaping ichthyosaur throws a ring of spray where it breaks the surface.
+  // Tests pin High (or ?quality=) so captures and timings stay comparable.
+  quality=new CircuitQuality(renderer,{fixed:test?new URLSearchParams(location.search).get('quality')||'high':null});quality.apply();qualityLabel();
   ambience.world=renderer.world;renderer.actors.effects=renderer.effects;renderer.actors.onSplash=(at,strength)=>{field.splash('step',at,strength);for(let i=0;i<8;i++){const r=i/8*Math.PI*2;renderer.effects.spume(at.clone().setY(at.y-.2),at.clone().set(Math.cos(r)*2.4*strength,3.4*strength+Math.random(),Math.sin(r)*2.4*strength),{size:1.1,opacity:.24,life:1.5});}};
   $('start').disabled=false;$('start-label').textContent='START THE RIDE';$('load-status').textContent='';updateBest();void renderer.loadBosses();}
  catch{$('load-status').textContent='The island could not load. Check your connection and reload this page.';$('start-label').textContent='RELOAD TO RETRY';$('start').disabled=false;$('start').onclick=()=>location.reload();}
 }void load();
 window.lostCircuit={get ready(){return ready;},get mode(){return mode;},snapshot:()=>game?.snapshot(),get audioState(){return audio.context?.state||'uninitialized';},get art(){return Object.fromEntries(Object.entries(renderer.images).map(([key,im])=>[key,{width:im.width,height:im.height}]));}};
+// Object.assign would copy a getter's current value; quality is created after loading.
+if(test)Object.defineProperty(window.lostCircuit,'quality',{get:()=>quality});
 if(test)Object.assign(window.lostCircuit,{getGame:()=>game,get renderer(){return renderer;},get ambience(){return ambience;},project:e=>renderer.project(e,innerWidth/innerHeight),bossesReady:()=>renderer.loadBosses().then(()=>renderer.bossRex.ready),diagnostics:()=>({bosses:renderer.bossRex?.diagnostics(),weapon:renderer.weapon.diagnostics(),camera:renderer.world.camera.position.toArray(),actors:renderer.actors.diagnostics(),draws:renderer.world.renderer.info.render.calls,triangles:renderer.world.renderer.info.render.triangles}),freeze:v=>{frozen=v;},step:(seconds,autoplay=false,live=false)=>{
  // live: sync the scene every substep, as real frames do (modeled bosses integrate motion per frame).
  for(let t=0;t<seconds&&mode==='playing';t+=1/60){if(live&&!autoplay)renderer.sync(game,aim);if(autoplay){renderer.sync(game,aim);const target=game.entities.find(e=>!e.dead&&e.age>.2&&renderer.project(e)?.visible!==false);if(target){const p=renderer.project(target,innerWidth/innerHeight);aim.x=p.hx;aim.y=p.hy;game.shoot(aim.x,aim.y,innerWidth/innerHeight);}if(game.focus>=100)game.activateFocus();}step(1/60);}updateHud();renderer.render(game,aim,{time:game.time});},seek:(id,at=0)=>{const idx=game.path.findIndex(n=>STAGES[n].id===id);if(idx<0)throw Error('Stage is not on route');game.stageIndex=idx;game.stageTime=at;game.travel=at*(id==='manor'?14:id==='fault'?27:24);renderer.actors.reset();game.phase='ride';game.phaseTime=at;game.entities=[];game.spawnTimer=.2;game.bossSpawned=false;game.bridgeBroken=false;stageChanged();updateHud();},setAim:(x,y)=>{aim.x=x;aim.y=y;},render:()=>renderer.render(game,aim,{time:game?.time??0,menu:mode==='menu'})});

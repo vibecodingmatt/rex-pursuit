@@ -16,8 +16,8 @@ function parse(buffer){
  g.setAttribute('aux',new T.BufferAttribute(aux,4,true));g.setIndex(new T.BufferAttribute(index,1));
  g.computeBoundingSphere();g.boundingSphere.radius+=.6;g.userData.shared=true;return{geometry:g,header};
 }
-let model=null;
-export function loadIchthy(file='ichthy.bin'){return model??=fetch('./models/'+file).then(r=>{if(!r.ok)throw Error(file+' '+r.status);return r.arrayBuffer();}).then(parse);}
+const models={};
+export function loadIchthy(file='ichthy.bin'){return models[file]??=fetch('./models/'+file).then(r=>{if(!r.ok)throw Error(file+' '+r.status);return r.arrayBuffer();}).then(parse);}
 
 const POSE=`
  attribute vec4 aux;uniform float uSwim,uAmp,uStroke;varying vec4 vAux;varying vec3 vModel,vModelN;
