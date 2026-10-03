@@ -22,6 +22,7 @@ assert.equal(unattended.status,'continue');const oldTime=unattended.time;unatten
 unattended.invulnerable=0;unattended.damage(1000);assert(unattended.continueRun());unattended.invulnerable=0;unattended.damage(1000);assert.equal(unattended.continueRun(),false);
 assert.notEqual(recordKey('classic','arcade'),recordKey('extended','arcade'));assert.notEqual(recordKey('classic','tour'),recordKey('classic','arcade'));assert.notEqual(recordKey('classic','arcade',true),recordKey('classic','arcade',false));
 const g=new Circuit();g.drain();const boss=g.spawn('rex',{boss:true});boss.age=2;g.pose(boss);const at=project(boss,16/9);for(let i=0;i<9;i++){g.cooldown=0;g.shoot(at.hx,at.hy,16/9);}assert(g.drain().some(e=>e.type==='stagger'));assert.equal(g.hp,100,'Interrupting a boss must not inflict its attack');
+{const g=new Circuit();g.phase='ride';g.drain();const s=g.spawn('spit');s.age=s.life-.01;g.update(.02);const ev=g.drain();assert(ev.some(e=>e.type==='splat'&&e.id===s.id),'Unshot spit splats the windshield');assert(ev.some(e=>e.type==='damage'),'and it still hurts');}
 const miss=new Circuit();assert(miss.shoot(0,0));assert.equal(miss.hits,0);assert.equal(miss.shoot(0,0),false,'Fire cadence cannot be bypassed');
 for(const slowed of [false,true]){
  const ride=new Circuit({route:'classic'});ride.stageIndex=2;ride.phase='ride';ride.stageTime=18.8;ride.travel=400;ride.focusTime=slowed?5:0;ride.drain();

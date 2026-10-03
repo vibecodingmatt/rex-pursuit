@@ -173,7 +173,7 @@ export class Circuit {
    if(e.age<0)continue;this.pose(e);
    if(e.boss){if(Math.floor(e.age/6.4)>oldCycle){this.damage(e.kind==='mosa'?25:19,e);e.weakHits=0;this.emit('attack',{kind:e.kind,id:e.id});}}
    else if(e.age>=e.life){
-    e.dead=true;e.fade=0;if(!['supply','barrel','galli'].includes(e.kind))this.damage(e.kind==='rock'?14:9,e);
+    e.dead=true;e.fade=0;if(e.kind==='spit')this.emit('splat',{id:e.id,x:e.x,y:e.y});if(!['supply','barrel','galli'].includes(e.kind))this.damage(e.kind==='rock'?14:9,e);
    }
    if(e.kind==='dilo'&&!e.boss&&!e.dead&&e.age>3&&!e.spit){e.spit=true;this.spawn('spit',{x:e.x});this.emit('spit',{x:e.x,y:e.y});}
   }

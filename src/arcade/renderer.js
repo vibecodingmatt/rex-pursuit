@@ -40,6 +40,7 @@ export class RideRenderer {
   if(e.type==='stagger'){this.shake=.3;this.labels.push({x:e.x*this.w,y:e.y*this.h,text:'ATTACK BROKEN',life:1.3,color:'#9ff8e0'});}
   if(e.type==='supply'){const a=this.actors?.actors.get(e.id);if(a)this.impacts?.kill({kind:'supply'},a.position.clone());else this.burst(e.x,e.y,'#a8ffcb');this.labels.push({x:e.x*this.w,y:e.y*this.h,text:'REPAIR +22',life:1.2,color:'#a8ffcb'});}
   if(e.type==='bridge')this.shake=1.2;
+  if(e.type==='splat'){this.impacts?.splat(e,this.actors?.actors.get(e.id)?.position);this.shake=Math.max(this.shake,.35);}
  }
  update(dt){this.age+=dt;this.effects?.update(dt,0);this.impacts?.update(dt);this.heat=Math.max(0,this.heat-dt*1.7);if(this.confirm&&(this.confirm.life-=dt)<=0)this.confirm=null;this.shake=Math.max(0,this.shake-dt);this.flash=Math.max(0,this.flash-dt);this.recoil=Math.max(0,this.recoil-dt*9);this.hitMark=Math.max(0,this.hitMark-dt);
   for(const p of this.particles){p.x+=p.vx*dt;p.y+=p.vy*dt;p.vy+=150*dt;p.life-=dt;}this.particles=this.particles.filter(p=>p.life>0);

@@ -1,6 +1,7 @@
 import * as T from 'three';
 import {groundAt} from './world.js';
 import {createScreenBlood} from '../chase/screen-blood.js';
+import {createSpitSmear} from './smear.js';
 
 // Every shot lands in the world. An HDR tracer leaves the real muzzle; the round's path is
 // marched to what it struck, and the strike matches the material: dirt kicks and pebbles on
@@ -13,7 +14,7 @@ const SCALE={raptor:1.4,dilo:1.6,galli:1.6,trike:2.3,ptero:1.8,ichthy:2};
 const rnd=Math.random,ray=new T.Raycaster(),dir=new T.Vector3(),hit=new T.Vector3(),v=new T.Vector3(),tmp=new T.Vector3(),ndc=new T.Vector2();
 
 export class CircuitImpacts{
- constructor(renderer,{reducedMotion=false}={}){this.r=renderer;this.blood=createScreenBlood(renderer.world.camera,{reducedMotion});}
+ constructor(renderer,{reducedMotion=false}={}){this.r=renderer;this.blood=createScreenBlood(renderer.world.camera,{reducedMotion});this.smear=createSpitSmear({reducedMotion});}
  get fx(){return this.r.effects;}
  /** The camera ray through screen point (x, y in 0-1). */
  aim(x,y){const cam=this.r.world.camera;ndc.set(x*2-1,1-y*2);ray.setFromCamera(ndc,cam);return ray.ray;}
@@ -74,7 +75,9 @@ export class CircuitImpacts{
   fx.burst(p,true);const d=p.distanceTo(this.r.world.camera.position);
   if(d<9)this.blood.splash(p,{closeContact:d<5,amount:e.boss?1.4:1});
  }
- update(dt){this.blood.update(dt);}
- setQuality(t){this.blood.setQuality(t);}
- reset(){this.blood.reset();}
+ /** Spit that got through lands on the glass where the glob was heading. */
+ splat(e,p){const cam=this.r.world.camera;let x=e.x,y=e.y;if(p){v.copy(p).project(cam);if(v.z<1){x=(v.x+1)/2;y=(1-v.y)/2;}}this.smear.splat(x,y);}
+ update(dt){this.blood.update(dt);this.smear.update(dt);}
+ setQuality(t){this.blood.setQuality(t);this.smear.setQuality(t);}
+ reset(){this.blood.reset();this.smear.reset();}
 }
