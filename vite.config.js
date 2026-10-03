@@ -8,5 +8,5 @@ export default defineConfig({
   // Source serving and the Vite dev server retain the authoring shortcuts.
   transformIndexHtml(html){return html.replace(/<a\b[^>]*\bdata-dev-only\b[^>]*>[\s\S]*?<\/a>/g,'');}
  }],
- build:{target:'es2022',chunkSizeWarningLimit:700,rollupOptions:{input:{chase:'index.html',breach:'breach.html',ravine:'ravine.html',lab:'model-lab.html',creatures:'creature-lab.html',sounds:'sound-library.html'}}}
+ build:{target:'es2022',chunkSizeWarningLimit:700,rollupOptions:{input:{chase:'index.html',breach:'breach.html',ravine:'ravine.html',arcade:'arcade.html',lab:'model-lab.html',creatures:'creature-lab.html',sounds:'sound-library.html'}}}
 });

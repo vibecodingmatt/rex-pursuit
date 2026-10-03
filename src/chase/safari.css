@@ -1,4 +1,8 @@
 /* Safari uses the existing typography, amber instrumentation and forest glass. */
+/* Standalone arcade entry: its art and code load only after navigation. */
+#arcade-menu{grid-column:1/-1;display:flex;align-items:center;justify-content:space-between;gap:12px;min-height:53px;padding:10px 13px;border:1px solid #a3d7cd75;background:linear-gradient(110deg,#263f3bec,#101e1ceb);color:#d9f0df;text-decoration:none;box-shadow:inset 3px 0 #9cceba}
+#arcade-menu strong{display:block;font-size:12px;letter-spacing:1.2px}#arcade-menu small{display:block;margin-top:5px;font-size:8px;letter-spacing:1px;color:#c0d0b8}#arcade-menu b{font-size:9px;letter-spacing:.8px;white-space:nowrap}#arcade-menu:hover{background:#314c40}#arcade-menu:focus-visible{outline:2px solid #edce9a;outline-offset:2px}
+@media(max-height:570px) and (orientation:landscape){#arcade-menu{min-height:42px;padding:7px 10px}#arcade-menu small{font-size:7px;margin-top:3px}}
 .mode-picker{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));width:min(450px,100%);gap:6px;margin:16px 0 0}
 .mode-picker button{min-width:0;min-height:48px;text-align:left;padding:9px 8px;border:1px solid #c3cdb235;background:#09160ddd;letter-spacing:.75px;font-size:9px;font-weight:700;text-decoration:none;color:inherit}
 .mode-picker button small{display:block;margin-top:4px;color:#a4b49a;font-size:8px;letter-spacing:.2px;font-weight:400}
