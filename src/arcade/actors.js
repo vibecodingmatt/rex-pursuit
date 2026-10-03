@@ -20,7 +20,7 @@ export class CircuitActors {
  constructor(world){
   this.world=world;this.scene=world.scene;this.actors=new Map();this.lastTime=0;this.stage='';
   const jungle={chunks:[],groundAt:(x,z)=>groundAt(x,z,this.world.id)};
-  this.critters=createCritters(this.scene,{jungle,capacities:{compy:1,lizard:1,galli:7,raptor:8,dilophosaurus:6,triceratops:5,parasaurolophus:1,pachycephalosaurus:1,stegosaurus:1}});
+  this.critters=createCritters(this.scene,{jungle,capacities:{compy:1,lizard:1,galli:26,raptor:10,dilophosaurus:6,triceratops:5,parasaurolophus:1,pachycephalosaurus:1,stegosaurus:1}});
   this.flyers=createFlyers(this.scene,{jungle});this.critters.reset({empty:true});this.flyers.reset({empty:true});
   this.brachio=createBrachio(this.scene,{jungle});
   this.basis=new T.Matrix4();this.roll=new T.Quaternion();this.shadowTexture=this.makeShadow();this.shadows=[];this.corpses=[];
@@ -61,16 +61,16 @@ export class CircuitActors {
   let shadow=0;
   for(const e of game.entities){
    if(e.boss||e.age<0)continue;let a=this.actors.get(e.id);
-   if(!a){const kind=species[e.kind],c=kind?this.critters.huntSpawn(kind,Math.sign(e.lane-.5),30):e.kind==='ptero'?this.flyers.huntSpawn('pteranodon',Math.sign(e.lane-.5)):null;a={e,c,mesh:c?null:this.makeProp(e.kind),position:new T.Vector3(),head:new T.Vector3(),yaw:0,dead:false};this.actors.set(e.id,a);if(c&&kind)c.scale=sizes[e.kind];}
+   if(!a){const kind=species[e.kind],c=kind?this.critters.huntSpawn(kind,Math.sign(e.lane-.5),30):e.kind==='ptero'?this.flyers.huntSpawn('pteranodon',Math.sign(e.lane-.5)):null;a={e,c,mesh:c?null:this.makeProp(e.kind),position:new T.Vector3(),head:new T.Vector3(),yaw:0,dead:false,burst:!!e.ambush};this.actors.set(e.id,a);if(c&&kind)c.scale=sizes[e.kind];}
    const age=Math.max(0,e.age),life=e.life,side=e.lane<.5?-1:1,id=game.stage.id,cruise=id==='manor'?14:id==='fault'?27:24;
    const animal=!!species[e.kind],windup=life-.9,charge=clamp((age-windup)/.9,0,1),parallel=40-age*2.5;
    // Crates and barrels stand still beside the track; everything else closes on the vehicle.
-   const fixed=e.kind==='supply'||e.kind==='barrel',relative=animal?T.MathUtils.lerp(40-Math.min(age,windup)*2.5,3,charge):fixed?cruise*(life-age)+5:(cruise+6)*(life-age)+5;
+   const fixed=e.kind==='supply'||e.kind==='barrel',relative=animal?T.MathUtils.lerp((e.ambush?17:40)-Math.min(age,windup)*2.5,3,charge):fixed?cruise*(life-age)+5:(cruise+6)*(life-age)+5;
    const z=e.spawnTravel+cruise*age+relative;
    // Pace the vehicle out of roadside cover, then turn into a short, committed
    // charge. Ground-relative stride uses the derivative of this actual path.
    const enter=T.MathUtils.smoothstep(age,0,windup),cross=e.kind==='galli';
-   const width=(id==='manor'?7.5:animal?32:16)*Math.min(1,this.world.camera.aspect*1.25),span=cross?width*1.75:width-1.6;
+   const width=(e.ambush?8:id==='manor'?7.5:animal?32:16)*Math.min(1,this.world.camera.aspect*1.25),span=cross?width*1.75:width-1.6;
    const off=fixed?side*(2.4+e.seed%1*1.8):side*(width-span*enter)+Math.sin(age*2+e.seed)*.28;
    const lateral=-side*span*6*clamp(age/windup,0,1)*(1-clamp(age/windup,0,1))/windup;
    const forward=animal?(age<windup?cruise-2.5:cruise-(40-windup*2.5-3)/.9):-6;
@@ -78,6 +78,8 @@ export class CircuitActors {
    if(animal){const from=Math.atan2(lateral,cruise-2.5),to=Math.atan2(-side*.1,Math.min(-3,cruise-(40-windup*2.5-3)/.9)),turn=T.MathUtils.smoothstep(age,windup-.3,windup+.2);a.yaw=from+Math.atan2(Math.sin(to-from),Math.cos(to-from))*turn+routeHeading(z,id);}
    if(fixed)a.yaw=routeHeading(z,id)+e.seed*.3-.9;
    a.position.set(x,y,z);let lift=0;
+   // An ambusher bursts out of the planting: leaves, twigs and dust where it breaks cover.
+   if(a.burst&&this.effects){a.burst=false;for(let i=0;i<34;i++)this.effects.speck(v.set(x,y+.6+Math.random()*1.4,z),p.set((Math.random()-.5)*5,1+Math.random()*3,(Math.random()-.5)*5),i%3?[.08,.2,.04]:[.16,.11,.05],.03+Math.random()*.04,.7+Math.random()*.5);this.effects.groundDust(v.set(x,y+.2,z),p.set(0,1,0),{size:.9,growth:3,opacity:.45,life:1.4});}
    // Pteranodons cruise high, then dive to eye level at the vehicle.
    if(e.kind==='ptero')lift=T.MathUtils.lerp(6.2+Math.sin(age*1.3+e.seed)*1.2,this.world.camera.position.y-groundAt(x,z,id)+.3,T.MathUtils.smoothstep(age,life-1.35,life-.35))-(a.flinch||0)**2*.6;
    if(e.kind==='ichthy')lift=a.mesh?.userData.swim?leap(age,life)[0]:-.65+Math.sin(clamp(age/life,0,1)*Math.PI)*3.5;

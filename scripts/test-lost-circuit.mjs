@@ -1,10 +1,14 @@
 import assert from 'node:assert/strict';
-import {Circuit,project,recordKey,grade} from '../src/arcade/rules.js';
+import {Circuit,project,recordKey,grade,BEATS,STAGES} from '../src/arcade/rules.js';
 import {readRecord,saveRecord} from '../src/arcade/records.js';
+for(const st of STAGES){assert.equal(BEATS[st.id]?.length,3,`${st.id}: three beat sheets`);for(const sheet of BEATS[st.id])sheet.forEach((b,i)=>assert(i===0||b[0]>sheet[i-1][0],`${st.id}: beats in order`));}
+{const run=seed=>{const g=new Circuit({route:'classic',seed});const beats=[];for(let i=0;i<60*40&&g.stageIndex===0;i++){g.update(1/60);for(const e of g.drain())if(e.type==='beat')beats.push(e.pattern);}return{variant:g.variant,beats};};
+ const a=run(94),b=run(94);assert.equal(a.variant,b.variant,'A seed replays the same beat sheet');assert.deepEqual(a.beats,b.beats);assert(a.beats.length>=3,'The gates stage plays its beats');
+ assert(new Set([94,1234,98765,5551,31337,2024,777,4242,123456].map(s=>run(s).variant)).size>1,'Seeds vary the beat sheet');}
 for(const fps of [30,60,120])for(const route of ['classic','extended'])for(const aspect of [16/9,390/844]){
  const g=new Circuit({route});let limit=0,maxLive=0;const stages=new Set();
  while(g.status==='playing'&&limit<900*fps){
-  g.update(1/fps);stages.add(g.stage.id);maxLive=Math.max(maxLive,g.entities.length);
+  g.update(1/fps);stages.add(g.stage.id);maxLive=Math.max(maxLive,g.entities.filter(e=>e.kind!=='galli').length);
   const e=g.entities.find(e=>!e.dead&&e.age>.2);
   if(e){const p=project(e,aspect);assert(p.hx>0&&p.hx<1,'Head target remains on screen');g.shoot(p.hx,p.hy,aspect);}
   if(g.focus>=100)g.activateFocus();g.drain();limit++;

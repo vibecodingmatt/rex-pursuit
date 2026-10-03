@@ -36,6 +36,7 @@ function processEvents(){for(const event of game.drain()){
  if(event.type==='clear'){if(game.clearHold>3.5)clearCard=2.1;else announce('SECTOR CLEAR','Still in one piece.','INTEGRITY +12 · SECTOR BONUS +1,500',3);}
  if(event.type==='bridge'){announce('HOLD ON','There goes the bridge.','SHOOT THE FALLING DEBRIS',2);radio('Brace! Clear the debris. We are jumping the gap!');}
  if(event.type==='focus')radio('Overdrive online. Five seconds. Make them count.');
+ if(event.type==='beat'&&event.text)radio(event.text);
  if(event.type==='threat')radio(`Raptors on the ${event.side}! They are keeping pace. Watch for the turn!`);
  if(event.type==='loss')showContinue();
  if(event.type==='win')showResult(true);
@@ -48,6 +49,8 @@ function fieldEvent(e){
  if(e.type==='stagger'){hitStop=.05;if(field.context)field.groundImpact(1);}
  if(e.type==='damage')renderer.vehicle?.hit(renderer.actors?.actors.get(e.id)?.position||null,Math.min(1.6,.4+e.amount/14));
  if(!field.context)return;
+ // Each beat is announced by its animals, from their side of the track.
+ if(e.type==='beat'){const cam=renderer.world.camera.position,at={x:cam.x+e.side*14,y:cam.y,z:cam.z+28},name={raptor:'raptor',dilo:'dilophosaurus',galli:'gallimimus',trike:'triceratops'}[e.kind];if(e.kind==='ptero')field.screech(at);else if(e.pattern==='stampede')field.herd(at);else if(name)field.call(name,at);}
  if(e.type==='shot'){field.gun();if(e.hit){const wound=renderer.lastWound,actor=renderer.actors?.actors.get(e.id),at=wound?.point||actor?.position;if(at)field.hit('flesh',at.distanceTo(renderer.world.camera.position),at);renderer.lastWound=null;}}
  if(e.type==='blast')field.impact(true);
 }

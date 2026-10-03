@@ -8,6 +8,19 @@ export const STAGES = [
  {id:'manor',name:'Do not turn out the lights',era:'THE WORLD DETOUR',location:'GLASS CONSERVATORY · 23:09',bg:3,duration:30,boss:'indoraptor',roster:['raptor','dilo'],radio:'On the roof. No, inside. Keep your light on it.',setpiece:'blackout'},
  {id:'visitor',name:'When giants ruled',era:'THE LAST EXHIBIT',location:'VISITOR CENTER · 00:01',bg:6,duration:30,boss:'twins',roster:['raptor','dilo','ptero'],radio:'Two signatures. One exit. Make every shot count.',setpiece:'finale'},
 ];
+// The director: each stage runs one of three seeded beat sheets ([stage seconds, pattern,
+// kind, count]); the roster timer only fills the gaps. Every beat is called on the radio and
+// telegraphed by motion before contact. The broken bridge (fault, 18-23 s) stays air-only.
+export const BEATS={
+ gates:[[[5,'flank','raptor',3],[11,'stampede','galli',16],[18,'ambush','raptor'],[24,'pair','dilo',2]],[[4,'ambush','raptor'],[9,'pair','dilo',2],[15,'stampede','galli',18],[22,'flank','raptor',4]],[[6,'stampede','galli',14],[12,'flank','raptor',3],[19,'pair','dilo',2],[25,'ambush','raptor']]],
+ river:[[[6,'formation','ptero',3],[14,'pair','ichthy',2],[22,'formation','ptero',4]],[[5,'pair','ichthy',2],[12,'formation','ptero',3],[20,'pair','ichthy',2]],[[8,'formation','ptero',4],[16,'pair','ichthy',2],[24,'formation','ptero',3]]],
+ fault:[[[5,'flank','raptor',3],[12,'pair','trike',1],[19,'formation','ptero',3],[27,'ambush','raptor']],[[6,'formation','ptero',3],[12,'flank','raptor',2],[20,'formation','ptero',4],[29,'pair','trike',1]],[[4,'pair','trike',1],[10,'ambush','raptor'],[18.5,'formation','ptero',3],[26,'flank','raptor',3]]],
+ hybrid:[[[5,'ambush','raptor'],[11,'formation','ptero',3],[18,'flank','raptor',3]],[[6,'flank','raptor',3],[12,'pair','dilo',2],[19,'formation','ptero',3]],[[4,'formation','ptero',3],[10,'ambush','raptor'],[17,'pair','dilo',2]]],
+ lagoon:[[[5,'pair','ichthy',2],[12,'formation','ptero',3],[19,'pair','ichthy',3]],[[6,'formation','ptero',3],[13,'pair','ichthy',2],[20,'formation','ptero',3]],[[4,'pair','ichthy',3],[11,'formation','ptero',4],[18,'pair','ichthy',2]]],
+ manor:[[[5,'ambush','raptor'],[11,'pair','dilo',2],[18,'flank','raptor',3]],[[6,'flank','raptor',2],[12,'ambush','raptor'],[19,'pair','dilo',2]],[[4,'pair','dilo',2],[10,'flank','raptor',3],[17,'ambush','raptor']]],
+ visitor:[[[5,'flank','raptor',3],[11,'formation','ptero',3],[17,'ambush','raptor']],[[4,'ambush','raptor'],[10,'pair','dilo',2],[16,'flank','raptor',4]],[[6,'formation','ptero',3],[12,'flank','raptor',3],[18,'pair','dilo',2]]],
+};
+const CALLS={flank:'Pack on both sides! They are flanking us!',stampede:'Stampede crossing {side}! Keep moving!',formation:'Flyers diving in formation, high!',ambush:'Movement in the brush, {side}!',pair:{dilo:'Spitters ahead. Watch the glass!',ichthy:'Something big under the surface!',trike:'Three horns on the road! Stop that charge!'}};
 export const TYPES = {
  rex:{cell:0,hp:260,points:6000,head:[.26,.24],size:.65},raptor:{cell:1,hp:5,points:200,head:[.54,.22],size:.29},
  dilo:{cell:2,hp:6,points:300,head:[.48,.38],size:.31},ptero:{cell:3,hp:3,points:180,head:[.64,.47],size:.29},
@@ -31,7 +44,7 @@ export class Circuit {
   this.route=route;this.difficulty=difficulty;this.rng=seed;this.path=route==='classic'?[0,1,2,6]:[0,1,2,3,4,5,6];
   this.status='playing';this.stageIndex=0;this.stageTime=0;this.time=0;this.phase='intro';this.phaseTime=0;this.hp=100;this.score=0;
   this.combo=0;this.maxCombo=0;this.chainTime=0;this.shots=0;this.hits=0;this.kills=0;this.bosses=0;this.credits=2;this.continues=0;
-  this.entities=[];this.events=[];this.serial=0;this.spawnTimer=2.5;this.hazardTimer=6;this.supplyTimer=11;this.travel=0;this.speed=0;
+  this.entities=[];this.events=[];this.serial=0;this.spawnTimer=2.5;this.beats=null;this.hazardTimer=6;this.supplyTimer=11;this.travel=0;this.speed=0;
   this.cooldown=0;this.focus=0;this.focusTime=0;this.invulnerable=0;this.bossSpawned=false;this.bridgeBroken=false;this.wave=0;
   this.emit('stage',{stage:this.stage.id});
  }
@@ -40,6 +53,16 @@ export class Circuit {
  random(){this.rng=(Math.imul(this.rng,1664525)+1013904223)>>>0;return this.rng/4294967296;}
  emit(type,data={}){this.events.push({type,...data});}
  drain(){return this.events.splice(0);}
+ /** One authored encounter; see BEATS. */
+ beat(pattern,kind,count=1){
+  const side=this.random()<.5?-1:1,named=side<0?'on the right':'on the left',call=CALLS[pattern];
+  if(pattern==='flank')for(let i=0;i<count;i++)this.spawn(kind,{x:.5+(i%2?side:-side)*(.24+.07*(i>>1)),delay:i*.35});
+  else if(pattern==='stampede')for(let i=0;i<count;i++)this.spawn('galli',{x:.5+side*(.12+this.random()*.32),delay:i*.13});
+  else if(pattern==='formation')for(let i=0;i<count;i++)this.spawn('ptero',{x:.5+(i-(count-1)/2)*.13,delay:i*.12});
+  else if(pattern==='ambush'){const e=this.spawn(kind,{x:.5+side*.3});e.ambush=true;e.life=2.4;}
+  else for(let i=0;i<count;i++)this.spawn(kind,{delay:i*.45});
+  this.emit('beat',{pattern,kind,side,text:(typeof call==='string'?call:call?.[kind]||'').replace('{side}',named)});
+ }
  spawn(kind,{boss=false,x,delay=0}={}){
   const def=TYPES[kind],side=this.random()<.5?-1:1;
   const e={id:++this.serial,kind,boss,hp:boss?(kind==='trike'?180:def.hp):def.hp,maxHp:boss?(kind==='trike'?180:def.hp):def.hp,
@@ -124,8 +147,10 @@ export class Circuit {
   if(this.phase==='intro'&&this.phaseTime>=3){this.phase='ride';this.phaseTime=0;}
   if(this.phase==='ride'){
    this.stageTime+=dt;this.spawnTimer-=dt*pace;this.hazardTimer-=dt*pace;this.supplyTimer-=dt;
+   if(!this.beats){const sheet=BEATS[this.stage.id]||[[]];this.variant=Math.floor(this.random()*sheet.length);this.beats=sheet[this.variant].filter(b=>b[0]>=this.stageTime-.5);}
+   while(this.beats.length&&this.beats[0][0]<=this.stageTime)this.beat(...this.beats.shift().slice(1));
    if(this.spawnTimer<=0&&this.entities.filter(e=>!e.dead).length<8){
-    const roster=this.stage.id==='fault'&&this.stageTime>18&&this.stageTime<23?['ptero']:this.stage.roster,arrival=this.spawn(roster[this.wave%roster.length]);this.wave++;this.spawnTimer=1.4+this.random()*.6;
+    const roster=this.stage.id==='fault'&&this.stageTime>18&&this.stageTime<23?['ptero']:this.stage.roster,arrival=this.spawn(roster[this.wave%roster.length]);this.wave++;this.spawnTimer=2+this.random()*.9;
     if(arrival.kind==='raptor'&&this.wave%3===1)this.emit('threat',{side:arrival.lane<.5?'right':'left'});
     if(this.stageTime>15&&this.wave%3===0)this.spawn(roster[0],{delay:.4});
    }
@@ -157,7 +182,7 @@ export class Circuit {
   if(this.phase==='boss'&&this.entities.every(e=>e.dead)&&this.phaseTime>1.5){this.phase='clear';this.phaseTime=0;this.hp=Math.min(100,this.hp+12);this.score+=1500;this.emit('clear');}
   if(this.phase==='clear'&&this.phaseTime>this.clearHold){
    if(this.stageIndex===this.path.length-1)this.finish();
-   else{this.stageIndex++;this.stageTime=0;this.travel=0;this.phase='intro';this.phaseTime=0;this.entities=[];this.spawnTimer=1;this.hazardTimer=5;this.supplyTimer=9;this.bossSpawned=false;this.bridgeBroken=false;this.emit('stage',{stage:this.stage.id});}
+   else{this.stageIndex++;this.stageTime=0;this.travel=0;this.phase='intro';this.phaseTime=0;this.entities=[];this.spawnTimer=1;this.beats=null;this.hazardTimer=5;this.supplyTimer=9;this.bossSpawned=false;this.bridgeBroken=false;this.emit('stage',{stage:this.stage.id});}
   }
  }
  snapshot(){return{status:this.status,phase:this.phase,stage:this.stage.id,time:this.time,hp:this.hp,score:this.score,shots:this.shots,hits:this.hits,combo:this.combo,focus:this.focus,continues:this.continues,entities:this.entities.map(e=>({...e}))};}
