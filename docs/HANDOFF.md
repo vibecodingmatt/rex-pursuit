@@ -1,5 +1,16 @@
 # Rex: Pursuit handoff
 
+## Arcade A8, through the gates (2026-10-03, local)
+
+- A8 shipped locally on `feature/lost-circuit-arcade` in three commits: the gate (`6f8a6da`), the fences (`876a742`) and the Triceratops boss (`a9d694a`). New `src/arcade/gate.js`, `sparks.js` and `boss-trike.js`; the [roadmap's progress log](ARCADE-ROADMAP.md#progress-log) lists what changed.
+- The gate's timber is Poly Haven's CC0 Weathered Brown Planks (1K diffuse and normal, `public/textures/arcade/gate-planks-*.jpg`, provenance in `public/models/arcade-gates.source.json`).
+- The Triceratops fight now reverses the Jeep like the Rex fights (`DRIVE` trike -6), so the clear phase holds 5 s and the camera cranes up over her body. Her horn lock moves the camera sideways through `vehicle.shove`; low motion scales the slide and swing to zero.
+- Performance (headless, GPU-synced 10th percentile against A7's end `9826662`, spawns cleared): the fence, boss, hybrid, river and manor views are within 0.4 ms of A7, inside headless noise. In-page toggles put the whole gate at about 0.2 ms. The boss view adds 30 draw calls and 0.3M triangles (the hero sculpt and its shadow). The torch light borrows practical 0 instead of adding a light to every program.
+- Before any A/B, check what is listening on 5199. A stale A2 `serve-old` from an earlier session held the port and served a pre-A2 arcade (no Jeep), which made A8 look a millisecond slower everywhere. `Get-NetTCPConnection -LocalPort 5199` names the owner.
+- Traps found (in the [arcade reference](../.agents/skills/rex-pursuit-maintainer/references/lost-circuit.md)): a light under a hidden group recompiles every material when it appears; the rules' `attack` resets to 0 exactly when an attack lands, so poses must carry through on the boss's own timer; debug-camera captures must read the canvas back in the same task.
+- Focused tools in ignored `art/review/arcade-a8/`: `gate.cjs` (the swing, desktop and portrait), `fence.cjs` and `fence-close.cjs` (the cut span and sparks; the close one uses a debug camera), `trike.cjs` (the boss cycle, lock, back-off and fall; pass `-portrait`), `timing.cjs` with `serve-old.mjs` and `old-arcade/` (A7's end, `9826662`), and `edit.mjs` (exact-string replacements; there is no python here).
+- The user hasn't seen A8 yet. Nothing has been pushed.
+
 ## Arcade A5, light and air (2026-10-03, local)
 
 - A5 shipped locally on `feature/lost-circuit-arcade`. `src/arcade/light.js` owns each stage's look (`STAGE_LOOKS`), the fog chunk, shadow fit, canopy strip, practical lamps, horizon and rim light; `src/arcade/air.js` owns motes, leaves, insects, flocks, gusts and plant push. `world.js` calls both from `setStage` and `sync`. The [roadmap's progress log](ARCADE-ROADMAP.md#progress-log) lists what changed.

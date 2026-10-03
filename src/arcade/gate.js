@@ -6,7 +6,9 @@ import {mergeGeometries} from 'three/addons/utils/BufferGeometryUtils.js';
 // The doors are closed when the stage opens and swing away from the Jeep as it
 // approaches; their angle is a function of the camera's distance, so seeking and
 // Overdrive cannot desynchronise them. Four torches burn on the towers: shader
-// flames, rising embers and one flickering light between them.
+// flames, rising embers and one flickering light between them, borrowed from the
+// practical lamps (dark at the gates' dawn): a light of its own would add a point
+// light to every lit material on every stage.
 export const GATE_Z=48;
 const TILE=3.4,DOOR_W=6.3,DOOR_H=9.4,HINGE=6.35,TOWER=7.7,OPEN=1.5;
 const smooth=(a,b,x)=>{const t=Math.min(1,Math.max(0,(x-a)/(b-a)));return t*t*(3-2*t);};
@@ -65,8 +67,8 @@ void main(){vec2 c=gl_PointCoord-.5;float d=dot(c,c);if(d>.25)discard;
  gl_FragColor=vec4(mix(vec3(3.,1.5,.45),vec3(1.3,.25,.04),vLife)*a,1.);}`;
 
 export class Gate {
- /** `stone` is the world's shared stone material; `sign` the stage's painted board. */
- constructor(scene,{stone,sign,diffuse,normal,routeX,routeY,routeHeading,groundAt}){
+ /** `stone` is the world's shared stone material; `sign` the stage's painted board; `light` a practical to borrow. */
+ constructor(scene,{stone,sign,diffuse,normal,light,routeX,routeY,routeHeading,groundAt}){
   this.routeX=routeX;this.routeY=routeY;this.groundAt=groundAt;this.time={value:0};this.open=0;this.cues=[];this.slammed=false;
   const root=this.root=new T.Group(),z=GATE_Z;root.position.set(routeX(z,'gates'),routeY(z,'gates'),z);root.rotation.y=routeHeading(z,'gates');root.visible=false;scene.add(root);
   for(const t of [diffuse,normal]){t.wrapS=t.wrapT=T.RepeatWrapping;t.anisotropy=8;}diffuse.colorSpace=T.SRGBColorSpace;
@@ -125,23 +127,23 @@ export class Gate {
   this.emberScale={value:600};
   this.embers=new T.Points(eg,new T.ShaderMaterial({uniforms:{uTime:this.time,uScale:this.emberScale},vertexShader:EMBER_VS,fragmentShader:EMBER_FS,transparent:true,depthWrite:false,blending:T.AdditiveBlending}));
   this.embers.frustumCulled=false;this.embers.userData.noReflect=true;this.embers.renderOrder=61;root.add(this.embers);
-  // One light between the four flames, low enough to wash the doors and the road. It lives
-  // on the scene, not the hidden root: a light dropping out of the count recompiles every material.
-  this.light=new T.PointLight(0xff8a3c,0,34,2);root.updateMatrixWorld(true);this.light.position.copy(root.localToWorld(new T.Vector3(0,9.6,-3.4)));scene.add(this.light);
+  // One light between the four flames, low enough to wash the doors and the road.
+  this.light=light;root.updateMatrixWorld(true);this.lightAt=root.localToWorld(new T.Vector3(0,9.6,-3.4));
  }
  /** Door angle (0 shut, 1 full) for a camera at z: a heavy swing over the intro's first
   *  two seconds (about 1.7 s at the intro's speed), clear 14 m out, with a small rebound off the stops. */
  static openAt(z){const u=Math.min(1,Math.max(0,(z-(GATE_Z-42))/28));return smooth(0,1,u)+.07*Math.sin(Math.PI*Math.min(1,Math.max(0,(u-.72)/.28)));}
  update(id,camera,time,{height=600}={}){
   const z=camera.position.z,on=id==='gates'&&z<GATE_Z+30;this.root.visible=on;this.time.value=time;
-  if(!on){this.light.intensity=0;return;}
+  if(!on)return;
   this.open=Gate.openAt(z);
   for(const d of this.doors)d.hinge.rotation.y=d.side*this.open*OPEN;
   // The doors hit their stops (and bounce off them) once: a heavy timber thud.
   if(!this.slammed&&this.open>1.02){this.slammed=true;this.cues.push({type:'slam',at:this.root.localToWorld(new T.Vector3(0,3,4))});}
   if(z<GATE_Z-42)this.slammed=false;
   const flicker=.84+.09*Math.sin(time*13.1)+.07*Math.sin(time*23.7+1.3)+.05*Math.sin(time*5.3);
-  this.light.intensity=70*flicker*(1-smooth(GATE_Z-2,GATE_Z+6,z));
+  // Runs after the stage light has set the practicals for this frame.
+  const l=this.light;l.position.copy(this.lightAt);l.color.setHex(0xff8a3c);l.distance=34;l.intensity=70*flicker*(1-smooth(GATE_Z-2,GATE_Z+6,z));
   this.emberScale.value=height/(2*Math.tan(camera.fov*Math.PI/360));
  }
  drain(){return this.cues.splice(0);}

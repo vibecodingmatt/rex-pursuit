@@ -102,7 +102,7 @@ export class CircuitWorld {
   const sprayGeometry=new T.BufferGeometry();sprayGeometry.setAttribute('position',new T.BufferAttribute(new Float32Array(180*3),3));this.spray=new T.Points(sprayGeometry,new T.PointsMaterial({map:dustTexture(),size:.38,color:0xdaf8ef,transparent:true,opacity:.6,depthWrite:false}));this.spray.frustumCulled=false;this.scene.add(this.spray);
   this.signs={gates:labelTexture('JURASSIC PARK','ISLA NUBLAR • NORTH GATE'),river:labelTexture('RIVER OF GIANTS'),fault:labelTexture('SERVICE CROSSING','UNSTABLE GROUND • DO NOT STOP'),hybrid:labelTexture('INNOVATION VALLEY'),lagoon:labelTexture('LAGOON OBSERVATORY'),manor:labelTexture('THE CONSERVATORY'),visitor:labelTexture('VISITOR CENTER','WHEN GIANTS RULED THE EARTH')};
   this.materials.porcelain=new T.MeshStandardMaterial({color:0xcdbf9f,roughness:.2});this.materials.voltSign=new T.MeshStandardMaterial({map:voltTexture(),roughness:.55,metalness:.25});this.sparks=new Sparks(this.scene);
-  this.gate=new Gate(this.scene,{stone:this.materials.stone,sign:this.signs.gates,diffuse:gateDiffuse,normal:gateNormal,routeX,routeY,routeHeading,groundAt});
+  this.gate=new Gate(this.scene,{stone:this.materials.stone,sign:this.signs.gates,light:this.practicalLights[0],diffuse:gateDiffuse,normal:gateNormal,routeX,routeY,routeHeading,groundAt});
   this.ready=true;
  }
  instances(parent,geo,mat,items,shadow=true){
