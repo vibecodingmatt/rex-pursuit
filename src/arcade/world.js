@@ -197,8 +197,11 @@ export class CircuitWorld {
   // After a Rex goes down the camera cranes up off the vehicle, so her fall reads
   // from above instead of foreshortened behind her own head.
   const crane=game?.phase==='clear'&&DRIVE[game.stage.boss]?T.MathUtils.smootherstep(game.phaseTime,.2,2.6)*move:0;
-  this.camera.position.set(routeX(z,id)+Math.sin(z*.11)*.10*move,routeY(z,id)+2.65+crane*3.6+Math.sin(z*1.2)*.025*rough*move+Math.sin(this.time*64)*shake*.12*move-drop,z);
-  this.look.set(routeX(z+24,id),routeY(z+24,id)+2.25-drop-crane*3.3,z+24);this.camera.lookAt(this.look);this.camera.rotateZ(roll);this.camera.updateMatrixWorld();
+  // The vehicle (vehicle.js) rides under the route eye point; its spring rig tilts the camera with it.
+  const eye=(this.eye??=new T.Vector3()).set(routeX(z,id)+Math.sin(z*.11)*.10*move,routeY(z,id)+2.65-drop,z);
+  this.look.set(routeX(z+24,id),routeY(z+24,id)+2.25-drop-crane*3.3,z+24);const rig=game&&this.vehicle?this.vehicle.ride(dt,eye,this.look,{id,rough,move}):null;
+  this.camera.position.copy(eye);this.camera.position.y+=crane*3.6+Math.sin(this.time*64)*shake*.12*move+(rig?rig.heave:Math.sin(z*1.2)*.025*rough*move);
+  this.camera.lookAt(this.look);this.camera.rotateZ(roll);if(rig){this.camera.rotateY(rig.yaw);this.camera.rotateX(rig.pitch);this.camera.rotateZ(rig.roll);}this.camera.updateMatrixWorld();
   this.lit=this.light.update(game,{z,camera:this.camera,time:this.time});
   // The canopy's dapple is pinned to the ground; open stages light the air from the shadow map alone.
   this.shafts=this.routeCanopy.update(z,id,this.light.key,{enabled:['gates','river','hybrid'].includes(id)});this.sky.mesh.visible=id!=='manor';

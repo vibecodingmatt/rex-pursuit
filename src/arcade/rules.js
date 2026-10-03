@@ -66,9 +66,9 @@ export class Circuit {
   }
   if(e.dead){e.y+=e.fade*.15;e.alpha*=Math.max(0,1-e.fade/1.1);}
  }
- damage(amount){
+ damage(amount,source=null){
   if(this.invulnerable>0||this.status!=='playing')return;
-  this.hp=Math.max(0,this.hp-amount*(this.difficulty==='tour'?.55:1));this.combo=0;this.invulnerable=.6;this.emit('damage',{amount});
+  this.hp=Math.max(0,this.hp-amount*(this.difficulty==='tour'?.55:1));this.combo=0;this.invulnerable=.6;this.emit('damage',{amount,id:source?.id});
   if(this.hp===0){this.status='continue';this.emit('loss');}
  }
  kill(e,precise=false){
@@ -146,9 +146,9 @@ export class Circuit {
    if(e.dead){e.fade+=dt;this.pose(e);continue;}
    const oldCycle=Math.floor(Math.max(0,e.age)/6.4);e.age+=dt*pace;
    if(e.age<0)continue;this.pose(e);
-   if(e.boss){if(Math.floor(e.age/6.4)>oldCycle){this.damage(e.kind==='mosa'?25:19);e.weakHits=0;this.emit('attack',{kind:e.kind,id:e.id});}}
+   if(e.boss){if(Math.floor(e.age/6.4)>oldCycle){this.damage(e.kind==='mosa'?25:19,e);e.weakHits=0;this.emit('attack',{kind:e.kind,id:e.id});}}
    else if(e.age>=e.life){
-    e.dead=true;e.fade=0;if(!['supply','barrel','galli'].includes(e.kind))this.damage(e.kind==='rock'?14:9);
+    e.dead=true;e.fade=0;if(!['supply','barrel','galli'].includes(e.kind))this.damage(e.kind==='rock'?14:9,e);
    }
    if(e.kind==='dilo'&&!e.boss&&!e.dead&&e.age>3&&!e.spit){e.spit=true;this.spawn('spit',{x:e.x});this.emit('spit',{x:e.x,y:e.y});}
   }

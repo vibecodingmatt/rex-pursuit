@@ -41,7 +41,7 @@ roughnessFactor=mix(roughnessFactor,.82,grimeMud);roughnessFactor=mix(roughnessF
  };
  material.customProgramCacheKey=()=>`rex-jeep-grime-v2-${key}`;
 }
-export function createJeep(scene,{gunOffset=0}={}){
+export function createJeep(scene,{gunOffset=0,foldWindshield=false}={}){
  const jeep=new T.Group(),body=new T.Group();jeep.add(body);scene.add(jeep);
  const paint=new T.MeshPhysicalMaterial({color:0xc2b388,metalness:.12,roughness:.52,clearcoat:.35,clearcoatRoughness:.4});
  const edge=new T.MeshStandardMaterial({color:0x788070,metalness:.65,roughness:.4});
@@ -60,14 +60,16 @@ export function createJeep(scene,{gunOffset=0}={}){
   for(let z=-.9;z<1.65;z+=.32)cyl(body,steel,.022,.022,.02,[s*.965,1.31,z],[0,0,Math.PI/2],6);
   box(body,red,[.19,.23,.08],[s*.68,1.11,1.86]);box(body,black,[.25,.3,.07],[s*.68,1.11,1.80]);
  }
- const rearCrossbar=new T.Group();body.add(rearCrossbar);tube(rearCrossbar,black,[-.78,2.44,.70],[.78,2.44,.70],.065);tube(body,black,[-.78,2.43,-.60],[.78,2.43,-.60],.055);
+ const rearCrossbar=new T.Group();body.add(rearCrossbar);tube(rearCrossbar,black,[-.78,2.44,.70],[.78,2.44,.70],.065);if(!foldWindshield)tube(body,black,[-.78,2.43,-.60],[.78,2.43,-.60],.055);// the arcade sights over the hood without it
  box(body,paint,[1.75,.51,.14],[0,1.03,1.78]);box(body,black,[2.08,.19,.18],[0,.67,1.99]);box(body,steel,[.42,.14,.12],[0,.56,2.0]);
  for(const s of [-1,1]){tube(body,steel,[s*.73,.64,2.08],[s*.73,.50,2.11],.035);tube(body,steel,[s*.73,.50,2.11],[s*.61,.5,2.11],.035);}
  box(body,paint,[1.71,.18,1.12],[0,1.30,-1.31]);box(body,paint,[1.72,.56,.16],[0,1.0,-1.89]);box(body,black,[2.0,.16,.25],[0,.66,-2.04]);
  for(let i=-3;i<=3;i++)box(body,black,[.105,.39,.02],[i*.158,1.06,-1.98]);
  const lens=new T.MeshStandardMaterial({color:0xe9e3c9,emissive:0xe6bf7c,emissiveIntensity:.22,metalness:.18,roughness:.22});
  for(const s of [-1,1]){box(body,black,[.34,.28,.07],[s*.655,1.12,-1.985]);box(body,edge,[.30,.247,.03],[s*.655,1.12,-2.029]);box(body,lens,[.263,.208,.026],[s*.655,1.12,-2.048]);for(let i=-4;i<=4;i++)box(body,edge,[.004,.197,.004],[s*.655+i*.025,1.12,-2.063]);}
- box(body,glass,[1.59,.74,.018],[0,1.89,-.96],[.18,0,0]);tube(body,paint,[-.85,1.45,-1.03],[-.80,2.28,-.87],.04);tube(body,paint,[.85,1.45,-1.03],[.80,2.28,-.87],.04);tube(body,paint,[-.80,2.28,-.87],[.80,2.28,-.87],.04);
+ if(!foldWindshield){box(body,glass,[1.59,.74,.018],[0,1.89,-.96],[.18,0,0]);tube(body,paint,[-.85,1.45,-1.03],[-.80,2.28,-.87],.04);tube(body,paint,[.85,1.45,-1.03],[.80,2.28,-.87],.04);tube(body,paint,[-.80,2.28,-.87],[.80,2.28,-.87],.04);}
+ // Folded flat onto the hood about its cowl hinge (the arcade's forward view over the hood).
+ else{const screen=new T.Group();screen.position.set(0,1.45,-1.03);screen.rotation.x=-1.6;body.add(screen);box(screen,glass,[1.59,.74,.018],[0,.44,.07],[.18,0,0]);tube(screen,paint,[-.85,0,0],[-.80,.83,.16],.04);tube(screen,paint,[.85,0,0],[.80,.83,.16],.04);tube(screen,paint,[-.80,.83,.16],[.80,.83,.16],.04);}
  // Seats with separate cushions, straps, dashboard and steering wheel.
  for(const s of [-1,1]){box(body,fabric,[.62,.15,.56],[s*.43,1.02,-.43]);box(body,fabric,[.64,.64,.16],[s*.43,1.36,-.14],[.10,0,0]);box(body,black,[.035,.58,.035],[s*.43+.13,1.4,-.04]);box(body,fabric,[.37,.22,.13],[s*.43,1.78,-.10]);}
  box(body,black,[1.63,.3,.23],[0,1.4,-.95]);
