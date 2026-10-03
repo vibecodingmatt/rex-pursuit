@@ -59,6 +59,8 @@ function fieldEvent(e){
 function bossCues(){
  // The gate's doors hit their stops: timber on timber.
  for(const cue of renderer.world.gate?.drain()||[])if(field.context&&mode==='playing'&&cue.type==='slam'){field.woodBreak(.45);field.groundImpact(.7,cue.at);renderer.shake=Math.max(renderer.shake,.25);}
+ // A cut wire's live end crackles.
+ for(const cue of renderer.world.sparks?.drain()||[])if(mode==='playing')audio.hiss(.04+Math.random()*.07,.03+.1*cue.near,3600+Math.random()*2400);
  const boss=renderer.bossRex;if(!boss)return;const cam=renderer.world.camera.position;audio.modeledRex=boss.ready&&!!field.context;
  for(const cue of boss.drain()){
   if(!field.context||mode!=='playing')continue;

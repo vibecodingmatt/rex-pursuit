@@ -9,6 +9,7 @@ import {terrainGeometry,groundMaterial,loadRocks,rootGeometry,mergeStill,scatter
 import {StageLight,RouteCanopy,installArcadeFog,addRim} from './light.js';
 import {CircuitAir,PUSH,GUST,PLANT_PUSH} from './air.js';
 import {Gate,GATE_Z} from './gate.js';
+import {Sparks} from './sparks.js';
 
 const TAU=Math.PI*2,clamp=T.MathUtils.clamp,smooth=(a,b,x)=>{const t=clamp((x-a)/(b-a),0,1);return t*t*(3-2*t);};
 export const noise=n=>{const v=Math.sin(n*127.1+311.7)*43758.5453;return v-Math.floor(v);};
@@ -36,6 +37,14 @@ export function terrainY(off,z,id,{river,bridge,canyon}={}){const ax=Math.abs(of
 
 function labelTexture(text,sub='ISLAND TRANSIT AUTHORITY'){
  const c=document.createElement('canvas');c.width=1024;c.height=256;const x=c.getContext('2d');x.fillStyle='#132d29';x.fillRect(0,0,1024,256);x.strokeStyle='#bcb078';x.lineWidth=10;x.strokeRect(15,15,994,226);x.textAlign='center';x.fillStyle='#eee1b7';x.font='bold 76px Georgia';x.fillText(text,512,121);x.font='20px Arial';x.fillText(sub,512,191);return new T.CanvasTexture(c);
+}
+/** The fence's enamel plate: DANGER band, a bolt and the voltage, weathered at the edges. */
+function voltTexture(){
+ const c=document.createElement('canvas');c.width=256;c.height=180;const x=c.getContext('2d');x.fillStyle='#e2b81f';x.fillRect(0,0,256,180);x.fillStyle='#16130e';x.fillRect(0,0,256,52);x.lineWidth=7;x.strokeStyle='#16130e';x.strokeRect(4,4,248,172);
+ x.textAlign='center';x.fillStyle='#e2b81f';x.font='bold 40px Arial';x.fillText('DANGER',128,41);x.fillStyle='#16130e';x.beginPath();for(const [px,py]of [[48,62],[30,112],[44,112],[34,160],[66,98],[51,98],[62,62]])x.lineTo(px,py);x.fill();
+ x.font='bold 30px Arial';x.fillText('10,000',156,104);x.fillText('VOLTS',156,140);x.font='bold 13px Arial';x.fillText('ELECTRIFIED FENCE',156,166);
+ for(let i=0;i<260;i++){const n=noise(i*3.3),edge=n<.5;x.fillStyle=`rgba(${edge?'92,58,24':'40,30,18'},${.08+noise(i+7)*.25})`;const px=edge?(noise(i+1)<.5?noise(i+2)*18:238+noise(i+2)*18):noise(i+1)*256,py=noise(i+4)*180;x.fillRect(px,py,2+noise(i+5)*6,1+noise(i+6)*4);}
+ const t=new T.CanvasTexture(c);t.colorSpace=T.SRGBColorSpace;t.anisotropy=4;return t;
 }
 function marbleTexture(){const c=document.createElement('canvas');c.width=c.height=512;const x=c.getContext('2d');x.fillStyle='#777e79';x.fillRect(0,0,512,512);for(let i=0;i<6000;i++){const n=noise(i);x.fillStyle=`rgba(${n>.5?'221,228,212':'37,49,46'},.06)`;x.fillRect(noise(i+1)*512,noise(i+2)*512,2+noise(i+3)*16,1);}for(let i=0;i<25;i++){x.strokeStyle=`rgba(36,52,47,${.05+noise(i)*.14})`;x.lineWidth=1+noise(i)*2;x.beginPath();x.moveTo(noise(i)*512,0);x.bezierCurveTo(noise(i+1)*512,120,noise(i+2)*512,360,noise(i+3)*512,512);x.stroke();}x.strokeStyle='#263a35';x.lineWidth=4;x.strokeRect(1,1,510,510);const t=new T.CanvasTexture(c);t.colorSpace=T.SRGBColorSpace;t.wrapS=t.wrapT=T.RepeatWrapping;t.anisotropy=8;return t;}
 
@@ -79,7 +88,7 @@ export class CircuitWorld {
   this.materials.lava=new T.MeshStandardMaterial({color:0x531b12,emissive:0xff4a0c,emissiveIntensity:2,roughness:.5});
   this.materials.water=new T.MeshStandardMaterial({color:0x518d86,metalness:.45,roughness:.25,transparent:true,opacity:.91});
   this.wave={value:0};this.materials.water.envMapIntensity=1.3;this.materials.water.onBeforeCompile=s=>{s.uniforms.uRideTime=this.wave;s.vertexShader=s.vertexShader.replace('#include <common>','#include <common>\nuniform float uRideTime;').replace('#include <begin_vertex>','#include <begin_vertex>\nvec3 wavePos=(modelMatrix*vec4(position,1.)).xyz; transformed.y+=sin(wavePos.x*.7+uRideTime*1.3)*.10+sin(wavePos.z*.55-uRideTime*2.)*.13;').replace('#include <beginnormal_vertex>','#include <beginnormal_vertex>\nvec3 normalPos=(modelMatrix*vec4(position,1.)).xyz; objectNormal=normalize(vec3(-cos(normalPos.x*.7+uRideTime*1.3)*.07,1.,-cos(normalPos.z*.55-uRideTime*2.)*.0715));');};
-  this.geometry={trunk:new T.CylinderGeometry(.22,.48,1,7,2),leaf:new T.PlaneGeometry(1,1),crown:new T.SphereGeometry(1,9,6),box:new T.BoxGeometry(1,1,1),pole:new T.CylinderGeometry(.09,.12,1,8)};
+  this.geometry={trunk:new T.CylinderGeometry(.22,.48,1,7,2),leaf:new T.PlaneGeometry(1,1),crown:new T.SphereGeometry(1,9,6),box:new T.BoxGeometry(1,1,1),pole:new T.CylinderGeometry(.09,.12,1,8),insulator:new T.CylinderGeometry(.045,.065,.22,8).rotateZ(Math.PI/2),plate:new T.PlaneGeometry(.62,.44)};
   this.rocks=await loadRocks();this.geometry.thrown=this.rocks.thrown;this.geometry.blob=this.rocks.blobGeometry;this.geometry.roots=[3,8,13].map(rootGeometry);
   // Track pebbles keep the kit's scrubbed stone without its moss, which assumes Pursuit's road at x=0.
   this.materials.pebble=new T.MeshStandardMaterial({map:this.kit.textures.ground.dirt,normalMap:this.kit.textures.ground.dirtNormal,normalScale:new T.Vector2(1.6,1.6),color:0x6f6a60,roughness:.88});
@@ -92,6 +101,7 @@ export class CircuitWorld {
   const reflect=this.water.onBeforeRender;this.water.onBeforeRender=(...a)=>{const hidden=[];for(const o of [...this.chunks.flatMap(c=>c.children),this.air.motes,this.air.leaves,this.air.insectFrame])if(o.userData.noReflect&&o.visible){o.visible=false;hidden.push(o);}reflect.apply(this.water,a);for(const o of hidden)o.visible=true;};
   const sprayGeometry=new T.BufferGeometry();sprayGeometry.setAttribute('position',new T.BufferAttribute(new Float32Array(180*3),3));this.spray=new T.Points(sprayGeometry,new T.PointsMaterial({map:dustTexture(),size:.38,color:0xdaf8ef,transparent:true,opacity:.6,depthWrite:false}));this.spray.frustumCulled=false;this.scene.add(this.spray);
   this.signs={gates:labelTexture('JURASSIC PARK','ISLA NUBLAR • NORTH GATE'),river:labelTexture('RIVER OF GIANTS'),fault:labelTexture('SERVICE CROSSING','UNSTABLE GROUND • DO NOT STOP'),hybrid:labelTexture('INNOVATION VALLEY'),lagoon:labelTexture('LAGOON OBSERVATORY'),manor:labelTexture('THE CONSERVATORY'),visitor:labelTexture('VISITOR CENTER','WHEN GIANTS RULED THE EARTH')};
+  this.materials.porcelain=new T.MeshStandardMaterial({color:0xcdbf9f,roughness:.2});this.materials.voltSign=new T.MeshStandardMaterial({map:voltTexture(),roughness:.55,metalness:.25});this.sparks=new Sparks(this.scene);
   this.gate=new Gate(this.scene,{stone:this.materials.stone,sign:this.signs.gates,diffuse:gateDiffuse,normal:gateNormal,routeX,routeY,routeHeading,groundAt});
   this.ready=true;
  }
@@ -116,7 +126,7 @@ export class CircuitWorld {
   if(interior){const pos=[],tex=[],col=[],idx=[];for(let j=0;j<=16;j++)for(let k=0;k<=8;k++){const z=start+j*2,off=(k/8-.5)*11,yy=routeY(z,id)+.08+(interior||urban?0:Math.sin(k*1.7)*.018);pos.push(routeX(z,id)+off,yy,z-mid);tex.push(off*.23,z*.2);const c=baseColor.clone().multiplyScalar(k===2||k===6?.53:interior?1.12:.84);col.push(c.r,c.g,c.b);if(j<16&&k<8){const a=j*9+k;idx.push(a,a+9,a+1,a+1,a+9,a+10);}}
    const road=new T.BufferGeometry();road.setAttribute('position',new T.Float32BufferAttribute(pos,3));road.setAttribute('uv',new T.Float32BufferAttribute(tex,2));road.setAttribute('color',new T.Float32BufferAttribute(col,3));road.setIndex(idx);road.computeVertexNormals();const mesh=new T.Mesh(road,m.floor);mesh.receiveShadow=true;g.add(mesh);
   }
-  const trunks=[],leaves=[],wood=[],posts=[],stone=[],metal=[],lamps=[],glass=[],palms=[],ferns=[],bushes=[],grass=[],outcrops=[],treeFerns=[],lava=[],facades=[];
+  const trunks=[],leaves=[],wood=[],posts=[],stone=[],metal=[],lamps=[],insulators=[],plates=[],glass=[],palms=[],ferns=[],bushes=[],grass=[],outcrops=[],treeFerns=[],lava=[],facades=[];
   const add=(arr,off,y,z,sx,sy,sz,rx=0,ry=0,rz=0,tint)=>arr.push([routeX(z,id)+off,routeY(z,id)+y,z-mid,sx,sy,sz,rx,ry,rz,tint]);
   if(bridge){const points=[],faces=[];for(let j=0;j<=16;j++)for(let i=0;i<=24;i++){const z=start+j*2;points.push(routeX(z,id)+(i/24-.5)*50,routeY(z,id)-10,z-mid);if(j<16&&i<24){const k=j*25+i;faces.push(k,k+25,k+1,k+1,k+25,k+26);}}const waterGeometry=new T.BufferGeometry();waterGeometry.setAttribute('position',new T.Float32BufferAttribute(points,3));waterGeometry.setIndex(faces);waterGeometry.computeVertexNormals();g.add(new T.Mesh(waterGeometry,m.water));}
   if(cave){
@@ -164,7 +174,24 @@ export class CircuitWorld {
   // One landmark gateway per sector, plus passing hazard markers and fence wire.
   // The gates stage has its own timber gate (gate.js) and no fence outside it.
   if(index===1&&id!=='gates'){const z=mid;for(const side of [-1,1])add(stone,side*7,5,z,1.8,10,2);add(wood,0,9,z,15,1.35,1.2);const sign=new T.Mesh(new T.PlaneGeometry(11,2.75),new T.MeshStandardMaterial({map:this.signs[id],roughness:.8}));sign.position.set(routeX(z,id),routeY(z,id)+8.4,z-mid-1.02);sign.rotation.y=Math.PI;g.add(sign);}
-  if(id==='gates'||id==='hybrid')for(const side of [-1,1])for(let z=start;z<start+32;z+=8){if(id==='gates'&&z<GATE_Z+12)continue;add(posts,side*6.4,1.7,z,1,3.4,1);for(let y=.6;y<3.2;y+=1)add(metal,side*6.4,y,z,.026,.026,8.1,0,routeHeading(z,id));add(lamps,side*6.4,3.2,z,.15,.08,.15);}
+  // Electric fence: wires strung post to post on ceramic insulators, a DANGER plate on every
+  // other post. Past the gate some spans are cut: both halves hang from their posts to the
+  // ground and the live ends spark (sparks.js).
+  if(id==='gates'||id==='hybrid'){
+   const sparks=[],cutSide=noise(index*7.3)<.5?-1:1,cutAt=id==='gates'&&start>GATE_Z+20&&noise(index*3.1+.5)>.66?start+8*Math.floor(noise(index*5.7)*4):null;
+   for(const side of [-1,1])for(let z=start;z<start+32;z+=8){if(id==='gates'&&z<GATE_Z+12)continue;const wx=side*6.2;
+    add(posts,side*6.4,1.7,z,1,3.4,1);add(lamps,side*6.4,3.2,z,.15,.08,.15);
+    if((z/8+(side>0?1:0))%2===0)add(plates,side*6.26,1.85,z,1,1,1,0,routeHeading(z,id)-side*Math.PI/2);
+    for(let y=.6;y<3.2;y+=1){add(insulators,side*6.3,y,z,1,1,1,0,routeHeading(z,id));
+     if(side!==cutSide||z!==cutAt){add(metal,wx,y,z+4,.026,.026,8,0,routeHeading(z+4,id));continue;}
+     // Each half whips loose from its post and lies across the verge, its live end on the road edge.
+     // Box axis along d = (dx,dy,dz): ry = asin(dx), rx = atan2(-dy,dz) for Three's XYZ order.
+     for(const [z0,dir,reach,inward]of [[z,1,1.1+y*.55,.5+y*.4],[z+8,-1,1.5+y*.4,.7+y*.3]]){const drop=y-.04,dx=-side*inward,dz=dir*reach,len=Math.hypot(dx,drop,dz),x1=wx+dx;
+      add(metal,wx+dx/2,y-drop/2,z0+dz/2,.026,.026,len,Math.atan2(drop/len,dz/len),Math.asin(dx/len)+routeHeading(z0,id));
+      if(y>1)sparks.push(new T.Vector3(routeX(z0+dz,id)+x1,routeY(z0+dz,id)+.06,z0+dz));}
+    }}
+   g.userData.sparks=sparks;
+  }
   if((id==='lagoon'||id==='hybrid')&&index===5){const z=mid;for(const side of [-1,1])add(stone,side*31,6.5,z,1.4,13,3);add(metal,0,13,z,65,.75,2);add(stone,-6,15,z,13,2.5,3);add(glass,-6,15.3,z-1.55,11,1.1,.04);add(lamps,-6,13.8,z-1.6,13,.09,.09);}
   if(id==='hybrid'&&index===10){const domeGeo=new T.SphereGeometry(38,32,14,0,Math.PI*2,0,Math.PI/2),dome=new T.Mesh(domeGeo,m.glass);dome.scale.y=.72;dome.position.set(routeX(mid,id),routeY(mid,id),0);g.add(dome);const ribs=new T.LineSegments(new T.WireframeGeometry(domeGeo),new T.LineBasicMaterial({color:0x466c70,transparent:true,opacity:.65}));ribs.position.copy(dome.position);ribs.scale.copy(dome.scale);g.add(ribs);}
   if(id==='visitor'&&index===25){
@@ -182,7 +209,7 @@ export class CircuitWorld {
   this.instances(g,this.geometry.leaf,m.leaf,leaves,false);
   for(const [kind,items]of rockBuckets){const mesh=this.instances(g,kind.near,kind.material,items);mesh.userData.lod=kind;}
   for(const mesh of [this.instances(g,this.geometry.blob,this.rocks.blob,blobs,false),this.instances(g,C.pebbles[Math.abs(index)%3],m.pebble,pebbles)])if(mesh)mesh.userData.noReflect=true;
-  for(const [name,items]of Object.entries(stillItems)){const geometry=mergeStill(items);if(!geometry)continue;const mesh=new T.Mesh(geometry,kit.materials[name]);mesh.castShadow=name==='bark';mesh.receiveShadow=true;mesh.userData.noReflect=true;g.add(mesh);}const deck=this.instances(g,this.geometry.box,m.wood,wood);if(bridge){g.userData.deck=deck;g.userData.planks=wood;}this.instances(g,this.geometry.pole,m.metal,posts);this.instances(g,this.geometry.box,m.stone,stone);this.instances(g,this.geometry.box,m.metal,metal);this.instances(g,this.geometry.box,m.lamp,lamps,false);this.instances(g,this.geometry.box,m.glass,glass,false);this.instances(g,this.geometry.box,m.lava,lava,false);
+  for(const [name,items]of Object.entries(stillItems)){const geometry=mergeStill(items);if(!geometry)continue;const mesh=new T.Mesh(geometry,kit.materials[name]);mesh.castShadow=name==='bark';mesh.receiveShadow=true;mesh.userData.noReflect=true;g.add(mesh);}const deck=this.instances(g,this.geometry.box,m.wood,wood);if(bridge){g.userData.deck=deck;g.userData.planks=wood;}this.instances(g,this.geometry.pole,m.metal,posts);this.instances(g,this.geometry.box,m.stone,stone);this.instances(g,this.geometry.box,m.metal,metal);this.instances(g,this.geometry.box,m.lamp,lamps,false);this.instances(g,this.geometry.insulator,m.porcelain,insulators,false);this.instances(g,this.geometry.plate,m.voltSign,plates,false);this.instances(g,this.geometry.box,m.glass,glass,false);this.instances(g,this.geometry.box,m.lava,lava,false);
   this.instances(g,this.geometry.leaf,interior?m.manorFacade:id==='visitor'?m.visitorFacade:m.modernFacade,facades);
   return g;
  }
@@ -206,6 +233,7 @@ export class CircuitWorld {
   this.camera.position.copy(eye);this.camera.position.y+=crane*3.6+Math.sin(this.time*64)*shake*.12*move+(rig?rig.heave:Math.sin(z*1.2)*.025*rough*move);
   this.camera.lookAt(this.look);this.camera.rotateZ(roll);if(rig){this.camera.rotateY(rig.yaw);this.camera.rotateX(rig.pitch);this.camera.rotateZ(rig.roll);}this.camera.updateMatrixWorld();
   this.lit=this.light.update(game,{z,camera:this.camera,time:this.time});this.gate.update(id,this.camera,this.time,{height:this.renderer.domElement.height});
+  const live=[];if(id==='gates')for(const chunk of this.chunks)for(const s of chunk.userData.sparks||[])if(s.z>z-6&&s.z<z+70)live.push(s);this.sparks.update(dt,live,this.camera,this.renderer.domElement.height);
   // The canopy's dapple is pinned to the ground; open stages light the air from the shadow map alone.
   this.shafts=this.routeCanopy.update(z,id,this.light.key,{enabled:['gates','river','hybrid'].includes(id)});this.sky.mesh.visible=id!=='manor';
   this.air.update(game,{z,camera:this.camera,dt,time:this.time,key:this.light.key,canopy:this.shafts,pushers:this.pushers});
