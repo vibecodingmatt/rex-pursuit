@@ -56,7 +56,9 @@ export class Circuit {
  /** One authored encounter; see BEATS. */
  beat(pattern,kind,count=1){
   const side=this.random()<.5?-1:1,named=side<0?'on the right':'on the left',call=CALLS[pattern];
-  if(pattern==='flank')for(let i=0;i<count;i++)this.spawn(kind,{x:.5+(i%2?side:-side)*(.24+.07*(i>>1)),delay:i*.35});
+  if(pattern==='flank')for(let i=0;i<count;i++){const e=this.spawn(kind,{x:.5+(i%2?side:-side)*(.24+.07*(i>>1)),delay:i*.35});
+   // The pack's lead pounces onto the hood at the end of its charge and bites unless shot off.
+   if(!i&&kind==='raptor'){e.leaper=true;e.leapAt=e.life-.25;e.life+=1.8;}}
   else if(pattern==='stampede')for(let i=0;i<count;i++)this.spawn('galli',{x:.5+side*(.12+this.random()*.32),delay:i*.13});
   else if(pattern==='formation')for(let i=0;i<count;i++)this.spawn('ptero',{x:.5+(i-(count-1)/2)*.13,delay:i*.12});
   else if(pattern==='ambush'){const e=this.spawn(kind,{x:.5+side*.3,delay:.9});e.ambush=true;e.life=2.4;}
@@ -85,6 +87,7 @@ export class Circuit {
    e.size=d.size*(.16+depth*1.2);
    if(['ptero','ichthy','spit'].includes(e.kind)){e.y=.26+depth*.22+Math.sin(t*2+e.seed)*.07;e.size*=1.15;}
    if(e.kind==='galli'){e.x=clamp(.1+t/e.life*.8,.08,.92);e.y=.58+depth*.06;}
+   if(e.leaper&&t>e.leapAt){const u=clamp((t-e.leapAt)/.55,0,1);e.x+=(.5-e.x)*u;e.y+=(.64-e.y)*u;e.size=d.size*(1.2+.6*u);}
    e.weak=0;
   }
   if(e.dead){e.y+=e.fade*.15;e.alpha*=Math.max(0,1-e.fade/1.1);}
@@ -173,8 +176,9 @@ export class Circuit {
    if(e.age<0)continue;this.pose(e);
    if(e.boss){if(Math.floor(e.age/6.4)>oldCycle){this.damage(e.kind==='mosa'?25:19,e);e.weakHits=0;this.emit('attack',{kind:e.kind,id:e.id});}}
    else if(e.age>=e.life){
-    e.dead=true;e.fade=0;if(e.kind==='spit')this.emit('splat',{id:e.id,x:e.x,y:e.y});if(!['supply','barrel','galli'].includes(e.kind))this.damage(e.kind==='rock'?14:9,e);
+    e.dead=true;e.fade=0;if(e.kind==='spit')this.emit('splat',{id:e.id,x:e.x,y:e.y});if(!['supply','barrel','galli'].includes(e.kind))this.damage(e.kind==='rock'?14:e.leaper?16:9,e);
    }
+   if(e.leaper&&!e.leapt&&!e.dead&&e.age>=e.leapAt){e.leapt=true;this.emit('leap',{id:e.id});}
    if(e.kind==='dilo'&&!e.boss&&!e.dead&&e.age>3&&!e.spit){e.spit=true;this.spawn('spit',{x:e.x});this.emit('spit',{x:e.x,y:e.y});}
   }
   this.entities=this.entities.filter(e=>!e.dead||e.fade<1.1);

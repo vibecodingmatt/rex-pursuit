@@ -11,6 +11,8 @@ const species={raptor:'raptor',dilo:'dilophosaurus',galli:'gallimimus',trike:'tr
 const sizes={raptor:4.5,dilo:5.8,galli:6.4,trike:8.8};
 const v=new T.Vector3(),head=new T.Vector3(),p=new T.Vector3(),up=new T.Vector3(0,1,0),dummy=new T.Object3D();
 const clamp=T.MathUtils.clamp;
+// How far the Jeep's hood sits below the gunner's eye.
+const HOOD_DROP=1.6;
 function disposeProp(root){const geometries=new Set(),materials=new Set();root.traverse(o=>{if(o.isMesh){geometries.add(o.geometry);(Array.isArray(o.material)?o.material:[o.material]).forEach(m=>materials.add(m));}});geometries.forEach(g=>{if(!g.userData.shared)g.dispose();});materials.forEach(m=>{if(!m.userData.shared)m.dispose();});root.traverse(o=>o.customDepthMaterial?.dispose());root.removeFromParent();}
 // The ichthyosaur breaches twice: a long leap, a short dive, then a lunge at the vehicle.
 // Returns height above the water reference and its rate of change.
@@ -63,7 +65,7 @@ export class CircuitActors {
    if(e.boss||e.age<0){if(e.ambush&&!e.boss&&!e.dead)this.brushWall(e,game);continue;}let a=this.actors.get(e.id);
    if(!a){const kind=species[e.kind],c=kind?this.critters.huntSpawn(kind,Math.sign(e.lane-.5),30):e.kind==='ptero'?this.flyers.huntSpawn('pteranodon',Math.sign(e.lane-.5)):null;a={e,c,mesh:c?null:this.makeProp(e.kind),position:new T.Vector3(),head:new T.Vector3(),yaw:0,dead:false,burst:!!e.ambush};this.actors.set(e.id,a);if(c&&kind)c.scale=sizes[e.kind];}
    const age=Math.max(0,e.age),life=e.life,side=e.lane<.5?-1:1,id=game.stage.id,cruise=id==='manor'?14:id==='fault'?27:24;
-   const animal=!!species[e.kind],windup=life-.9,charge=clamp((age-windup)/.9,0,1),parallel=40-age*2.5;
+   const animal=!!species[e.kind],windup=e.leaper?e.leapAt-.65:life-.9,charge=clamp((age-windup)/.9,0,1),parallel=40-age*2.5;
    // Crates and barrels stand still beside the track; everything else closes on the vehicle.
    const fixed=e.kind==='supply'||e.kind==='barrel',relative=animal?T.MathUtils.lerp((e.ambush?17:40)-Math.min(age,windup)*2.5,3,charge):fixed?cruise*(life-age)+5:(cruise+6)*(life-age)+5;
    const z=e.spawnTravel+cruise*age+relative;
@@ -77,7 +79,8 @@ export class CircuitActors {
    const x=routeX(z,id)+off,y=groundAt(x,z,id);a.yaw=Math.atan2(lateral,forward)+routeHeading(z,id);
    if(animal){const from=Math.atan2(lateral,cruise-2.5),to=Math.atan2(-side*.1,Math.min(-3,cruise-(40-windup*2.5-3)/.9)),turn=T.MathUtils.smoothstep(age,windup-.3,windup+.2);a.yaw=from+Math.atan2(Math.sin(to-from),Math.cos(to-from))*turn+routeHeading(z,id);}
    if(fixed)a.yaw=routeHeading(z,id)+e.seed*.3-.9;
-   a.position.set(x,y,z);let lift=0;
+   a.position.set(x,y,z);let lift=0;a.onHood=false;
+   if(e.leaper&&age>=e.leapAt&&!e.dead)this.hood(a,e,age);
    // An ambusher bursts out of the planting: leaves, twigs and dust where it breaks cover.
    if(a.burst)this.breakWall(e.id);
    if(a.burst&&this.effects){a.burst=false;for(let i=0;i<34;i++)this.effects.speck(v.set(x,y+.6+Math.random()*1.4,z),p.set((Math.random()-.5)*5,1+Math.random()*3,(Math.random()-.5)*5),i%3?[.08,.2,.04]:[.16,.11,.05],.03+Math.random()*.04,.7+Math.random()*.5);this.effects.groundDust(v.set(x,y+.2,z),p.set(0,1,0),{size:.9,growth:3,opacity:.45,life:1.4});}
@@ -96,11 +99,11 @@ export class CircuitActors {
      const push=new T.Vector3().subVectors(a.position,this.world.camera.position).setY(0).normalize().setY(.12);this.critters.strike(a.c,push,a.hitHead?1.5:1.15,999);}else if(a.c){a.c.on=false;}}if(a.tumble)this.tumble(a,e,dt,id);else if(a.mesh){a.mesh.position.copy(a.deathPosition);a.mesh.position.y-=e.fade*2;a.mesh.rotation.z+=dt*1.8;a.mesh.scale.setScalar(Math.max(0,1-e.fade));}continue;}
    if(a.c){const c=a.c;c.p.copy(a.position);c.fade=1;c.on=true;
     if(e.kind==='ptero')this.fly(a,c,e,age,life,dt);
-    else this.animate(a,c,e,age,life,windup,lateral,forward,dt);
+    else{this.animate(a,c,e,age,life,windup,lateral,forward,dt);if(a.onHood)this.hoodPose(a,c,e,age);}
    }else if(a.mesh.userData.swim)this.swim(a,e,age,life,dt,y);
    else if(e.kind!=='ichthy')this.prop(a,e,age,dt,y);
    else{a.mesh.position.copy(a.position);a.mesh.rotation.set(e.kind==='ichthy'?Math.sin(age*2)*.3:e.kind==='rock'?age*.7:0,a.yaw,e.kind==='rock'?age:.0);}
-   if(lift<1.5&&e.kind!=='ichthy'){const s=this.shadows[shadow++];if(s){s.visible=true;s.position.set(x,y+.11,z);s.rotation.y=a.yaw;s.scale.set(e.kind==='trike'?4.2:2.8,1,e.kind==='trike'?6.2:4.2);}}
+   if(lift<1.5&&e.kind!=='ichthy'&&!a.onHood){const s=this.shadows[shadow++];if(s){s.visible=true;s.position.set(x,y+.11,z);s.rotation.y=a.yaw;s.scale.set(e.kind==='trike'?4.2:2.8,1,e.kind==='trike'?6.2:4.2);}}
   }
   this.tickWalls(dt,live);this.critters.updateDirected(dt,{cull:false});this.flyers.updateDirected();for(let i=shadow;i<this.shadows.length;i++)this.shadows[i].visible=false;
   if(game.stage.id==='river'&&game.stageTime>5&&game.stageTime<28){const z=500;this.brachio.show(routeX(z,'river')-10,z,Math.PI/2);this.brachio.mesh.position.y=routeY(z,'river')-1.3;this.brachio.mesh.scale.setScalar(1.45);this.brachio.rearAt(Math.max(0,game.stageTime-19));this.brachio.mesh.visible=true;}else this.brachio.mesh.visible=false;
@@ -109,6 +112,20 @@ export class CircuitActors {
    else if(a.c&&species[a.e.kind]){const c=a.c,spheres=c.kind.spheres;head.copy(spheres?.[1]?.p||v.set(0,c.kind.centre+.1,.3)).multiplyScalar(c.scale).applyAxisAngle(up,c.yaw).add(c.p);a.head.copy(head);a.position.copy(c.p).add(v.set(0,c.kind.centre*c.scale,0));}
    else a.head.copy(a.position);
   }
+ }
+ // A leaper pounces from its charge onto the hood, balances there snarling, then lunges
+ // at the gunner at the end of its life unless it is shot off first.
+ hood(a,e,age){
+  const cam=this.world.camera,fwd=cam.getWorldDirection(v).setY(0).normalize();if(!a.leapFrom)a.leapFrom=a.position.clone();
+  const u=clamp((age-e.leapAt)/.55,0,1),bite=clamp((age-(e.life-.3))/.3,0,1),k=u*u*(3-2*u);
+  p.copy(cam.position).addScaledVector(fwd,4.9-bite*1.7);p.y=cam.position.y-HOOD_DROP;
+  a.position.lerpVectors(a.leapFrom,p,k);a.position.y+=Math.sin(Math.PI*u)*2.4;
+  a.yaw=Math.atan2(cam.position.x-a.position.x,cam.position.z-a.position.z);a.onHood=true;a.leapU=u;a.bite=bite;
+ }
+ hoodPose(a,c,e,age){
+  const t=age-e.leapAt,u=a.leapU;c.v.set(0,0,0);c.stride=0;c.yaw=a.yaw;
+  c.crouch=u<.25?.9-u*3.6:u<1?0:.75+.15*Math.sin(t*9)-.4*a.bite;c.roll=Math.sin(t*5.3)*.12;
+  c.look=Math.sin(t*3.1)*.25*(1-a.bite);c.tailYaw=Math.sin(t*4.2)*.45;if(c.rig)c.pant=1-a.bite;else c.peck=a.bite*1.2-.4;
  }
  // An ambusher's cover: fern and shrub clumps between it and the road that shiver harder
  // through the 0.9 s before it breaks out, then fly apart toward the vehicle.

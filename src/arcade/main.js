@@ -53,6 +53,7 @@ function fieldEvent(e){
  if(e.type==='beat'){const cam=renderer.world.camera.position,at={x:cam.x+e.side*14,y:cam.y,z:cam.z+28},name={raptor:'raptor',dilo:'dilophosaurus',galli:'gallimimus',trike:'triceratops'}[e.kind];if(e.kind==='ptero')field.screech(at);else if(e.pattern==='stampede')field.herd(at);else if(name)field.call(name,at);}
  if(e.type==='shot'){field.gun();if(e.hit){const wound=renderer.lastWound,actor=renderer.actors?.actors.get(e.id),at=wound?.point||actor?.position;if(at)field.hit('flesh',at.distanceTo(renderer.world.camera.position),at);renderer.lastWound=null;}}
  if(e.type==='blast')field.impact(true);
+ if(e.type==='leap'){const a=renderer.actors?.actors.get(e.id);if(a)field.call('raptor',a.position);}
 }
 // Her calls, bite, pain and footfalls come from the modeled Rex's own timing.
 function bossCues(){
