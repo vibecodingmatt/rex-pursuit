@@ -1,5 +1,15 @@
 # Rex: Pursuit handoff
 
+## Arcade A5, light and air (2026-10-03, local)
+
+- A5 shipped locally on `feature/lost-circuit-arcade`. `src/arcade/light.js` owns each stage's look (`STAGE_LOOKS`), the fog chunk, shadow fit, canopy strip, practical lamps, horizon and rim light; `src/arcade/air.js` owns motes, leaves, insects, flocks, gusts and plant push. `world.js` calls both from `setStage` and `sync`. The [roadmap's progress log](ARCADE-ROADMAP.md#progress-log) lists what changed.
+- The user reported shadows that "aren't displaying correctly and stay stationary as the vehicles move". Three causes, all fixed: the canopy dapple was re-parked at the camera every frame (now a world-anchored strip along the route); the practical lights sat at fixed offsets ahead of the camera (now owned by fixtures); and tree crowns cast nothing, so the track had no shade under the trees (crowns, palm fronds and tree-fern fronds now cast). The user should confirm in play that shade and lamp pools now pass under the vehicle.
+- Every stage changed look substantially (dawn, haze, ember, afternoon, dusk, storm night, moonlight). These are first passes tuned on captures; the user's eye should decide each one. Values are one table in `light.js`.
+- Shared modules are untouched: insects, birds, the foliage kit and the canopy are adapted from the arcade side. The arcade's fog chunk replaces Pursuit's `installAtmosphericFog` on `arcade.html` only.
+- Traps found (in the [arcade reference](../.agents/skills/rex-pursuit-maintainer/references/lost-circuit.md)): anything lit or shaded must be anchored to the world, not placed relative to the camera; a deep shadow box at a low sun takes in every chunk's trees; the horizon ring must draw after the scene, inside the far plane.
+- Focused tools in ignored `art/review/arcade-a5/`: `probe.cjs` (jobs file of seeks, steps and in-page code, with captures; `jobs-stages.json` captures all seven stages with the HUD hidden), `timing.cjs` (old against new, GPU-synced, 10th percentile; needs `serve-old.mjs` on 5199, which serves `src/arcade/*` from an `old-arcade/` folder filled with `git show HEAD:src/arcade/<file>`), `toggles2.cjs` (cumulative feature toggles to find where frame time goes).
+- The user hasn't seen A5 yet. Nothing has been pushed.
+
 ## Arcade A4, ground truth (2026-10-03, local)
 
 - A4 shipped locally on `feature/lost-circuit-arcade`. `src/arcade/ground.js` owns the terrain geometry and material, the rock kit and the chunk scatter; `world.js` calls it from `makeChunk`. The [roadmap's progress log](ARCADE-ROADMAP.md#progress-log) lists what changed.

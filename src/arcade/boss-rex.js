@@ -21,7 +21,7 @@ export class BossRex {
  async load(count=2){
   for(let i=0;i<count;i++){
    const rex=await createRex(this.world.scene),frame=new T.Group();
-   frame.add(rex.actor);this.world.scene.add(frame);rex.actor.position.set(0,0,0);
+   frame.add(rex.actor);this.world.scene.add(frame);rex.actor.position.set(0,0,0);this.world.rimCreatures(rex.actor);
    const slot={rex,frame,index:i,id:null};this.release(slot);this.slots.push(slot);
    this.prewarm(slot);
   }

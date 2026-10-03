@@ -19,10 +19,13 @@ export class CircuitActors {
   this.flyers=createFlyers(this.scene,{jungle});this.critters.reset({empty:true});this.flyers.reset({empty:true});
   this.brachio=createBrachio(this.scene,{jungle});
   this.shadowTexture=this.makeShadow();this.shadows=[];
-  const mat=new T.MeshBasicMaterial({map:this.shadowTexture,transparent:true,opacity:.52,depthWrite:false,polygonOffset:true,polygonOffsetFactor:-2});
+  // Soft contact shade under grounded animals; the sun's shadow map casts the real shadow.
+  const mat=new T.MeshBasicMaterial({map:this.shadowTexture,transparent:true,opacity:.34,depthWrite:false,polygonOffset:true,polygonOffsetFactor:-2});
   for(let i=0;i<20;i++){const mesh=new T.Mesh(new T.PlaneGeometry(1,1).rotateX(-Math.PI/2),mat);mesh.visible=false;this.scene.add(mesh);this.shadows.push(mesh);}
  }
  async load(){await this.critters.ready();}
+ // Ground animals push the planting aside as they run through it (world.js reads these).
+ pushers(){const out=[];for(const a of this.actors.values()){const k=a.e.kind;if(a.dead||!a.c||k==='ptero')continue;out.push({x:a.position.x,z:a.position.z,r:k==='trike'?3.6:k==='galli'?1.8:2.3,s:1});}return out;}
  makeShadow(){const c=document.createElement('canvas');c.width=c.height=64;const x=c.getContext('2d'),g=x.createRadialGradient(32,32,4,32,32,32);g.addColorStop(0,'#000b');g.addColorStop(1,'#0000');x.fillStyle=g;x.fillRect(0,0,64,64);return new T.CanvasTexture(c);}
  reset(){for(const a of this.actors.values())if(a.mesh)disposeProp(a.mesh);this.actors.clear();this.critters.reset({empty:true});this.flyers.reset({empty:true});for(const s of this.shadows)s.visible=false;}
  makeProp(kind){
@@ -74,7 +77,7 @@ export class CircuitActors {
     if(e.kind==='ptero'){c.q.setFromEuler(new T.Euler(-.08,a.yaw,Math.sin(age*2)*.2));c.phase=(age*1.4)%1;c.amp=.8;c.fold=.03;c.scale=2;}
     else{c.yaw=a.yaw;c.v.set(lateral,0,forward);const strideDt=Math.max(0,age-(a.lastAge??age-.016));a.lastAge=age;a.stridePhase=((a.stridePhase||0)+strideDt*Math.hypot(lateral,forward)/(c.kind.strideLength?c.kind.strideLength*c.scale:4.7))%1;c.phase=a.stridePhase;c.stride=.95;c.poseTime=age;c.body.set(0,0,0);c.roll=0;c.curl=0;if(e.kind==='dilo')c.frill=clamp((age/life-.23)*3.8,0,1);}
    }else{a.mesh.position.copy(a.position);a.mesh.rotation.set(e.kind==='ichthy'?Math.sin(age*2)*.3:e.kind==='rock'?age*.7:0,a.yaw,e.kind==='rock'?age:.0);}
-   const s=this.shadows[shadow++];if(s){s.visible=true;s.position.set(x,y+.11,z);s.scale.set(e.kind==='trike'?5:3.6,1,e.kind==='trike'?7:5);}
+   if(lift<1.5&&e.kind!=='ichthy'){const s=this.shadows[shadow++];if(s){s.visible=true;s.position.set(x,y+.11,z);s.rotation.y=a.yaw;s.scale.set(e.kind==='trike'?4.2:2.8,1,e.kind==='trike'?6.2:4.2);}}
   }
   this.critters.updateDirected(dt);this.flyers.updateDirected();for(let i=shadow;i<this.shadows.length;i++)this.shadows[i].visible=false;
   if(game.stage.id==='river'&&game.stageTime>5&&game.stageTime<28){const z=500;this.brachio.show(routeX(z,'river')-10,z,Math.PI/2);this.brachio.mesh.position.y=routeY(z,'river')-1.3;this.brachio.mesh.scale.setScalar(1.45);this.brachio.rearAt(Math.max(0,game.stageTime-19));this.brachio.mesh.visible=true;}else this.brachio.mesh.visible=false;
