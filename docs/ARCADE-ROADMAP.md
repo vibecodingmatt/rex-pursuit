@@ -5,6 +5,7 @@ Started 2026-10-03. The user's goal: Sega's 1994 *Jurassic Park* arcade ride, re
 ## How to run a drop
 
 - Start a **fresh conversation** in this folder and say: *"Do the next arcade drop in docs/ARCADE-ROADMAP.md."*
+- **If the progress log marks a drop in progress, finish its "Stopped here" items before starting the next drop.** As of 2026-10-03 that is A7 (contact attacks).
 - Read this file, then only the files the drop names. Skim `docs/START-HERE.md` for status; don't read `HANDOFF.md` end to end, and don't re-survey the codebase.
 - `src/arcade/*.js` is written in a dense one-statement-per-line style (100 KB in about 800 lines). Use `grep -n` to find what you need and read with offsets. Printing whole files costs a large share of the window.
 - Finish the "Must" items before any "Stretch" items. If the window runs short, cut Stretch and record where work stopped in the progress log.
@@ -142,7 +143,7 @@ For all three:
 **Read:** `actors.js`, the directed-update and pose code in `chase/critters.js` and `flyers.js`, `raptor-models.js`, and `scripts/build-safari.mjs` for the sculpt pattern.
 **Checks:** `verify-circuit-ride.cjs` (its five-frame approach sequence, before and after), `test:smoke`, `build`, and `test:wildlife` or `test:safari` if a shared module changed. Capture one short sequence per species: approach, turn, charge and hit.
 
-## A7: The director *(authored encounters)*
+## A7: The director *(authored encounters)*: in progress (the director is done; contact attacks remain)
 
 **What you'll play:** each stage runs from a beat sheet instead of a roster timer.
 
