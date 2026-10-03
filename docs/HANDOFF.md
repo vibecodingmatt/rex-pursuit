@@ -1,5 +1,13 @@
 # Rex: Pursuit handoff
 
+## Portable agent onboarding (2026-10-03, documentation only)
+
+- Read [START-HERE.md](START-HERE.md) first in a new session. It identifies the correct repo despite an unrelated IDE tab, separates user feedback from developer assessment, records runtime checkpoint `a397b3b`, and provides a short cross-provider startup prompt. `AGENTS.md` and README route there.
+- The maintained [skill](../.agents/skills/rex-pursuit-maintainer/SKILL.md) now discovers Lost Circuit and Raptor Ravine; its new [arcade reference](../.agents/skills/rex-pursuit-maintainer/references/lost-circuit.md) covers code ownership, route/time/target invariants, fixed rendering failures, tests, diagnostics and provenance. All instructions are usable as plain Markdown without Codex, a plugin or a skill loader.
+- Corrected current scene descriptions in [LOST-CIRCUIT.md](LOST-CIRCUIT.md) that still described removed backdrop-era effects. Earlier sections below are historical checkpoints, not current acceptance or release authorization.
+- This task changes documentation/skill metadata only. No runtime changes or new visual acceptance. The rebuilt arcade remains local on `feature/lost-circuit-arcade`; no push or publication requested. Validate links, paths and skill metadata for this documentation revision; do not report older runtime checks as newly run.
+- Documentation verification: 42 local links/anchors across seven entry/reference documents, new referenced paths/npm commands, skill frontmatter and UI metadata passed direct Node checks. The bundled Python validator could not run because Python is unavailable. The four changed files in the installed `~/.codex/skills/rex-pursuit-maintainer/` copy were synchronized and hash-checked against the repo source. No game tests were rerun for this prose-only change.
+
 ## Lost Circuit traversal rebuild and quality audit (2026-10-02, local)
 
 - The user rejected the first arcade version's flat travel, small paper-like enemies and detached gunfire, while explicitly liking its boss fights. They also requested a hard self-audit against a modern AAA quality reference. This revision replaces traversal and normal encounters with Three.js while preserving the accepted boss behavior/art. See [the current implementation](LOST-CIRCUIT.md) and [the candid quality audit](ARCADE-QUALITY-AUDIT.md). It is **not** claimed to meet AAA parity.

@@ -4,13 +4,14 @@ This checkout is the Rex: Pursuit Three.js browser game. It is separate from Din
 
 The current upgrade plan is [docs/ROADMAP.md](docs/ROADMAP.md): one drop per session, committed locally. Do not push until the user says "ship it".
 
-Start with [docs/HANDOFF.md](docs/HANDOFF.md) for the accepted behavior and recent fixes. Use the project skill at [.agents/skills/rex-pursuit-maintainer/SKILL.md](.agents/skills/rex-pursuit-maintainer/SKILL.md) for the code map and task-specific references. [README.md](README.md) describes gameplay, controls, audio, and asset provenance.
+For a fresh session, start with [docs/START-HERE.md](docs/START-HERE.md): the portable project identity, current checkpoint, user feedback, evidence limits and reading order. It works with any AI provider as ordinary Markdown. [docs/HANDOFF.md](docs/HANDOFF.md) preserves dated decisions. Use the project skill at [.agents/skills/rex-pursuit-maintainer/SKILL.md](.agents/skills/rex-pursuit-maintainer/SKILL.md) for the code map and task-specific references. [README.md](README.md) describes gameplay, controls, audio, and asset provenance.
 
 ## Working conventions
 
 - Read the current code and Git status before editing. The handoff describes a checkpoint; source constants and subsequent user requests take precedence.
 - Pursuit and Safari use `index.html` / `src/chase.js`; Containment Breach has its own entry, `breach.html` / `src/breach/main.js`. `creature-lab.html` is the full TEST ONLY catalogue; `model-lab.html` / `src/main.js` is the preserved Rex study. River Escape is a future roadmap item, not an implemented mode.
 - Raptor Ravine is campaign chapter two (`ravine.html`, `src/ravine/`). It is temporarily open for play-testing via `RAVINE_PLAYTEST_OPEN` in `src/chase/campaign.js`; earned Pursuit progress remains separate. Read `docs/RAPTOR-RAVINE.md` for CC0 art provenance, authoring and focused regression.
+- Lost Circuit '94 is the separate arcade ride (`arcade.html`, `src/arcade/`). Read the [arcade maintenance reference](.agents/skills/rex-pursuit-maintainer/references/lost-circuit.md) before changing its travel, actors, gun or rendering. The rebuilt visuals have not received user acceptance and are not claimed to meet AAA quality.
 - Ordinary animation and material changes belong in runtime code. Re-exporting the GLB is a separate asset-authoring operation that can overwrite existing work.
 - For visual changes, inspect comparable before/after captures, including the relevant close-up and mobile framing. A passing numeric check does not establish that an animation looks good.
 - Use the focused checks in the skill's verification reference. `npm test` is not the complete suite. Keep review images and temporary diagnostics in ignored `art/review/`.

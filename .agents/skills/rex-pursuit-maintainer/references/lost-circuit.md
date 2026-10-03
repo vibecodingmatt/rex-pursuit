@@ -1,0 +1,112 @@
+# Lost Circuit '94 maintenance
+
+Use for `arcade.html` and `src/arcade/`, the optional 1994-inspired rail shooter inside Rex: Pursuit. This reference is plain Markdown and works with any agent or editor. Code/doc paths are relative to the **checkout root**, even when this skill is installed elsewhere. Read `docs/START-HERE.md` for the current checkpoint and user feedback, `docs/LOST-CIRCUIT.md` for research/provenance, and `docs/ARCADE-QUALITY-AUDIT.md` for the honest quality assessment.
+
+## Intent to preserve
+
+The user asked for the speed, terrain travel and shooting rhythm of Sega's 1994 Jurassic Park arcade, with modern presentation and later-film encounters. They rejected static scenery, small cutouts and a gun that did not turn with its fire; they liked the boss fights. The rebuilt world and normal creatures are 3D. Bosses deliberately retain animated 2.5D artwork and existing attack windows. Their style mismatch remains an open quality problem, not a claim that all creatures are fully modeled.
+
+Art freedom is explicitly broad for this mode. Existing Pursuit visuals are reusable resources, not a requirement to constrain the arcade's art direction. Reuse solved rig/material work where helpful, but do not mistake reused assets or successful tests for satisfying the user's AAA reference. The user has not accepted the current rebuilt visuals.
+
+## Code ownership
+
+| File | Responsibility |
+| --- | --- |
+| `arcade.html`, `src/arcade/style.css` | Separate entry, menu/routes, instructions, HUD, pause/results, responsive controls, canvas stacking |
+| `src/arcade/main.js` | Loading, user input, fixed 60 Hz simulation, events/HUD, pause/audio lifecycle, test-only diagnostics |
+| `src/arcade/rules.js` | Pure seeded `Circuit`, stage definitions, vehicle distance/speed, normal/boss timings, hits, score, Overdrive, continues, pure projection fallback |
+| `src/arcade/world.js` | Route/ground functions, moving camera, nine streamed 32 m chunks, vegetation/cliffs, scene landmarks, water, bridge planks/leap, HDR post |
+| `src/arcade/actors.js` | World-space normal encounters, species adapters, ground/air/water placement, deaths, actual body/head projection |
+| `src/arcade/weapon.js` | Mounted gun, camera-relative vehicle frame, yaw/pitch, flash, muzzle projection and alignment diagnostics |
+| `src/arcade/renderer.js` | WebGL/Canvas2D composition, normal projection delegation, boss artwork, shot feedback, particles/labels, title artwork |
+| `src/arcade/puppet.js` | Boss image deformation; preserve individual atlas crop rectangles to avoid adjacent-cell slivers |
+| `src/arcade/audio.js`, `records.js` | Procedural score/effects, speed-responsive engine/wind and calls; isolated local records with storage-denied fallback |
+| `public/arcade/` | Generated artwork and source/prompt metadata; architecture atlas is mapped onto 3D meshes |
+
+Shared dependencies include `src/chase/critters.js`, `raptor-models.js`, `flyers.js`, `brachio.js`, `mounted-gun.js`, `foliage.js`, `atmosphere.js` and `post.js`. Changes there can affect other modes. Arcade uses the opt-in `flyers.updateDirected()` rather than changing the shared flyer's ordinary update. Prefer an arcade adapter for behavior that is specific to this ride.
+
+## Coordinates, time and shooting
+
+- `Circuit.travel` is actual distance within the current stage, reset on stage transition. `world.js` exports `routeX`, `routeY`, `routeHeading` and `groundAt`; terrain, camera and actors sample that same route. Normal ride speed is 24 m/s, fault 27, manor 14. Intro and boss/clear phases use different speeds. Read current constants before tuning them.
+- Overdrive lasts five seconds. It slows vehicle travel and enemy age progression and increases fire cadence. `stageTime`, encounter age and distance are distinct quantities. Do not replace actual distance with `stageTime * cruise` in gameplay or advance gait with wall-clock time. Test seeking approximates placement this way and therefore does not prove real traversal continuity.
+- Normal attackers have world-space entry, pacing, turning and final charge paths. Their positions depend on `spawnTravel` and encounter age; the shared rig supplies body/head points. Portrait narrows lateral entries, manor keeps them inside the walls and drops raptors from above. River/lagoon waves use air/water species to avoid land animals walking on water.
+- The bridge event records `bridgeOrigin = travel + 30`. Falling boards and the vehicle's leap use that fixed world-space gap. A fixed jump timer was wrong during Overdrive. Check a normal run and a slowed run whenever travel/jump timing changes.
+- The browser installs `game.projector` to use actual rendered normal-enemy targets. Pure rule tests use the fallback projection; passing them alone cannot validate rendered hit alignment. `main.js` synchronizes world/actors/weapon before shooting. A visible rig, its head/body targets and shot effects must agree in the same frame.
+- The mounted gun is physically attached to the camera's vehicle frame, aiming toward the reticle ray. Its shared model's original aim clamp was too narrow for this mode. Keep the barrel, muzzle flash and tracer start tied to the same muzzle transform across left/right/low aim and portrait. The gun's `diagnostics()` reports bore alignment and projected muzzle position.
+- `?test=1` gates mutating diagnostics and disables record writes. Normal snapshots/readiness remain available without it. Preserve separate route, difficulty and continued/one-credit record keys; do not mix these records with Pursuit or campaign progress.
+
+## Rendering failures already solved
+
+| Failure | Current mechanism / maintenance implication |
+| --- | --- |
+| Vegetation vanishes later in the route | Shared foliage assumed a fixed Jeep frame. Arcade adapts `onBeforeCompile` distance fading to `cameraPosition.z`. Preserve the shared compile hook and cache key; inspect late travel if shader strings change. Install atmospheric fog integration before material compilation. |
+| Postprocessing reallocates continuously | Call `post.configure` at setup or actual configuration changes. Per-frame motion blur changes use `post.settings.motionBlur`, not repeated configure calls. |
+| Chunk cleanup damages remaining scenery | Chunk instances share geometry/materials. Dispose instance resources and per-chunk geometry/materials without disposing the shared kit. The aviary's unique line geometry/material also needs cleanup. |
+| Water seams and false reflections | River/lagoon use a single reflective water plane, with flat route height there. Normal-map filtering and moderate distortion were reviewed. Planar reflection adds a scene render; jungle frame timing does not measure its cost. |
+| Trees penetrate the lava roof | Cave chunks suppress tree generation. Check the cave exit and transition to the exposed canyon, not just one tunnel screenshot. |
+| Lagoon reads as a flooded hallway | Shore railings and stepped seating sit out on the banks; the center remains open water. Avoid reinstating central colonnades. |
+| Menu/controls disappear behind the scene | `#terrain` is the lower WebGL canvas; `#ride` is transparent Canvas2D above it; menu/HUD/overlays need their intended stacking and pointer access. Test an actual Start click/tap after canvas changes. |
+| Static overlay gun shoots sideways | Old launcher artwork is unused in gameplay. The mounted receiver, belt, flash and tracer share the world-space gun. Do not restore an independently drawn screen-space barrel. |
+
+Low motion suppresses shake/banking and motion blur while essential route travel continues. Pause must suspend simulation **and** AudioContext; freezing test time is not a pause test. Permanent engine/wind nodes are reused; short sound sources remain bounded and are stopped/reset. Preserve gesture-based audio unlock.
+
+## Verification recipes
+
+Run from the checkout with dependencies installed and the source server on 5188 (`npm start`). See [verification-and-release.md](verification-and-release.md) for shared setup and publication. Use the smallest set covering the change; prose-only edits need links/path/frontmatter validation, not gameplay suites.
+
+| What changed | Command and what it establishes |
+| --- | --- |
+| Pure rules, score, phase/bridge timing, records | `node scripts/test-lost-circuit.mjs` - both routes, frame rates, loss/continues, cadence, interrupts, storage and slowed bridge placement |
+| Input, HUD, state transitions, complete routes | `npm run test:lost-circuit` - pure checks plus actual mouse/touch, pause/audio, Overdrive, all stages and four viewport sizes |
+| Terrain, camera, actors, weapon or visual effects | `node scripts/verify-circuit-ride.cjs` - actual travel, rigged actors, muzzle extremes, normal/Overdrive jump alignment, environments and captures in desktop/portrait |
+| Sustained real-time play or pacing | `node scripts/verify-circuit-live.cjs` - automated held-mouse classic run with earned Overdrive, without stepping, seeking, injected hits or health changes; allow about 3-5 minutes |
+| Shared runtime integration | `npm run test:smoke`, plus the shared-system check named in the general verification reference; use `npm run test:logic` for broad rule changes |
+| Packaging | `npm run build`, then `npm run test:release`, then the dist-only arcade command below |
+
+All three arcade browser scripts accept `CHROME_PATH` and `TEST_URL`. Use a base such as `http://127.0.0.1:5188/`, not the page filename. They default to installed Windows Chrome. Set the executable path for another machine; the repo does not bundle Chromium. Avoid concurrent graphics benchmarks when comparing frame timings.
+
+After building, the full arcade browser script can start its own dist-only server on 5193 under `/rex-pursuit/`. It closes that server when done. This prevents the source server's `public/` fallback from masking missing release files.
+
+PowerShell:
+
+```powershell
+$env:CIRCUIT_DIST = '1'
+try { node scripts/verify-lost-circuit.cjs }
+finally { Remove-Item Env:CIRCUIT_DIST -ErrorAction SilentlyContinue }
+```
+
+POSIX shell equivalent:
+
+```sh
+CIRCUIT_DIST=1 node scripts/verify-lost-circuit.cjs
+```
+
+Do not infer that `test:pages` or CI ran the arcade browser flow. CI runs logic/build/release asset checks. `npm run test:arcade` is a different, older Pursuit check. A complete runtime package should be checked with `verify-lost-circuit.cjs` explicitly.
+
+## Visual review and diagnostics
+
+The scripts create ignored `art/review/lost-circuit/`, `ride-audit/` and `live/`. These reports/captures are local evidence, not portable tracked assets. Regenerate if absent. Keep baseline captures in a separate ignored folder before a rerun if you need a before/after comparison; scripts reuse filenames.
+
+At `arcade.html?test=1`, wait for `lostCircuit.ready`, start through the UI, then use:
+
+```js
+lostCircuit.freeze(true);
+lostCircuit.seek('fault', 18.8);
+lostCircuit.step(1.2);
+lostCircuit.render();
+lostCircuit.diagnostics(); // camera, actors, rig flags, muzzle, draws, triangles
+```
+
+`getGame()`, `project(entity)`, `setAim(x,y)`, `snapshot()` and `step(seconds, autoplay)` support focused diagnostics. Stage IDs are `gates`, `river`, `fault`, `hybrid`, `lagoon`, `manor`, `visitor`; the classic route omits the three World detours. Seeking is a visual inspection tool, not a real-time playthrough. Use trusted pointer/keyboard/touch actions to verify input and audio.
+
+Review an approach sequence, not just a frozen creature: cover emergence, pacing, turn, charge/contact and death. Check desktop and portrait, near and far framing, cave exit, bridge leap during Overdrive, water crossings, World landmarks and a boss. Read console, page and asset errors; a responsive canvas can still have a shader failure. Stage announcements can obscure captures immediately after seeking, so also inspect unobstructed views.
+
+Human playtesting, physical phones and Safari/iOS remain open validation areas. Headless workstation frame intervals and scripted wins do not prove fun, reaction fairness, phone thermals or AAA art quality.
+
+## Provenance and handoff discipline
+
+Existing generated PNGs and JSON prompt/source files live together under `public/arcade/`. `architecture-v2.png` has four facade/thatch panels; inspect the actual dimensions/crops rather than assuming the generation request's resolution was honored. Old launcher/wildlife atlases remain as provenance even when no longer drawn for ordinary gameplay. Do not reintroduce rejected visual behavior simply because those files exist.
+
+The weighted raptor is Animaniac888's CC0 model; scanned environment assets are from Poly Haven. Read `docs/RAPTOR-RAVINE.md` and the relevant asset metadata for exact sources. No original Sega sprites, film frames or arcade music were extracted. Further art changes should preserve or add source/license/prompt records.
+
+Update the latest section of `docs/HANDOFF.md` for changed behavior and evidence, this reference for reusable failure modes, and `docs/START-HERE.md` when the checkpoint or acceptance/release status changes. Keep research claims distinct from invented mechanics. Update the quality audit when new inspection supports a different assessment; never quietly promote a self-assessment into user acceptance.

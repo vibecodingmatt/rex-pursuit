@@ -10,7 +10,7 @@ Three jungle encounters from a Jeep's mounted gun: survive the T. rex in **Rex P
 
 **Lost Circuit ’94** is a selectable side arcade ride at `arcade.html`, with a four-stage classic route and seven-stage Extended Cut. It combines a moving 3D world, rigged roadside encounters, cinematic boss art, a fully aimed mounted gun, unlimited tranquilizer fire, boss interruptions, score chains, Overdrive, touch aiming and browser-local records. The Extended Cut adds Indominus, Mosasaurus and Indoraptor encounters. See [the research, controls, art provenance and checks](docs/LOST-CIRCUIT.md). Available in this checkout; publication is separate.
 
-Start with [the session handoff](docs/HANDOFF.md) and [AGENTS.md](AGENTS.md). The [Rex: Pursuit maintainer skill](.agents/skills/rex-pursuit-maintainer/SKILL.md) maps the code and records the animation, rendering, mobile, verification, and release lessons. Its repo folder is the maintained source and can also be copied to `~/.codex/skills/rex-pursuit-maintainer` for discovery in future sessions.
+For a new developer or AI session, read [START HERE](docs/START-HERE.md) and [AGENTS.md](AGENTS.md). The guide includes a copyable startup prompt and works with any provider; no proprietary session memory is required. The [session handoff](docs/HANDOFF.md) preserves dated decisions. The [Rex: Pursuit maintainer skill](.agents/skills/rex-pursuit-maintainer/SKILL.md) maps the code and records animation, rendering, arcade, mobile, verification and release lessons. Its repo folder is the maintained source; read it directly or copy the whole folder into your agent's supported skill directory.
 
 ## Run
 

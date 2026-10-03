@@ -34,6 +34,7 @@ Read `package.json` and the selected script before running it. There is no need 
 | --- | --- |
 | Core combat, timers, objectives, deadline | `npm run test:logic`, `npm run test:arcade` |
 | Main game shooting, damage, restart | `npm test` |
+| Lost Circuit '94 rules, input, routes, 3D travel, muzzle alignment, bridge and packaged entry | `npm run test:lost-circuit`, `node scripts/verify-circuit-ride.cjs`; real-time and dist-only recipes are in [lost-circuit.md](lost-circuit.md). `test:arcade` is an older Pursuit check, not this mode. |
 | Containment Breach: waves, trap, weapons, leap/board attacks, Rex/gate finale, pause/restart and touch | `npm run test:breach`; rules alone: `node scripts/test-breach.mjs` (also in `test:logic`) |
 | Breach service-passage concealment, continuous arrivals, entrance cover and phone sightlines | `npm run test:breach-arrivals` (source server only) |
 | Breach solid-object clearance, direct rocket contact and model breakup | `npm run test:breach-collisions` (source server only) |
@@ -77,6 +78,8 @@ Inspect before/after captures for animation and shader work. Meaningful checks i
 
 `window.breach` is the separate compound harness; wait for `breach.ready`. Its `round`, `director`, `step`, `aimAt` and `snapshot` are described in [containment-breach.md](containment-breach.md). `window.creatureLab` belongs to the full catalogue; wait for `active` and use `select(name)` for another model. Do not mix these page-specific globals.
 
+`window.lostCircuit` belongs to `arcade.html`. Wait for `ready`; mutation/seek/step/spatial methods require `?test=1`, which disables record writes. See [the arcade diagnostics](lost-circuit.md#visual-review-and-diagnostics). Its freeze API is a function, `lostCircuit.freeze(true)`, not the Pursuit setter.
+
 `freeze=true` stops simulation while continuing rendering, making it useful for exact cinematic captures and custom camera comparisons. It is **not** a pause test: verify Pause through the UI or keyboard and check AudioContext suspension as well. Start with a real click/tap to unlock sound.
 
 For settled menu captures, wait for `#boot` to become hidden and the title reveal to finish. If changing conditions after freezing, step `weather.update(0,0,camera,{ground:true})` too: `setConditions(...,true)` updates the values/lights but rain visibility is applied during update. A capture-only HUD filter must preserve `#scene-viewport`, the parent of the canvas.
@@ -112,4 +115,4 @@ No game build or browser regression run is needed solely for prose/skill edits. 
 
 The hero is artist-authored fan-concept art, not a film production mesh. Keep the existing attribution and provenance in README, credits, and GLB metadata. Runtime tuning does not need asset re-export. `art:export` writes an intermediate model through the local authoring server; `art/finish_rex.py` uses Blender to overwrite the hero and editable master. Use that pipeline only for deliberate asset changes with the local source files available.
 
-The five Vite entries are chase, Containment Breach, the original model lab, the full creature catalogue and the sound library. The local catalogue shortcut is stripped from the production menu by `data-dev-only`, but the page itself is built; the Containment link is public. Share metadata is static in `index.html`: Open Graph, X card, canonical URL and VideoGame JSON-LD. The current `public/social/rex-pursuit-v4.jpg` is 1200x630; source metadata and README take precedence over this checkpoint. When changing artwork, regenerate deliberately and update both metadata image URLs to a new versioned filename; social caches may retain old images. Do not rebuild social art for an unrelated code fix.
+The Vite entries include chase, Containment Breach, Raptor Ravine, Lost Circuit, the original model lab, the full creature catalogue and the sound library; `vite.config.js` is authoritative. The local catalogue shortcut is stripped from the production menu by `data-dev-only`, but the page itself is built; the Containment link is public. Share metadata is static in `index.html`: Open Graph, X card, canonical URL and VideoGame JSON-LD. The current `public/social/rex-pursuit-v4.jpg` is 1200x630; source metadata and README take precedence over this checkpoint. When changing artwork, regenerate deliberately and update both metadata image URLs to a new versioned filename; social caches may retain old images. Do not rebuild social art for an unrelated code fix.

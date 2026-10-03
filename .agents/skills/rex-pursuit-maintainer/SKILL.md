@@ -1,23 +1,29 @@
 ---
 name: rex-pursuit-maintainer
-description: "Maintain, diagnose, visually verify, or publish the Rex: Pursuit Three.js game in games-playground/rex-encounter, including Pursuit, Safari Run, Containment Breach, the creature catalogue, mobile controls and GitHub Pages. Use for this game rather than Dino Defense, War Survival, or Approach Orlando."
+description: "Maintain, diagnose, visually verify, or publish Rex: Pursuit in games-playground/rex-encounter, including Lost Circuit '94, Raptor Ravine, Pursuit, Safari Run, Containment Breach, shared creatures and mobile controls. Use for this game rather than Dino Defense, War Survival, or Approach Orlando."
 ---
 
 # Rex: Pursuit maintainer
 
 Use the existing game and rig as the starting point. The user values believable, continuous motion and movie-like scale, and has accepted the Jeep and creature. At the user's request (September 2026) the victory fall is now a face-first physics fall with ground effects, and the swallow interior is a shorter, deliberately graphic esophagus/stomach sequence; tune those rather than reverting them. Follow the requested change rather than rebuilding those systems.
 
+Those accepted visuals concern the original Pursuit mode. For Lost Circuit '94, the user explicitly permits a new art direction, rejected the first static/cutout implementation, liked its boss fights, and has not yet accepted the rebuilt 3D traversal. Read the arcade reference instead of carrying acceptance claims from another mode.
+
 ## Locate and orient
 
 The known checkout is `C:\Users\burns\dev\games-playground\rex-encounter`; if working elsewhere, identify it by `package.json` name `rex-pursuit` and its Git remote. This is a standalone repository inside `games-playground`.
 
-Read its `AGENTS.md` and `docs/HANDOFF.md`, then inspect current source and Git status. The handoff is a dated checkpoint, not an instruction to repeat completed work. Public repository: `vibecodingmatt/rex-pursuit`; site: `https://vibecodingmatt.github.io/rex-pursuit/`.
+Read its `AGENTS.md` and `docs/START-HERE.md`, then inspect current source and Git status. Use the latest relevant section of `docs/HANDOFF.md` for dated decisions, not as an instruction to repeat completed work. Public repository: `vibecodingmatt/rex-pursuit`; site: `https://vibecodingmatt.github.io/rex-pursuit/`.
+
+This skill and its references are ordinary Markdown usable by any provider. A skill loader and `agents/openai.yaml` are optional. Resolve code/doc paths against the checkout, not an installed skill folder; the repo's startup guide contains the cross-provider reading order and session prompt.
 
 ## Code map
 
 | Task | Main files relative to the checkout |
 | --- | --- |
 | Game entry, camera, frame clock, pause, event/audio cues | `index.html`, `src/chase.js`, `src/chase.css`, `src/chase-premium.css` |
+| Lost Circuit '94: classic/extended arcade routes, moving world, normal actors, aimed gun, 2.5D bosses and records | `arcade.html`, `src/arcade/`; read the [Lost Circuit reference](references/lost-circuit.md) and `docs/ARCADE-QUALITY-AUDIT.md` |
+| Raptor Ravine: campaign chase, shared authored raptor and scanned cliffs | `ravine.html`, `src/ravine/`, `src/chase/raptor-models.js`; read `docs/RAPTOR-RAVINE.md` and `docs/RAVINE-TURBO-AUDIT.md` |
 | Containment Breach: compound holdout, raptor leap/board attacks, electrical trap, Rex charge and gate escape | `breach.html`, `src/breach/main.js`, `rules.js`, `director.js`, `world.js`, `style.css`; read the [Breach reference](references/containment-breach.md) |
 | HDR post pipeline, quality tiers, dynamic resolution | `src/chase/post.js`, `graphics.js`, quality wiring in `src/chase.js` |
 | Sky, environment light, fog, canopy dapple/shafts | `src/chase/atmosphere.js` |
@@ -55,6 +61,7 @@ Paths abbreviated within a row share the first file's directory.
 
 ## Select the relevant workflow
 
+- For the Lost Circuit arcade ride, read [lost-circuit.md](references/lost-circuit.md). It covers moving-world coordinates, Overdrive, physical muzzle alignment, shared-rendering traps, portable test commands and evidence limits. The user requested a hard quality audit; do not describe the current version as AAA or visually accepted.
 - For rig, cinematic, material, sound, or mobile changes, read [animation-and-rendering.md](references/animation-and-rendering.md). It records the causes of prior regressions and the invariants behind their fixes.
 - For Containment Breach gameplay, its compound, or reuse of its attacker states, read [containment-breach.md](references/containment-breach.md). Pursuit/Safari keep separate rules. River Escape is described in `docs/ROADMAP.md` but remains future work; the existing river ford is only a short crossing.
 - For brachiosaur anatomy, use the accepted silhouette and loft-authoring notes in that reference's [Living jungle](references/animation-and-rendering.md#living-jungle-critters-insects-brachiosaur) section. Rebuild both mesh tiers and inspect neutral studio views as well as the game.
@@ -67,4 +74,4 @@ Publishing is conditional on the user's requested scope and existing authorizati
 
 ## Maintaining this skill
 
-The maintained copy is `.agents/skills/rex-pursuit-maintainer/` in the repo. A user copy may also exist under `~/.codex/skills/rex-pursuit-maintainer/`. Keep copies synchronized when updating the skill. Supporting references are bundled so the installed skill retains its detailed workflow. Update the dated handoff for meaningful new decisions, not routine tool output.
+The maintained copy is `.agents/skills/rex-pursuit-maintainer/` in the repo. A user copy may also exist under `~/.codex/skills/rex-pursuit-maintainer/`. Keep copies synchronized when updating the skill within the session's filesystem permissions. Supporting references are bundled so the installed skill retains its detailed workflow; current state/provenance docs remain in the checkout. Other agents can read the repo files directly without installation. Update the dated handoff for meaningful new decisions, not routine tool output, and the startup guide when current scope or acceptance/release status changes.

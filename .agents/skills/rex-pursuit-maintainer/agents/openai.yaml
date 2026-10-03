@@ -1,4 +1,4 @@
 interface:
   display_name: "Rex: Pursuit Maintainer"
-  short_description: "Maintain Rex Pursuit, Safari and Containment Breach"
-  default_prompt: "Use $rex-pursuit-maintainer to continue work on Rex: Pursuit using its handoff and focused verification checks."
+  short_description: "Maintain Rex Pursuit modes, Lost Circuit and Raptor Ravine"
+  default_prompt: "Use $rex-pursuit-maintainer to continue work on Rex: Pursuit using docs/START-HERE.md, its current handoff and focused verification checks."

@@ -22,13 +22,13 @@ The ’94 Circuit contains stages 1, 2, 3 and 7. The Extended Cut runs all seven
 
 | Stage | Scene and interaction | Relationship to the research |
 | --- | --- | --- |
-| Through the gates | Jungle ambushes, Gallimimus crossing, spit, dark passage, Triceratops charge | Remixes the first area's mixed threats; Triceratops as a boss is a new liberty |
-| River of giants | Waterfall valley, enormous Brachiosaurus passing close, aquatic/flying enemies, Rex | Recalls the original's sauropod and river excess; does not reproduce its exact traversal |
+| Through the gates | Moving forest track, roadside pacing/charges, Gallimimus crossings, spit, Triceratops boss | Remixes the first area's mixed threats; Triceratops as a boss is a new liberty |
+| River of giants | Reflective river, enormous Brachiosaurus passing close, aquatic/flying enemies, Rex | Recalls the original's sauropod and river excess; does not reproduce its exact traversal |
 | The falling world | Lava cave exit, volcanic canyon, a breaking bridge and shootable falling rocks | The strongest direct set-piece homage; departure is earned by surviving the hazard wave |
-| Nobody is in control | Glass aviary into lagoon promenade, camouflaging Indominus | Modern-film detour with a partially concealed approach and long-clawed silhouette |
+| Nobody is in control | Modern promenade, monorail and glass aviary dome, camouflaging Indominus | Modern-film detour with a partially concealed approach and long-clawed silhouette |
 | Something in the water | Wake effects, marine enemies, breaching Mosasaurus | A later-film scale escalation with a timed bite interruption |
-| Do not turn out the lights | Stormy conservatory, aim-following light, lateral Indoraptor attacks | A manor/roof horror interpretation of Fallen Kingdom |
-| When giants ruled | Flooded visitor-center plaza and two independently attackable Rexes | Returns the ride to its classic finale after the modern detour |
+| Do not turn out the lights | Vaulted conservatory, practical lights, raptors dropping from above, lateral Indoraptor attacks | A manor/roof horror interpretation of Fallen Kingdom |
+| When giants ruled | Visitor-center approach, thatched rotunda and two independently attackable Rexes | Returns the ride to its classic finale after the modern detour |
 
 The modern additions are explicitly separate from the 1994 research. The official Jurassic World channel's Indominus feature documents the hybrid threat; Universal's attraction description identifies the lagoon's enormous Mosasaurus; the licensed Lockwood Estate set describes an Indoraptor encounter in that setting. These establish the motifs; the encounter choreography here is new. [Official Indominus feature](https://www.youtube.com/watch?v=APCdnLpoOPs), [Universal's Jurassic World attraction](https://www.universalstudioshollywood.com/web/en/us/things-to-do/rides-and-attractions/jurassic-world), [Lockwood Estate reference](https://www.lego.com/en-us/product/indoraptor-rampage-at-lockwood-estate-75930).
 
@@ -57,6 +57,8 @@ The original PNG atlases and launcher remain under `public/arcade/` with their I
 `audio.js` supplies an original procedural pulse score, a speed-responsive engine and wind bed, firing, impacts and rewards, plus three existing dinosaur-call clips from the project's user-supplied library. No original arcade music is used. Audio starts from a user gesture; an unavailable sample falls back to synthesis.
 
 ## Verification and limits
+
+For a fresh session, read [START-HERE.md](START-HERE.md). The [maintenance reference](../.agents/skills/rex-pursuit-maintainer/references/lost-circuit.md) maps the modules, explains fragile integration decisions, and gives source, real-time and packaged test recipes for different shells. The 3D rebuild is runtime commit `a397b3b`; scene descriptions above reflect that revision rather than the rejected backdrop version.
 
 `npm run test:lost-circuit` runs deterministic 30/60/120 Hz, classic/extended and desktop/phone target checks, complete wins, unattended loss, continue exhaustion, shot cadence, pickups, boss interrupts and storage isolation/failure checks. The browser portion uses real mouse/touch events, checks pause/audio, Overdrive, all stages, full wins and continues, and captures desktop, portrait, compact and landscape views. Console/page/asset errors are failures.
 
