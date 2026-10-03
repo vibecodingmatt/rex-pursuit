@@ -37,7 +37,10 @@ export class CircuitVehicle{
  constructor(world){
   this.world=world;this.jeep=createJeep(world.scene,{foldWindshield:true});const j=this.jeep;
   // The arcade aims its own gun from the camera; the Jeep's turret and gunner stay hidden.
-  j.yaw.visible=false;j.gunner.visible=false;j.root.traverse(o=>{if(o.isMesh){o.castShadow=true;o.receiveShadow=true;}});
+  j.yaw.visible=false;j.gunner.visible=false;
+  // The road wheels never enter the gunner's view; only the merged body panels cast shadows.
+  for(const o of j.root.children)if(o!==j.body)o.visible=false;
+  j.root.traverse(o=>{if(o.isMesh){o.castShadow=o.parent===j.body;o.receiveShadow=true;}});
   this.pitch=new Spring(55,8.5);this.roll=new Spring(65,9);this.heave=new Spring(110,13);this.yaw=new Spring(90,11);
   this.rig={pitch:0,roll:0,heave:0,yaw:0};this.lastSpeed=null;this.lastHeading=null;this.bump=0;this.visible=true;this.smokeWait=0;
   // Damage shows on the Jeep: claw scrapes on the hood as integrity falls, the folded
