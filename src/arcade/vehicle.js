@@ -42,7 +42,9 @@ export class CircuitVehicle{
   for(const o of j.root.children)if(o!==j.body)o.visible=false;
   j.root.traverse(o=>{if(o.isMesh){o.castShadow=o.parent===j.body;o.receiveShadow=true;}});
   this.pitch=new Spring(55,8.5);this.roll=new Spring(65,9);this.heave=new Spring(110,13);this.yaw=new Spring(90,11);
-  this.rig={pitch:0,roll:0,heave:0,yaw:0};this.lastSpeed=null;this.lastHeading=null;this.bump=0;this.visible=true;this.smokeWait=0;
+  // A8: a sideways shove (the Triceratops' horn lock) slides the whole Jeep and camera.
+  this.slide=new Spring(60,13);this.push=0;
+  this.rig={pitch:0,roll:0,heave:0,yaw:0,slide:0};this.lastSpeed=null;this.lastHeading=null;this.bump=0;this.visible=true;this.smokeWait=0;
   // Damage shows on the Jeep: claw scrapes on the hood as integrity falls, the folded
   // windshield cracks below 50%, and the engine smokes below 25%.
   this.scrapes=[[.42,-1.42,.4,85],[-.5,-1.62,-.5,70],[.08,-1.25,.25,55]].map(([x,z,turn,below],i)=>{const d=decal(clawTexture(11+i*7),[.55,.55]);d.position.set(x,1.395,z);d.rotation.set(-Math.PI/2,0,turn);d.userData.below=below;j.body.add(d);return d;});
@@ -65,7 +67,9 @@ export class CircuitVehicle{
   if(from){offset.subVectors(from,cam.position).applyQuaternion(q.copy(cam.quaternion).invert());const l=Math.hypot(offset.x,offset.z)||1;side=offset.x/l;front=-offset.z/l;}
   strength*=this.move??1;this.roll.v+=side*2.4*strength;this.yaw.v-=side*1.6*strength;this.pitch.v+=(.4+front*1.0)*strength;this.heave.v-=.9*strength;
  }
- reset(){for(const s of [this.pitch,this.roll,this.heave,this.yaw])s.reset();this.lastSpeed=this.lastHeading=null;}
+ /** Sideways shove target in metres (+ is the camera's right); a pusher sets it every frame it pushes. */
+ shove(x){this.push=x;}
+ reset(){for(const s of [this.pitch,this.roll,this.heave,this.yaw,this.slide])s.reset();this.push=0;this.rig.slide=0;this.lastSpeed=this.lastHeading=null;}
  /**
   * Place the Jeep under the eye and step the rig. `eye` is the route camera point (no
   * crane or shake), `look` its aim point. Returns the rig offsets for the camera.
@@ -83,9 +87,11 @@ export class CircuitVehicle{
    // Braking dives the nose (camera tips down), launching squats it; the body rolls out of turns.
    this.rig.pitch=this.pitch.step(T.MathUtils.clamp(accel*.0035,-.06,.06)*move+Math.sin(b*17.3)*.004*shake,dt);
    this.rig.roll=this.roll.step(T.MathUtils.clamp(speed*turn*.006,-.05,.05)*move+Math.sin(b*13.1+.7)*.005*shake,dt);
-   this.rig.heave=this.heave.step(ground,dt);this.rig.yaw=this.yaw.step(0,dt);
+   // A shove slides the Jeep and swings its nose with the push.
+   this.rig.heave=this.heave.step(ground,dt);this.rig.yaw=this.yaw.step(-this.push*.055*move,dt);this.rig.slide=this.slide.step(this.push*move,dt);this.push=0;
   }
   this.lastEye=(this.lastEye||new T.Vector3()).copy(eye);
+  if(this.rig.slide){const dx=-Math.cos(heading)*this.rig.slide,dz=Math.sin(heading)*this.rig.slide;eye.x+=dx;eye.z+=dz;look.x+=dx;look.z+=dz;}
   // Jeep forward is -Z: face it down the route, tilted with the rig, its eye on the camera point.
   const j=this.jeep.root;e.set(this.rig.pitch,heading+Math.PI+this.rig.yaw,this.rig.roll);j.quaternion.setFromEuler(e);
   j.position.copy(eye).sub(offset.copy(EYE).applyQuaternion(j.quaternion));j.position.y+=this.rig.heave;j.updateMatrixWorld(true);

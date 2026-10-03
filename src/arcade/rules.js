@@ -31,9 +31,9 @@ export const TYPES = {
  rock:{hp:5,points:100,size:.16},spit:{hp:1,points:75,size:.10},supply:{hp:1,points:0,size:.13},barrel:{hp:2,points:250,size:.16}
 };
 const clamp=(v,a,b)=>Math.max(a,Math.min(b,v));
-// A Rex boss is fought in reverse: the vehicle brakes, then backs away while she
-// chases it. The clear phase holds longer so her fall can play out.
-export const DRIVE={rex:-9,twins:-8};
+// A Rex or Triceratops boss is fought in reverse: the vehicle brakes, then backs away
+// while she chases (or charges) it. The clear phase holds longer so her fall can play out.
+export const DRIVE={rex:-9,twins:-8,trike:-6};
 export function project(e,aspect){
  const size=e.size*Math.min(1,aspect*1.2),w=size/aspect;
  const x=clamp(e.x,w*.38,1-w*.38),y=e.y;
