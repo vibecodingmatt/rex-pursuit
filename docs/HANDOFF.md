@@ -2,7 +2,7 @@
 
 ## Arcade roadmap and A1, the modeled Rex bosses (2026-10-03, local)
 
-- The user judged Lost Circuit as looking "developed by a high schooler" and asked for a roadmap to shocking fidelity, one drop per fresh chat. [ARCADE-ROADMAP.md](ARCADE-ROADMAP.md) holds the diagnosis, the bar and 13 drops.
+- The user judged Lost Circuit as looking "developed by a high schooler" and asked for a roadmap to shocking fidelity, one drop per fresh chat. [ARCADE-ROADMAP.md](ARCADE-ROADMAP.md) holds the diagnosis, the bar and 16 drops (A4–A6, added the same day, polish the shared environment and creature animation).
 - A1 shipped locally. The River boss and the finale twins are Pursuit's hero Rex (`src/arcade/boss-rex.js`), loaded in the background with the 2D boss as fallback. She stands and roars, chases the reversing vehicle (rules `DRIVE`), lunges into a bite at the bumper, reels on a stagger and goes down in `DeathMotion`. During the clear the camera cranes up to show her lying there.
 - Hits use her rig: `projection.test`, then an exact skinned ray for wounds. Recorded gunfire, flesh impacts, engine, wind and her HRTF voice come from `ChaseAudio`.
 - The sandbox-frame method and its traps are in the [arcade reference](../.agents/skills/rex-pursuit-maintainer/references/lost-circuit.md).
