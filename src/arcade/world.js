@@ -4,7 +4,7 @@ import {Water} from 'three/addons/objects/Water.js';
 import {createFoliageKit,WIND,dustTexture} from '../chase/foliage.js';
 import {createSky,createCanopy} from '../chase/atmosphere.js';
 import {createPost} from '../chase/post.js';
-import {DRIVE,BRACHIO} from './rules.js';
+import {DRIVE,BRACHIO,ROTUNDA} from './rules.js';
 import {terrainGeometry,groundMaterial,loadRocks,rootGeometry,mergeStill,scatter} from './ground.js';
 import {StageLight,RouteCanopy,installArcadeFog,addRim} from './light.js';
 import {CircuitAir,PUSH,GUST,PLANT_PUSH} from './air.js';
@@ -17,9 +17,17 @@ import {Fault} from './fault.js';
 import {Promenade} from './promenade.js';
 import {Glass} from './glass.js';
 import {createVisitorCenter} from '../chase/visitor-center.js';
+import {Rotunda} from './rotunda.js';
 // A14: the finale drives to Pursuit's Visitor Center. Its root (Pursuit frame: building toward -z)
 // is turned to face the vehicle at PLAZA; street buildings stop short of it.
-export const PLAZA=730;
+// A14: past the plaza the finale's route runs straight along the Visitor Center's axis, up its steps
+// (STEPS: bottom and top along the axis, in metres, and the rise) and through its doors (DOOR m along the
+// axis) into the rotunda; the Jeep stops ROTUNDA (rules) 6 m inside. PLAZA is solved so that holds.
+const X0=z=>Math.sin(z*.009)*14+Math.sin(z*.0035)*13,DX0=z=>.126*Math.cos(z*.009)+.0455*Math.cos(z*.0035),Y0=z=>Math.sin(z*.009)*1.6+Math.sin(z*.024)*.35;
+export const DOOR=67.2,STEPS=[56.7,63.8,2.09];
+export const PLAZA=(()=>{let p=ROTUNDA-DOOR-6;for(let i=0;i<8;i++)p=ROTUNDA-(DOOR+6)/Math.hypot(1,DX0(p));return p;})();
+/** Metres along the Visitor Center's axis from the plaza (finale only). */
+export const plazaAxis=z=>(z-PLAZA)*Math.hypot(1,DX0(PLAZA));
 
 const TAU=Math.PI*2,clamp=T.MathUtils.clamp,smooth=(a,b,x)=>{const t=clamp((x-a)/(b-a),0,1);return t*t*(3-2*t);};
 export const noise=n=>{const v=Math.sin(n*127.1+311.7)*43758.5453;return v-Math.floor(v);};
@@ -35,11 +43,11 @@ const palettes={
 
 // The route is a real world-space spline. Every prop, foot and camera samples
 // the same height/centre; no screen-space scenery moves toward a vanishing point.
-export function routeX(z,id){return id==='manor'?Math.sin(z*.004)*3:Math.sin(z*.009)*14+Math.sin(z*.0035)*13;}
-export function routeY(z,id){return ['manor','river','lagoon'].includes(id)?0:Math.sin(z*.009)*1.6+Math.sin(z*.024)*.35;}
+export function routeX(z,id){return id==='manor'?Math.sin(z*.004)*3:id==='visitor'&&z>PLAZA?X0(PLAZA)+(z-PLAZA)*DX0(PLAZA):X0(z);}
+export function routeY(z,id){return ['manor','river','lagoon'].includes(id)?0:id==='visitor'&&z>PLAZA?Y0(PLAZA)+STEPS[2]*clamp((plazaAxis(z)-STEPS[0])/(STEPS[1]-STEPS[0]),0,1):Y0(z);}
 export function routeHeading(z,id){return Math.atan2((routeX(z+1,id)-routeX(z-1,id))/2,1);}
 // Open ground: the bank rise and roll, with hummocks off the track. Creatures, trees and rocks stand on it.
-export function landY(off,z,id){const ax=Math.abs(off),edge=Math.max(0,ax-6),y=routeY(z,id);if(['manor','hybrid','visitor'].includes(id))return y+edge*.018;return y+edge*.07+Math.sin(z*.12+off*.16)*Math.min(3,edge*.05)+Math.sin(z*.53+off*.71)*Math.sin(z*.31-off*.47)*.24*clamp((ax-5.5)/4,0,1);}
+export function landY(off,z,id){const ax=Math.abs(off),edge=Math.max(0,ax-6),y=routeY(z,id);if(id==='visitor'&&z>PLAZA)return y;if(['manor','hybrid','visitor'].includes(id))return y+edge*.018;return y+edge*.07+Math.sin(z*.12+off*.16)*Math.min(3,edge*.05)+Math.sin(z*.53+off*.71)*Math.sin(z*.31-off*.47)*.24*clamp((ax-5.5)/4,0,1);}
 // Swimmers and flyers on the water stages keep their original reference height.
 export function groundAt(x,z,id){const off=x-routeX(z,id);return ['river','lagoon'].includes(id)?routeY(z,id)+Math.max(0,Math.abs(off)-6)*.06:landY(off,z,id);}
 // The terrain itself: land cut by the river channel and the bridge gorge, and raised into the canyon walls.
@@ -117,7 +125,7 @@ export class CircuitWorld {
   this.materials.porcelain=new T.MeshStandardMaterial({color:0xcdbf9f,roughness:.2});this.materials.voltSign=new T.MeshStandardMaterial({map:voltTexture(),roughness:.55,metalness:.25});this.sparks=new Sparks(this.scene);
   this.fault=new Fault(this.scene,{rock:this.materials.rock,diffuse:gateDiffuse,normal:gateNormal,routeX,routeY,routeHeading,terrain:(off,z)=>terrainY(off,z,'fault',{canyon:true,bridge:z>=288&&z<640})});this.gate=new Gate(this.scene,{stone:this.materials.stone,sign:this.signs.gates,light:this.practicalLights[0],diffuse:gateDiffuse,normal:gateNormal,routeX,routeY,routeHeading,groundAt});
   this.promenade=new Promenade(this.scene,{routeX,routeY,routeHeading});this.glass=new Glass(this.scene);this.glass.floor=(x,z)=>groundAt(x,z,this.id);
-  this.visitorCenter=createVisitorCenter(this.scene);
+  this.visitorCenter=createVisitorCenter(this.scene);this.rotunda=new Rotunda(this.scene);
   // Pursuit's own ground, road and court planes would fight the arcade terrain; the building, steps, pond and planting stay.
   for(const o of [...this.visitorCenter.root.children])if(o.isMesh&&o.geometry.type==='PlaneGeometry')o.visible=false;
   this.ready=true;
@@ -210,12 +218,6 @@ export class CircuitWorld {
    g.userData.sparks=sparks;
   }
   if((id==='lagoon'||id==='hybrid')&&index===5){const z=mid;for(const side of [-1,1])add(stone,side*31,6.5,z,1.4,13,3);add(metal,0,13,z,65,.75,2);add(stone,-6,15,z,13,2.5,3);add(glass,-6,15.3,z-1.55,11,1.1,.04);add(lamps,-6,13.8,z-1.6,13,.09,.09);}
-  if(id==='visitor'&&index===25){
-   const root=new T.Group();root.position.set(routeX(mid,id),routeY(mid,id),0);g.add(root);
-   for(let tier=0;tier<3;tier++){const roof=new T.Mesh(new T.CylinderGeometry(8-tier*3,29-tier*7,5.5,64,1,true),m.thatch);roof.position.y=13+tier*4;roof.castShadow=roof.receiveShadow=true;root.add(roof);}
-   for(let i=0;i<16;i++){const angle=i/16*Math.PI*2,x=Math.sin(angle)*24,z=Math.cos(angle)*24;if(Math.abs(x)<7)continue;const column=new T.Mesh(new T.CylinderGeometry(.65,.85,11,16),m.stone);column.position.set(x,5.5,z);column.castShadow=true;root.add(column);const wall=new T.Mesh(new T.PlaneGeometry(9,9),m.visitorFacade);wall.position.set(Math.sin(angle)*27,4.5,Math.cos(angle)*27);wall.rotation.y=angle+Math.PI;root.add(wall);}
-   const banner=new T.Mesh(new T.PlaneGeometry(17,4),new T.MeshStandardMaterial({map:labelTexture('VISITOR CENTER','WHEN GIANTS RULED THE EARTH'),roughness:.8}));banner.position.set(0,9,-23.5);banner.rotation.y=Math.PI;root.add(banner);
-  }
   // Crowns and fronds cast the shade on the track; on the open lagoon it would only fall on water.
   const giant=kit.giants[Math.abs(index)%kit.giants.length],palm=kit.palms[Math.abs(index)%kit.palms.length],shade=id!=='lagoon';
   this.instances(g,giant.wood,kit.materials.bark,trunks);this.instances(g,giant.leaves,kit.materials.canopy,trunks,shade);this.instances(g,palm.wood,kit.materials.bark,palms);this.instances(g,palm.fronds,kit.materials.palm,palms,shade);
@@ -231,6 +233,7 @@ export class CircuitWorld {
  }
  disposeChunk(g){this.scene.remove(g);const shared=new Set([...Object.values(this.materials),...Object.values(this.kit.materials)]);g.traverse(o=>{if(o.isInstancedMesh){o.dispose();return;}if(o.isLineSegments){o.geometry.dispose();o.material.dispose();return;}if(o.isMesh&&!Object.values(this.geometry).includes(o.geometry))o.geometry.dispose();if(o.isMesh&&!shared.has(o.material)&&!o.material.userData.shared)o.material.dispose();});}
  setStage(id){if(this.id===id)return;
+  {const r=this.rotunda;r.root.visible=false;r.reset();this.doorBroken=false;if(id==='visitor'){const k=Math.hypot(1,DX0(PLAZA)),zd=PLAZA+DOOR/k;r.place(new T.Vector3(routeX(zd,id),Y0(PLAZA)+STEPS[2],zd),Math.atan(DX0(PLAZA)));}}
   {const v=this.visitorCenter,on=id==='visitor';v.root.visible=on;if(on){const h=routeHeading(PLAZA,id);v.root.position.set(routeX(PLAZA,id),routeY(PLAZA,id),PLAZA);v.root.rotation.set(0,Math.PI+h,0);}}this.spray.reset();for(const g of this.chunks)this.disposeChunk(g);this.chunks=[];this.id=id;const p=palettes[id];this.light.setStage(id);this.air.setStage(id);this.materials.ground.setStage(id);this.rocks.setStage(id);this.materials.leaf.color.set(p.leaf).multiplyScalar(1.45);this.materials.canopy.color.set(p.leaf).multiplyScalar(.77);this.materials.water.color.set(p.water);}
  sync(game,{reduced=false,time=0,shake=0}={}){
   if(!this.ready)return;const id=game?.stage.id||'gates';this.setStage(id);this.distance=game?.travel??time*4;const before=this.time;this.time=game?.time??time;const dt=clamp(this.time-before,0,.1);this.wave.value=this.time;
@@ -245,13 +248,13 @@ export class CircuitWorld {
   // After a Rex goes down the camera cranes up off the vehicle, so her fall reads
   // from above instead of foreshortened behind her own head.
   const crane=game?.phase==='clear'&&DRIVE[game.stage.boss]?T.MathUtils.smootherstep(game.phaseTime,.2,2.6)*move:0;
-  // A14 closing shot: after the last king falls the crane keeps rising and turns to the Visitor Center.
+  // A14 closing shot: after the last king falls the crane keeps rising and looks up at the rotunda's banner.
   const closing=id==='visitor'&&game?.phase==='clear'?T.MathUtils.smootherstep(game.phaseTime,2.1,4.9)*move:0;
   // The vehicle (vehicle.js) rides under the route eye point; its spring rig tilts the camera with it.
   const eye=(this.eye??=new T.Vector3()).set(routeX(z,id)+Math.sin(z*.11)*.10*move,routeY(z,id)+2.65-drop,z);
   this.look.set(routeX(z+24,id),routeY(z+24,id)+2.25-drop+nose-crane*3.3,z+24);const rig=game&&this.vehicle?this.vehicle.ride(dt,eye,this.look,{id,rough,move,hp:game.hp}):null;
   this.camera.position.copy(eye);this.camera.position.y+=crane*3.6+closing*4.5+Math.sin(this.time*64)*shake*.12*move+(rig?rig.heave:Math.sin(z*1.2)*.025*rough*move);
-  if(closing>0){const h=routeHeading(PLAZA,id);(this.closingAt??=new T.Vector3()).set(routeX(PLAZA,id)+Math.sin(h)*62,routeY(PLAZA,id)+8,PLAZA+Math.cos(h)*62);this.camera.lookAt(this.closingAt.lerp(this.look,1-closing));}else this.camera.lookAt(this.look);this.camera.rotateZ(roll);if(rig){this.camera.rotateY(rig.yaw);this.camera.rotateX(rig.pitch);this.camera.rotateZ(rig.roll);}this.camera.updateMatrixWorld();
+  if(closing>0){this.rotunda.toWorld(0,10.8,31,this.closingAt??=new T.Vector3());this.camera.lookAt(this.closingAt.lerp(this.look,1-closing));}else this.camera.lookAt(this.look);this.camera.rotateZ(roll);if(rig){this.camera.rotateY(rig.yaw);this.camera.rotateX(rig.pitch);this.camera.rotateZ(rig.roll);}this.camera.updateMatrixWorld();
   this.lit=this.light.update(game,{z,camera:this.camera,time:this.time});this.gate.update(id,this.camera,this.time,{height:this.renderer.domElement.height});
   const live=[];if(id==='gates')for(const chunk of this.chunks)for(const s of chunk.userData.sparks||[])if(s.z>z-6&&s.z<z+70)live.push(s);this.sparks.update(dt,live,this.camera,this.renderer.domElement.height);
   // The canopy's dapple is pinned to the ground; open stages light the air from the shadow map alone.
@@ -267,10 +270,16 @@ export class CircuitWorld {
   this.spray.update(dt,{dir:this.light.key,sun:this.sunLit,fill:this.fill},this.camVel);
   if(id==='fault'){this.fault.haze=this.scene.fog?.color;this.fault.reduced=reduced;this.fault.update(game,this.chunks,{camera:this.camera,time:this.time,dt,effects:this.vehicle?.effects});}else if(this.fault.plume.visible){this.fault.plume.visible=false;for(const b of this.fault.bombs){b.live=false;b.mesh.visible=b.flame.visible=false;}}
   if(id==='hybrid')this.promenade.update(game,this.camera);else this.promenade.hide();
+  // A14: the exterior gives way to the rotunda set as the camera passes the doors, which the Jeep smashes through.
+  if(id==='visitor'){const along=plazaAxis(z),inside=along>DOOR-.3;this.visitorCenter.root.visible=!inside;this.rotunda.root.visible=inside;
+   if(!this.doorBroken&&along>DOOR-3.4&&along<DOOR+2){this.doorBroken=true;const at=this.rotunda.toWorld(0,2.4,-.3),fwd=this.rotunda.toWorld(0,0,1).sub(this.rotunda.root.position);this.glass.burst(at,{count:90,dir:fwd.multiplyScalar(1.5),speed:3});this.vehicle?.hit(at,.8);}
+   if(along<DOOR-12)this.doorBroken=false;}
   this.glass.update(dt);if(this.visitorCenter.root.visible)this.visitorCenter.update(this.time);
   WIND.value=this.time;this.sky.update(this.camera,this.time);this.post.settings.motionBlur=reduced?0:.65;
  }
  // Creatures (and only creatures) take a rim of the stage's key light.
+ /** A14: the kings' heads (world x, z) break the rotunda's glass curtain as they come through it. */
+ breach(heads){if(this.id!=='visitor'||!this.rotunda.root.visible)return;const back=this.rotunda.toWorld(0,0,-1).sub(this.rotunda.root.position).multiplyScalar(2.5);for(const at of this.rotunda.breach(heads)){this.glass.burst(at,{count:55,dir:back,speed:3.5});}}
  rimCreatures(root){root.traverse(o=>{if(o.isSkinnedMesh||o.userData.creature)for(const m of [].concat(o.material))addRim(m);});}
  resize(w,h){this.camera.aspect=w/h;this.camera.fov=w<h?76:62;this.camera.updateProjectionMatrix();this.renderer.setSize(w,h,false);}
  render(){if(this.ready){this.renderer.info.reset();if(this.post.supported)this.post.render(this.scene,this.camera,{time:this.time,sun:this.sun,canopy:this.shafts,overlay:this.overlay});else this.renderer.render(this.scene,this.camera);}}

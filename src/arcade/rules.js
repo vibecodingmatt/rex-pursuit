@@ -6,7 +6,7 @@ export const STAGES = [
  {id:'hybrid',name:'Nobody is in control',era:'THE WORLD DETOUR',location:'LAGOON PROMENADE · 20:31',bg:2,duration:30,boss:'indominus',roster:['raptor','ptero','dilo'],radio:'Thermal is blank. Watch for the eyes.',setpiece:'camouflage'},
  {id:'lagoon',name:'Something in the water',era:'THE WORLD DETOUR',location:'DEEP WATER · 20:48',bg:2,duration:28,boss:'mosa',roster:['ichthy','ptero'],radio:'Wake on the starboard side. A very, very big wake.',setpiece:'water'},
  {id:'manor',name:'Do not turn out the lights',era:'THE WORLD DETOUR',location:'GLASS CONSERVATORY · 23:09',bg:3,duration:30,boss:'indoraptor',roster:['raptor','dilo'],radio:'On the roof. No, inside. Keep your light on it.',setpiece:'blackout'},
- {id:'visitor',name:'When giants ruled',era:'THE LAST EXHIBIT',location:'VISITOR CENTER · 00:01',bg:6,duration:30,boss:'twins',roster:['raptor','dilo','ptero'],radio:'Two signatures. One exit. Make every shot count.',setpiece:'finale'},
+ {id:'visitor',name:'When giants ruled',era:'THE LAST EXHIBIT',location:'VISITOR CENTER · 00:01',bg:6,duration:34,boss:'twins',roster:['raptor','dilo','ptero'],radio:'Two signatures. One exit. Make every shot count.',setpiece:'finale'},
 ];
 // The director: each stage runs one of three seeded beat sheets ([stage seconds, pattern,
 // kind, count]); the roster timer only fills the gaps. Every beat is called on the radio and
@@ -18,7 +18,7 @@ export const BEATS={
  hybrid:[[[5,'ambush','raptor'],[11,'formation','ptero',3],[18,'flank','raptor',3]],[[6,'flank','raptor',3],[12,'pair','dilo',2],[19,'formation','ptero',3]],[[4,'formation','ptero',3],[10,'ambush','raptor'],[17,'pair','dilo',2]]],
  lagoon:[[[5,'pair','ichthy',2],[12,'formation','ptero',3],[19,'pair','ichthy',3]],[[6,'formation','ptero',3],[13,'pair','ichthy',2],[20,'formation','ptero',3]],[[4,'pair','ichthy',3],[11,'formation','ptero',4],[18,'pair','ichthy',2]]],
  manor:[[[5,'ambush','raptor'],[11,'pair','dilo',2],[18,'flank','raptor',3]],[[6,'flank','raptor',2],[12,'ambush','raptor'],[19,'pair','dilo',2]],[[4,'pair','dilo',2],[10,'flank','raptor',3],[17,'ambush','raptor']]],
- visitor:[[[5,'flank','raptor',3],[11,'formation','ptero',3],[17,'ambush','raptor']],[[4,'ambush','raptor'],[10,'pair','dilo',2],[16,'flank','raptor',4]],[[6,'formation','ptero',3],[12,'flank','raptor',3],[18,'pair','dilo',2]]],
+ visitor:[[[5,'flank','raptor',3],[11,'formation','ptero',3],[17,'ambush','raptor'],[31,'flank','raptor',2]],[[4,'ambush','raptor'],[10,'pair','dilo',2],[16,'flank','raptor',4],[31,'flank','raptor',2]],[[6,'formation','ptero',3],[12,'flank','raptor',3],[18,'pair','dilo',2],[31,'flank','raptor',2]]],
 };
 const CALLS={flank:'Pack on both sides! They are flanking us!',stampede:'Stampede crossing {side}! Keep moving!',formation:'Flyers diving in formation, high!',ambush:'Movement in the brush, {side}!',pair:{dilo:'Spitters ahead. Watch the glass!',ichthy:'Something big under the surface!',trike:'Three horns on the road! Stop that charge!'}};
 export const TYPES = {
@@ -31,6 +31,9 @@ export const TYPES = {
  rock:{hp:5,points:100,size:.16},spit:{hp:1,points:75,size:.10},supply:{hp:1,points:0,size:.13},barrel:{hp:2,points:250,size:.16}
 };
 const clamp=(v,a,b)=>Math.max(a,Math.min(b,v));
+/** A14: the finale's Jeep slows over its last 34 m, smashes through the Visitor Center's doors and holds
+ * still this far along the route, 6 m inside the rotunda, for the raptors and the kings (world.js). */
+export const ROTUNDA=740;
 /** Seconds of explosive rounds or spread shot from a power crate. */
 export const POWER=8;
 /** Spread shot: each round also strikes the two animals nearest the sight within this reach (screen heights). */
@@ -162,9 +165,9 @@ export class Circuit {
   dt=clamp(dt,0,.05);this.time+=dt;this.phaseTime+=dt;this.cooldown=Math.max(0,this.cooldown-dt);this.invulnerable=Math.max(0,this.invulnerable-dt);
   const cruise=this.stage.id==='manor'?14:this.stage.id==='fault'?27:24;
   const drive=DRIVE[this.stage.boss],brake=clamp((this.phaseTime-.8)/1.8,0,1);
-  this.speed=this.phase==='ride'?cruise*(this.stage.setpiece==='brachio'?fordSlow(this.travel):1):this.phase==='intro'?8+16*clamp(this.phaseTime/3,0,1):drive&&this.phase==='boss'?5+(drive-5)*brake*brake*(3-2*brake):drive&&this.phase==='clear'?drive*(1-clamp((this.phaseTime-.4)/2.6,0,1)):7;
+  this.speed=this.phase==='ride'?cruise*(this.stage.setpiece==='brachio'?fordSlow(this.travel):this.stage.id==='visitor'?clamp((ROTUNDA-this.travel)/34,.4,1):1):this.stage.id==='visitor'&&this.phase!=='intro'?0:this.phase==='intro'?8+16*clamp(this.phaseTime/3,0,1):drive&&this.phase==='boss'?5+(drive-5)*brake*brake*(3-2*brake):drive&&this.phase==='clear'?drive*(1-clamp((this.phaseTime-.4)/2.6,0,1)):7;
   if(this.focusTime>0)this.speed*=.52;
-  this.travel+=dt*this.speed;
+  this.travel+=dt*this.speed;if(this.stage.id==='visitor'&&this.travel>=ROTUNDA){this.travel=ROTUNDA;this.speed=0;}
   this.focusTime=Math.max(0,this.focusTime-dt);this.chainTime=Math.max(0,this.chainTime-dt);if(!this.chainTime)this.combo=0;
   const pace=this.focusTime>0?.52:1;
   if(this.phase==='intro'&&this.phaseTime>=3){this.phase='ride';this.phaseTime=0;}

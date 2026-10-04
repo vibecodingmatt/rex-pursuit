@@ -63,7 +63,7 @@ export class BossRex {
  }
  update(s,dt,game,removed){
   const e=s.entity,rex=s.rex,id=game.stage.id,camZ=game.travel;
-  if(!s.started){if(e.age<0)return;s.started=true;s.z=camZ+REACH+START_GAP;s.speed=0;s.lateral=-(e.lane-.5)*15*Math.min(1,this.world.camera.aspect*1.6);s.offset=s.index*2.3;s.biteCycle=-1;s.x=routeX(camZ,id)+s.lateral;s.y=id==='river'?WADE:routeY(s.z,id)+.05;}
+  if(!s.started){if(e.age<0)return;s.started=true;s.z=camZ+REACH+(id==='visitor'?31:START_GAP);s.speed=0;s.lateral=-(e.lane-.5)*15*Math.min(1,this.world.camera.aspect*1.6);s.offset=s.index*2.3;s.biteCycle=-1;s.x=routeX(camZ,id)+s.lateral;s.y=id==='river'?WADE:routeY(s.z,id)+.05;}
   if((e.dead||removed)&&!s.dead){s.dead=true;s.fall=0;rex.gait.speed=Math.min(rex.gait.speed,8.5);this.cues.push({type:'fall',slot:s.index});}
   if(dt>0&&!s.dead){
    const age=Math.max(0,e.age),cycle=age%CYCLE,first=age<CYCLE,back=Math.max(0,-game.speed),gap=s.z-camZ-REACH;
