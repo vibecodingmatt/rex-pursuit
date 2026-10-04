@@ -98,6 +98,8 @@ export class Spray{
   this.slapWas=slap;
  }
  reset(){this.n=0;this.carry=0;this.bowCarry=0;}
+ /** A quality tier name scales how much water every emitter throws. */
+ setQuality(name){this.scale={low:.45,medium:.7,high:1,ultra:1.2}[name]??1;}
  /** Step every drop; `light`: {dir, sun (Color), fill (Color)}; `camVel` the eye's velocity. */
  update(dt,light,camVel){
   if(camVel)this.uniforms.uCamVel.value.copy(camVel);

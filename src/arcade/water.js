@@ -41,6 +41,13 @@ uniform vec3 sunColor;uniform vec3 sunDirection;uniform vec3 eye;uniform vec3 wa
 uniform float uRoute[${ROUTE}];uniform vec3 uPhase;uniform vec4 uFlow;uniform vec2 uFord;uniform float uLevel;uniform vec3 uShallow;uniform vec3 uFill;
 uniform vec4 uObst[${OBST}];uniform vec4 uObstDir[${OBST}];uniform vec4 uRing[${RINGS}];uniform vec4 uBow;uniform vec2 uBowDir;
 varying vec4 mirrorCoord;varying vec4 worldPosition;varying vec2 vLocal;
+// Lower tiers loop over fewer obstacles and rings (setQuality).
+#ifndef OBST_N
+#define OBST_N ${OBST}
+#endif
+#ifndef RING_N
+#define RING_N ${RINGS}
+#endif
 #include <common>
 #include <packing>
 #include <bsdfs>
@@ -82,14 +89,14 @@ void main(){
  // Drifting flecks mid-river.
  foam+=smoothstep(.72,.9,foamTex(fp*vec2(.5,.16)+31.))*smoothstep(.45,.75,fine)*.35*run;
  // Rocks and wading legs: a collar where the current piles against them, a trail downstream.
- for(int i=0;i<${OBST};i++){vec4 o=uObst[i];if(o.w<=0.)continue;vec2 r=p-o.xy;float d=length(r);vec4 od=uObstDir[i];if(d>o.z*3.+od.z*1.5+2.)continue;
+ for(int i=0;i<OBST_N;i++){vec4 o=uObst[i];if(o.w<=0.)continue;vec2 r=p-o.xy;float d=length(r);vec4 od=uObstDir[i];if(d>o.z*3.+od.z*1.5+2.)continue;
   float along=dot(r,od.xy),across=dot(r,vec2(-od.y,od.x));
   float collar=exp(-pow((d-o.z*1.02)/(o.z*.22+.12),2.))*(.55+.45*smoothstep(.2,-o.z,along));
   float wide=o.z*(.75+max(0.,along)*.18),trail=step(0.,along)*exp(-pow(across/wide,2.))*exp(-max(0.,along)/max(.1,od.z));
   float k=o.w*(collar+trail*smoothstep(.3,.75,streak+fine*.4));foam+=k;churn+=o.w*(collar+trail)*.6;
   slope+=normalize(r+1e-4)*collar*o.w*.5;}
  // Splash rings: a churned spot and a spreading swell that fades as it grows.
- for(int i=0;i<${RINGS};i++){vec4 g=uRing[i];if(g.w<=0.)continue;vec2 r=p-g.xy;float d=length(r),age=g.z,rad=age*(1.4+g.w*1.6),wid=.3+age*.35;if(d>rad+wid*3.)continue;
+ for(int i=0;i<RING_N;i++){vec4 g=uRing[i];if(g.w<=0.)continue;vec2 r=p-g.xy;float d=length(r),age=g.z,rad=age*(1.4+g.w*1.6),wid=.3+age*.35;if(d>rad+wid*3.)continue;
   float x=(d-rad)/wid,env=exp(-x*x)*g.w*exp(-age*.75);slope+=normalize(r+1e-4)*(-2.*x*env)*.9;
   foam+=env*.45*smoothstep(.3,.7,fine)+g.w*exp(-age*1.1)*smoothstep(rad*.8+.4,0.,d)*smoothstep(.15,.6,fine+streak*.5);churn+=env;}
  // The launch's bow wave: foam hugging the hull, a crest peeling off each side, a cushion at the stem.
@@ -175,6 +182,9 @@ export class RiverSurface{
  /** A wading leg or swimmer this frame: world (x, z), radius, velocity (vx, vz). */
  mover(x,z,r,vx=0,vz=0,strength=1){if(this.movers.length<8)this.movers.push([x,z,r,vx,vz,strength]);}
  reset(){this.rings.length=0;this.movers.length=0;}
+ /** A quality tier name: Low and Medium shade fewer rocks, legs and rings (the nearest come first). */
+ setQuality(name){const n={low:[8,6],medium:[12,8]}[name],m=this.water.material,want=n?{OBST_N:n[0],RING_N:n[1]}:{};
+  if(JSON.stringify(want)!==JSON.stringify(m.defines||{})){m.defines=want;m.needsUpdate=true;}}
  /**
   * camera: the world camera; id: stage; dt: simulation step; time: simulation clock.
   * bow: {x, z, dirX, dirZ, speed} or null; rocks: [[x, z, r], ...] in world space.

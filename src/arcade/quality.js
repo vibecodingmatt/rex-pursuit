@@ -23,7 +23,7 @@ export class CircuitQuality{
   // Ambient occlusion only pays for itself on wide screens.
   w.post.configure({scale:this.governor.scale,...a.post,ao:wide?a.post.ao:false});
   const size=wide?a.shadow:Math.min(a.shadow,1536),shadow=w.sun.shadow;if(shadow.mapSize.x!==size){shadow.mapSize.setScalar(size);shadow.map?.dispose();shadow.map=null;}
-  r.actors?.setQuality(t);r.effects?.setQuality?.(t);r.impacts?.setQuality(t);w.air?.setQuality?.(t);
+  r.actors?.setQuality(t);r.effects?.setQuality?.(t);r.impacts?.setQuality(t);w.air?.setQuality?.(t);w.spray?.setQuality(name);w.river?.setQuality(name);
  }
  cycle(){const list=['auto',...ORDER];this.choice=list[(list.indexOf(this.choice)+1)%list.length];if(!this.fixed)storeQuality(this.choice);this.auto=this.detected.tier;this.apply();}
  /** Feed real frame times. Returns true when Auto stepped down a tier (the label changes). */

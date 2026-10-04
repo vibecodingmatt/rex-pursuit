@@ -1,5 +1,6 @@
 import * as T from 'three';
 import {box,tube} from '../chase/vehicle-geometry.js';
+import {mergeGeometries} from 'three/addons/utils/BufferGeometryUtils.js';
 
 // A9: the park's river tour launch, which carries the gun on the water stages. A lofted
 // hard-chine hull in the Jeep's sand and red livery, an oiled teak foredeck with a king
@@ -55,6 +56,16 @@ const flip=g=>{const i=g.index.array;for(let k=0;k<i.length;k+=3){const a=i[k];i
 /** Wind the surface so its normals face `hint` on average. */
 const orient=(g,hint)=>{const n=g.attributes.normal;let s=0;for(let i=0;i<n.count;i++)s+=n.getX(i)*hint[0]+n.getY(i)*hint[1]+n.getZ(i)*hint[2];return s<0?flip(g):g;};
 const mirrorX=g=>{const m=g.clone();m.scale(-1,1,1);return flip(m);};
+/** One mesh per material for everything under `root` (transforms baked in), so the launch costs
+ *  a dozen draws in each of the main and mirror passes instead of fifty. `skip` keeps a subtree. */
+function mergeByMaterial(root,skip=()=>false){
+ root.updateMatrixWorld(true);const inv=root.matrixWorld.clone().invert(),sets=new Map(),drop=[],m4=new T.Matrix4();
+ root.traverse(o=>{if(!o.isMesh||skip(o))return;let g=o.geometry.clone().applyMatrix4(m4.multiplyMatrices(inv,o.matrixWorld));if(g.index)g=g.toNonIndexed();
+  for(const k of Object.keys(g.attributes))if(!['position','normal','uv'].includes(k))g.deleteAttribute(k);
+  if(!sets.has(o.material))sets.set(o.material,[]);sets.get(o.material).push([g,o.castShadow]);drop.push(o);});
+ for(const o of drop){o.parent.remove(o);o.geometry.dispose();}
+ for(const [material,list]of sets){const mesh=new T.Mesh(mergeGeometries(list.map(x=>x[0])),material);mesh.castShadow=list.some(x=>x[1]);mesh.receiveShadow=true;root.add(mesh);list.forEach(x=>x[0].dispose());}
+}
 
 export function createBoat(scene){
  const root=new T.Group();root.name='TourBoat';scene.add(root);
@@ -111,5 +122,7 @@ export function createBoat(scene){
  for(let k=0;k<5;k++){const ring=new T.Mesh(new T.TorusGeometry(.2-k*.012,.022,6,24),rope);ring.rotation.x=Math.PI/2;ring.position.set(Math.sin(k)*.01,.02+k*.03,Math.cos(k)*.01);ring.castShadow=true;coil.add(ring);}
  // Gun pedestal on the cockpit sole under the mount.
  const ped=new T.Mesh(new T.CylinderGeometry(.19,.26,.12,20),rubber);ped.position.set(0,FLOOR+.06,-1.5);root.add(ped);
- return{root,deck,pulpit,hatch,deckY,materials:{paint,red,deck:deckMat,steel}};
+ const underPulpit=o=>{for(let p=o;p;p=p.parent)if(p===pulpit)return true;return false;};
+ mergeByMaterial(root,underPulpit);mergeByMaterial(pulpit);
+ return{root,pulpit,hatch,deckY,materials:{paint,red,deck:deckMat,steel}};
 }
