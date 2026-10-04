@@ -2,7 +2,7 @@ import * as T from 'three';
 import {createCritters} from '../chase/critters.js';
 import {createFlyers} from '../chase/flyers.js';
 import {createBrachio} from '../chase/brachio.js';
-import {routeX,routeY,groundAt,routeHeading,noise} from './world.js';
+import {routeX,routeY,groundAt,routeHeading,noise,plazaAxis,DOOR} from './world.js';
 import {project as bossProject,TYPES} from './rules.js';
 import {loadIchthy,createIchthy} from './ichthy.js';
 import {makeProp as buildProp,tickProps} from './props.js';
@@ -73,12 +73,15 @@ export class CircuitActors {
    const age=Math.max(0,e.age),life=e.life,side=e.lane<.5?-1:1,id=game.stage.id,cruise=id==='manor'?14:id==='fault'?27:24;
    const animal=!!species[e.kind],windup=e.leaper?e.leapAt-.65:life-.9,charge=clamp((age-windup)/.9,0,1),parallel=40-age*2.5;
    // Crates and barrels stand still beside the track; everything else closes on the vehicle.
-   const fixed=e.kind==='supply'||e.kind==='barrel',relative=animal?T.MathUtils.lerp((e.ambush?17:e.kind==='compy'?24:40)-Math.min(age,windup)*2.5,3,charge):fixed?cruise*(life-age)+5:(cruise+6)*(life-age)+5;
-   const z=e.spawnTravel+cruise*age+relative;
+   // In the rotunda (A14) animals come out from among the skeleton displays, inside its walls.
+   const hall=id==='visitor'&&plazaAxis(game.travel)>DOOR-8;
+   const fixed=e.kind==='supply'||e.kind==='barrel',relative=animal?T.MathUtils.lerp((e.ambush?17:hall?20:e.kind==='compy'?24:40)-Math.min(age,windup)*2.5,3,charge):fixed?cruise*(life-age)+5:(cruise+6)*(life-age)+5;
+   // Paced from the spawn at cruise speed; on the finale the Jeep slows and stops in the rotunda, so never past it.
+   const z=(id==='visitor'?Math.min(e.spawnTravel+cruise*age,game.travel):e.spawnTravel+cruise*age)+relative;
    // Pace the vehicle out of roadside cover, then turn into a short, committed
    // charge. Ground-relative stride uses the derivative of this actual path.
    const enter=T.MathUtils.smoothstep(age,0,windup),cross=e.kind==='galli';
-   const width=(e.ambush?8:id==='manor'?7.5:e.kind==='compy'?11:animal?32:16)*Math.min(1,this.world.camera.aspect*1.25),span=cross?width*1.75:width-1.6;
+   const width=(e.ambush?8:id==='manor'?7.5:hall?9:e.kind==='compy'?11:animal?32:16)*Math.min(1,this.world.camera.aspect*1.25),span=cross?width*1.75:width-1.6;
    const off=fixed?side*(2.4+e.seed%1*1.8):side*(width-span*enter)+Math.sin(age*2+e.seed)*.28+(e.kind==='compy'?(e.lane-.5)*5:0);
    const lateral=-side*span*6*clamp(age/windup,0,1)*(1-clamp(age/windup,0,1))/windup;
    const forward=animal?(age<windup?cruise-2.5:cruise-(40-windup*2.5-3)/.9):-6;
