@@ -11,11 +11,13 @@ import * as T from 'three';
 // - Foam: lines lapping at the banks, collars and downstream trails at rocks and wading legs,
 //   the bow wave peeling off the launch, rings that spread from splashes, and flecks drifting
 //   in the current. The canopy's shade falls on all of it.
-// Every pattern reads bounded coordinates: x, and z relative to a base snapped every 64 m;
+// Every pattern reads bounded coordinates: x, and z relative to a base snapped every 256 m;
 // the route offset and the bank noise phases come in as uniforms for that base.
 
 export const LEVEL=-.35;
-const ROUTE=49,STEP=8,OBST=18,RINGS=12;
+// The base z snaps every WRAP metres; every pattern's period along z divides it, and the flow
+// offsets wrap at it, so nothing pops when the base moves (as in ground.js).
+const WRAP=256,ROUTE=73,STEP=8,OBST=18,RINGS=12,LAP=2*Math.PI/1.3*64;
 const FLOW={river:1.7,lagoon:0};
 
 const vertexShader=`
@@ -64,30 +66,33 @@ float bedAt(vec2 p){
  return y-(3.-uFord.y*(1.-smoothstep(22.,40.,abs(p.y-uFord.x))))*(1.-smoothstep(23.,30.,ax));
 }
 float h21(vec2 p){p=fract(p*vec2(123.34,456.21));p+=dot(p,p+45.32);return fract(p.x*p.y);}
-float vnoise(vec2 p){vec2 i=floor(p),f=fract(p);f=f*f*(3.-2.*f);return mix(mix(h21(i),h21(i+vec2(1,0)),f.x),mix(h21(i+vec2(0,1)),h21(i+vec2(1,1)),f.x),f.y);}
-// Foam texture: clumped bubbles torn into streaks along the current.
-float foamTex(vec2 p){float n=vnoise(p*vec2(1.6,.55))*.55+vnoise(p*vec2(4.1,1.5)+7.)*.3+vnoise(p*9.+3.)*.15;return n;}
+// Value noise whose lattice repeats every pz cells along y.
+float pnoise(vec2 p,float pz){vec2 i=floor(p),f=fract(p);f=f*f*(3.-2.*f);float y0=mod(i.y,pz),y1=mod(i.y+1.,pz);
+ return mix(mix(h21(vec2(i.x,y0)),h21(vec2(i.x+1.,y0)),f.x),mix(h21(vec2(i.x,y1)),h21(vec2(i.x+1.,y1)),f.x),f.y);}
+// Foam texture in metres: clumped bubbles torn into streaks along the current. The z
+// frequencies (.25, .75, 4.5 cells a metre) repeat every ${WRAP} m; callers scale z only by whole numbers.
+float foamTex(vec2 m){return pnoise(m*vec2(.8,.25),${WRAP*.25}.)*.55+pnoise(m*vec2(2.1,.75)+7.,${WRAP*.75}.)*.3+pnoise(m*4.5+3.,${WRAP*4.5}.)*.15;}
 void main(){
  #include <logdepthbuf_fragment>
  vec2 p=vLocal;float run=uFlow.z;
  // Ripples: long across the current, short along it, carried downstream (toward -z).
- vec2 q0=vec2(p.x/16.,(p.y+uFlow.x)/8.),q1=vec2(p.x/6.4+.37,(p.y+uFlow.y)/4.),q2=vec2(p.x/32.+uFlow.w*.007,(p.y+uFlow.y*.5)/16.),q3=vec2(p.x/2.+.13,(p.y+uFlow.x*1.25)/2.);
+ vec2 q0=vec2(p.x/16.,(p.y+uFlow.x)/8.),q1=vec2(p.x/6.4+.37,(p.y+uFlow.y)/4.),q2=vec2(p.x/32.,(p.y+uFlow.y*.5)/16.),q3=vec2(p.x/2.+.13,(p.y+uFlow.x*1.25)/2.);
  vec3 rip=(texture2D(normalSampler,q0).xyz*2.-1.)+(texture2D(normalSampler,q1).xyz*2.-1.)*.75+(texture2D(normalSampler,q2).xyz*2.-1.)*.9+(texture2D(normalSampler,q3).xyz*2.-1.)*.45;
  vec2 slope=rip.xy*vec2(.7,1.)*(.27+.17*run);
  float foam=0.,churn=0.;
  // Depth from the channel; foam laps at the waterline and gathers in a broken line off the bank.
  float bed=bedAt(p),depth=uLevel-bed;
  vec2 fp=vec2(p.x,p.y+uFlow.x);
- float streak=foamTex(fp*vec2(.9,.35)),fine=foamTex(fp*2.3+11.);
+ float streak=foamTex(fp*vec2(2.2,1.)),fine=foamTex(fp*vec2(2.3,2.)+11.);
  // Horizontal distance to the shore: the bank is steep, so depth alone gives a hairline.
  float grad=length(vec2(bedAt(p+vec2(.6,0.))-bed,bedAt(p+vec2(0.,.6))-bed))/.6,shore=max(0.,depth)/max(grad,.04);
- float lap=1.-smoothstep(0.,1.1+.45*sin(uFlow.w*1.3+p.y*.4+p.x*.3),shore);
+ float lap=1.-smoothstep(0.,1.1+.45*sin(uFlow.w*1.3+p.y*.3927+p.x*.3),shore);
  float line=exp(-pow((shore-2.4-streak*1.8)/.8,2.))*smoothstep(.3,.65,streak);
  foam+=lap*smoothstep(.2,.55,fine)*.95+line*.6;
  // Riffles: the current breaks white over the shallows of the ford.
  foam+=smoothstep(.9,.35,depth)*smoothstep(.5,.8,streak+fine*.3)*.6*run;
  // Drifting flecks mid-river.
- foam+=smoothstep(.72,.9,foamTex(fp*vec2(.5,.16)+31.))*smoothstep(.45,.75,fine)*.35*run;
+ foam+=smoothstep(.72,.9,foamTex(fp*vec2(.5,1.)+31.))*smoothstep(.45,.75,fine)*.35*run;
  // Rocks and wading legs: a collar where the current piles against them, a trail downstream.
  for(int i=0;i<OBST_N;i++){vec4 o=uObst[i];if(o.w<=0.)continue;vec2 r=p-o.xy;float d=length(r);vec4 od=uObstDir[i];if(d>o.z*3.+od.z*1.5+2.)continue;
   float along=dot(r,od.xy),across=dot(r,vec2(-od.y,od.x));
@@ -190,12 +195,12 @@ export class RiverSurface{
   * bow: {x, z, dirX, dirZ, speed} or null; rocks: [[x, z, r], ...] in world space.
   */
  update({camera,id,dt,time,bow,rocks=[],fill,ford=null}){
-  const u=this.water.material.uniforms,cz=camera.position.z,z0=Math.floor((cz-20)/64)*64,TAU=Math.PI*2;this.time=time;
+  const u=this.water.material.uniforms,cz=camera.position.z,z0=Math.floor((cz-20)/WRAP)*WRAP,TAU=Math.PI*2;this.time=time;
   if(this.stage!==id){this.stage=id;this.reset();}
   u.uZ0.value=z0;if(ford)u.uFord.value.set(ford[0]-z0,ford[1]);else u.uFord.value.set(0,0);for(let i=0;i<ROUTE;i++)u.uRoute.value[i]=this.routeX(z0+i*STEP,id);
   u.uPhase.value.set((z0*.12)%TAU,(z0*.53)%TAU,(z0*.31)%TAU);
-  const speed=FLOW[id]??0;this.flow[0]=(this.flow[0]+dt*speed)%32;this.flow[1]=(this.flow[1]+dt*speed*.6)%32;
-  u.uFlow.value.set(this.flow[0],this.flow[1],speed?1:0,time%600);
+  const speed=FLOW[id]??0;this.flow[0]=(this.flow[0]+dt*speed)%WRAP;this.flow[1]=(this.flow[1]+dt*speed*.6)%WRAP;
+  u.uFlow.value.set(this.flow[0],this.flow[1],speed?1:0,time%LAP);
   if(fill)u.uFill.value.copy(fill);
   // Rocks nearest the camera first, then the movers, each with its downstream direction.
   let k=0;const near=rocks.filter(r=>r[1]>cz-6&&r[1]<cz+150).sort((a,b)=>a[1]-b[1]);
