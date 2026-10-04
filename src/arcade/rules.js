@@ -196,7 +196,8 @@ export class Circuit {
    if(!this.beats){const sheet=BEATS[this.stage.id]||[[]];this.variant=Math.floor(this.random()*sheet.length);this.beats=sheet[this.variant].filter(b=>b[0]>=this.stageTime-.5);}
    while(this.beats.length&&this.beats[0][0]<=this.stageTime)this.beat(...this.beats.shift().slice(1));
    if(this.spawnTimer<=0&&this.entities.filter(e=>!e.dead).length<8){
-    const roster=this.stage.id==='fault'&&this.stageTime>18&&this.stageTime<23?['ptero']:this.stage.roster,arrival=this.spawn(roster[this.wave%roster.length]);this.wave++;this.spawnTimer=2+this.random()*.9;
+    // Flyers stay out of the rotunda: near and inside its doors the finale sends only ground animals.
+    const roster=this.stage.id==='fault'&&this.stageTime>18&&this.stageTime<23?['ptero']:this.stage.id==='visitor'&&this.travel>ROTUNDA-40?['raptor','dilo']:this.stage.roster,arrival=this.spawn(roster[this.wave%roster.length]);this.wave++;this.spawnTimer=2+this.random()*.9;
     if(arrival.kind==='raptor'&&this.wave%3===1)this.emit('threat',{side:arrival.lane<.5?'right':'left'});
     if(this.stageTime>15&&this.wave%3===0)this.spawn(roster[0],{delay:.4});
    }
