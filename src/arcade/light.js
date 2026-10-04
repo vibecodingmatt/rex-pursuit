@@ -41,7 +41,7 @@ const LOOKS={
   fog:[0x1e2c36,.017,.02,.8,0x6f86a8,.4],sky:[0x10161c,0x243440,0,1,.85],air:[.004,0x9fb4d8,.4],
   grade:[1.3,.18,.86,.01,[.9,1,1.1],[1.06,1,.9],.26,.1],rim:[0x9ab8e8,1],lamps:[0xffbf78,85],storm:true},
  // The moonlit finale: the moon ahead casts the shadows, sodium lamps pool on the concrete.
- visitor:{key:[12,19,0xa8bfea,1.7],fill:[0x2e4566,0x11151c,1.3],env:[0x0c1628,0x2a3c58,0x0e1218,.8,.42],
+ visitor:{storm:true,key:[12,19,0xa8bfea,1.7],fill:[0x2e4566,0x11151c,1.3],env:[0x0c1628,0x2a3c58,0x0e1218,.8,.42],
   fog:[0x1f2d42,.0105,.05,.62,0x9cb6e2,.25],sky:[0x0b1428,0x2b3d5a,0,0,1],air:[.005,0xa4bce6,.55],
   grade:[1.34,.16,.9,.012,[.88,.97,1.12],[1.02,1,1.04],.26,.1],rim:[0xb2caff,1.2],lamps:[0xffad5e,70],
   ridges:[[.035,.08,2.2,4.4,0x1d2a40,.5],[.02,.05,3.6,8.2,0x141e30,.32],[.01,.03,6,1.9,0x0d141f,.18]],peaks:[[-40,.17,.3,0,0,0]],clouds:[.03,.06,.45,6.1,0x3a4a66]}
@@ -236,7 +236,8 @@ export class StageLight {
  }
  // Storm lightning in the conservatory: an uneven double flicker every 6-11 s.
  lightning(game,dt){
-  if(!this.look.storm){this.flash=0;return 0;}
+  // No lightning under the rotunda's roof (A14), only on the finale's rainy street.
+  if(!this.look.storm||this.id==='visitor'&&this.world.rotunda?.root.visible){this.flash=0;return 0;}
   const t=game?.stageTime??0;if(t<this.nextFlash-12)this.nextFlash=t+2;
   if(t>=this.nextFlash){this.flashAt=t;this.nextFlash=t+6+((Math.sin(t*12.9898)*43758.5453)%1+1)%1*5;}
   const s=t-(this.flashAt??-9);this.flash=s<0||s>.5?0:Math.max(0,1-s/.09)+Math.max(0,1-Math.abs(s-.22)/.07)*.7;return this.flash;

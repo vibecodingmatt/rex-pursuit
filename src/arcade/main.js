@@ -11,7 +11,7 @@ const test=new URLSearchParams(location.search).get('test')==='1';
 let clearCard=0,game=null,mode='menu',route='extended',ready=false,fire=false,frozen=false,clock=0,accumulator=0,last=performance.now(),announcementTime=0,radioTime=0,saved=false;
 const aim={x:.5,y:.5},keys=new Set();let pointerId=null;
 // A15: the cabinet's ten-second CONTINUE? countdown, and gamepad state (buttons held last frame).
-let continueClock=0,padHeld=[],entering=false,lastMultiplier=1,hiBest=0,lastTally=null,heartbeat=0,thunderIn=6;
+let continueClock=0,padHeld=[],entering=false,lastMultiplier=1,hiBest=0,lastTally=null,heartbeat=0,lastStrike=null;
 // The clear card's tally (rules tally()): accuracy bonus, NO DAMAGE bonus and the sector bonus.
 const points=n=>n.toLocaleString('en-US'),clearCopy=()=>lastTally?.perfect?'Perfect. Not a scratch.':'Still in one piece.';
 const tallyLine=()=>{const t=lastTally||{accuracy:0,accBonus:0};return[`ACCURACY ${t.accuracy}% +${points(t.accBonus)}`,t.perfect&&`NO DAMAGE +${points(t.perfectBonus)}`,'SECTOR +1,500'].filter(Boolean).join(' · ');};
@@ -306,7 +306,7 @@ function frame(now){const raw=now-last,dt=Math.min(.1,raw/1000);last=now;
  // Inside the rotunda the reverb becomes a stone hall: gunfire and roars ring off the walls.
  field.space?.(mode==='playing'&&renderer.world.rotunda?.root.visible?'hall':'forest');
  // The finale's rain (rain.js): the recorded bed, muffled under the rotunda's roof, and the odd far thunder on the street.
- {const lvl=mode==='playing'?renderer.world.rain?.level||0:0,inside=renderer.world.rotunda?.root.visible;field.weather?.(lvl*(inside?.3:1));if(lvl>.5&&!inside&&(thunderIn-=dt)<=0){thunderIn=12+Math.random()*10;field.thunder?.(1.2+Math.random()*2,false);}}requestAnimationFrame(frame);
+ {const lvl=mode==='playing'?renderer.world.rain?.level||0:0,inside=renderer.world.rotunda?.root.visible;field.weather?.(lvl*(inside?.3:1));const strike=renderer.world.light?.flashAt;if(lvl>.5&&!inside&&strike!=null&&strike!==lastStrike)field.thunder?.(.35+Math.random()*.9,Math.random()<.5);lastStrike=strike;}requestAnimationFrame(frame);
 }
 requestAnimationFrame(frame);
 async function load(){
