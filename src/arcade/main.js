@@ -11,6 +11,8 @@ let clearCard=0,game=null,mode='menu',route='extended',ready=false,fire=false,fr
 const aim={x:.5,y:.5},keys=new Set();let pointerId=null;
 // A15: the cabinet's ten-second CONTINUE? countdown, and gamepad state (buttons held last frame).
 let continueClock=0,padHeld=[],entering=false;
+// A15 attract mode: after ATTRACT_IDLE seconds on the menu a demo plays live gameplay, a stage per segment.
+const ATTRACT_IDLE=25,ATTRACT_SEGMENT=18,ATTRACT_STAGES=['gates','river','fault','hybrid','lagoon','manor','visitor'];let idle=0,attract=null;
 canvas.tabIndex=0;
 const fmt=n=>Math.round(n).toLocaleString('en-US');
 const names={trike:'TRICERATOPS · STAMPEDE LEADER',rex:'TYRANNOSAURUS REX',indominus:'INDOMINUS REX',indoraptor:'INDORAPTOR',mosa:'MOSASAURUS',twins:'TWO KINGS. ONE EXIT.'};
@@ -40,6 +42,7 @@ function processEvents(){for(const event of game.drain()){
  if(event.type==='focus')radio('Overdrive online. Five seconds. Make them count.');
  if(event.type==='beat'&&event.text)radio(event.text);
  if(event.type==='threat')radio(`Raptors on the ${event.side}! They are keeping pace. Watch for the turn!`);
+ if(attract&&(event.type==='loss'||event.type==='win')){nextAttract();continue;}
  if(event.type==='loss')showContinue();
  if(event.type==='win')showResult(true);
 }}
@@ -168,6 +171,9 @@ canvas.addEventListener('pointerdown',e=>{if(mode!=='playing'||(e.pointerType===
 canvas.addEventListener('pointermove',e=>{if(pointerId===null||e.pointerId===pointerId)pointer(e);});
 function release(e){if(e.pointerId===pointerId){pointerId=null;fire=false;}}
 canvas.addEventListener('pointerup',release);canvas.addEventListener('pointercancel',release);canvas.addEventListener('lostpointercapture',release);canvas.addEventListener('contextmenu',e=>e.preventDefault());
+// Any press ends the attract demo; movement only counts as someone being there.
+for(const type of ['pointerdown','keydown','touchstart'])addEventListener(type,()=>{idle=0;if(attract)stopAttract();},true);
+addEventListener('pointermove',()=>{idle=0;});
 addEventListener('keydown',e=>{
  if($('about').open)return;
  if(e.key==='Escape'&&!e.repeat){if(mode==='playing')pause();else if(mode==='paused')resume();return;}
@@ -183,7 +189,20 @@ function gamepad(){
  const held=p.buttons.map((_,i)=>b(i)),prev=padHeld,pressed=i=>held[i]&&!prev[i];const out={x:dz(p.axes[0]||0)+(held[15]?1:0)-(held[14]?1:0),y:dz(p.axes[1]||0)+(held[13]?1:0)-(held[12]?1:0),fire:held[7]||held[0]||held[5],pressed};padHeld=held;return out;
 }
 let pad=null;
+/** Jumps the running game to a stage at a time (shared by the attract mode and the test API). */
+function seekTo(id,at=0){const idx=game.path.findIndex(n=>STAGES[n].id===id);if(idx<0)return false;game.stageIndex=idx;game.stageTime=at;game.travel=at*(id==='manor'?14:id==='fault'?27:24);renderer.actors.reset();game.phase='ride';game.phaseTime=at;game.entities=[];game.spawnTimer=.2;game.bossSpawned=false;game.bridgeBroken=false;stageChanged();updateHud();return true;}
+function startAttract(){const was=route;route='extended';start();route=was;attract={index:Math.floor(Math.random()*ATTRACT_STAGES.length)-1,t:0};nextAttract();$('attract').hidden=false;document.body.dataset.attract='1';}
+function nextAttract(){if(!attract)return;attract.index=(attract.index+1)%ATTRACT_STAGES.length;attract.t=0;const id=ATTRACT_STAGES[attract.index];game.hp=100;game.status='playing';seekTo(id,['gates','river','hybrid','visitor'].includes(id)&&Math.random()<.5?26:2+Math.random()*10);}
+function stopAttract(){if(!attract)return;attract=null;$('attract').hidden=true;delete document.body.dataset.attract;backToMenu();}
+/** The demo's gunner: eases the reticle onto the nearest visible threat and fires when on it. */
+function autopilot(dt){
+ renderer.sync(game,aim);const target=game.entities.find(e=>!e.dead&&e.age>.2&&renderer.project(e)?.visible!==false);
+ if(target){const p=renderer.project(target,innerWidth/innerHeight),k=Math.min(1,dt*7);aim.x+=(p.hx-aim.x)*k;aim.y+=(p.hy-aim.y)*k;if(Math.hypot(p.hx-aim.x,p.hy-aim.y)<.05)game.shoot(aim.x,aim.y,innerWidth/innerHeight);}
+ else{aim.x+=(.5+Math.sin(game.time*.7)*.12-aim.x)*dt*2;aim.y+=(.47-aim.y)*dt*2;}
+ if(game.focus>=100)game.activateFocus();game.hp=Math.max(game.hp,60);
+}
 function step(dt){
+ if(attract){attract.t+=dt;autopilot(dt);if(attract.t>ATTRACT_SEGMENT)nextAttract();}
  if(mode!=='playing')return;
  const speed=.65;aim.x=Math.max(.02,Math.min(.98,aim.x+((keys.has('ArrowRight')?1:0)-(keys.has('ArrowLeft')?1:0))*dt*speed));aim.y=Math.max(.19,Math.min(.85,aim.y+((keys.has('ArrowDown')?1:0)-(keys.has('ArrowUp')?1:0))*dt*speed));
  if(pad){aim.x=Math.max(.02,Math.min(.98,aim.x+pad.x*dt*1.15));aim.y=Math.max(.19,Math.min(.85,aim.y+pad.y*dt*1.15));if((pad.pressed(3)||pad.pressed(1))&&game.focus>=100){game.activateFocus();}}
@@ -196,6 +215,9 @@ function step(dt){
 let hudTick=0;
 function frame(now){const raw=now-last,dt=Math.min(.1,raw/1000);last=now;
  pad=gamepad();
+ // The attract mode: idle on the menu starts it; any input (here, a gamepad button) ends it.
+ if(mode==='menu'&&ready&&!test&&!document.hidden&&!$('about').open){idle+=Math.min(2,raw/1000);if(idle>ATTRACT_IDLE){idle=0;startAttract();}}else if(mode!=='playing')idle=0;
+ if(attract&&pad&&padHeld.some(Boolean)){stopAttract();padHeld=padHeld.map(()=>true);}
  // Gamepad on the screens: A starts, continues or restarts; Start pauses and resumes.
  if(pad){if(pad.pressed(9)){if(mode==='playing')pause();else if(mode==='paused')resume();}
   // Initials by d-pad: up and down turn the last letter, right adds one, left removes one, A saves.
@@ -224,4 +246,4 @@ window.lostCircuit={get ready(){return ready;},get mode(){return mode;},snapshot
 if(test)Object.defineProperty(window.lostCircuit,'quality',{get:()=>quality});
 if(test)Object.assign(window.lostCircuit,{getGame:()=>game,get renderer(){return renderer;},get ambience(){return ambience;},project:e=>renderer.project(e,innerWidth/innerHeight),bossesReady:()=>renderer.loadBosses().then(()=>renderer.bossRex.ready),diagnostics:()=>({trike:renderer.bossTrike?.diagnostics(),bosses:renderer.bossRex?.diagnostics(),weapon:renderer.weapon.diagnostics(),camera:renderer.world.camera.position.toArray(),actors:renderer.actors.diagnostics(),draws:renderer.world.renderer.info.render.calls,triangles:renderer.world.renderer.info.render.triangles}),freeze:v=>{frozen=v;},step:(seconds,autoplay=false,live=false)=>{
  // live: sync the scene every substep, as real frames do (modeled bosses integrate motion per frame).
- for(let t=0;t<seconds&&mode==='playing';t+=1/60){if(live&&!autoplay)renderer.sync(game,aim);if(autoplay){renderer.sync(game,aim);const target=game.entities.find(e=>!e.dead&&e.age>.2&&renderer.project(e)?.visible!==false);if(target){const p=renderer.project(target,innerWidth/innerHeight);aim.x=p.hx;aim.y=p.hy;game.shoot(aim.x,aim.y,innerWidth/innerHeight);}if(game.focus>=100)game.activateFocus();}step(1/60);}updateHud();renderer.render(game,aim,{time:game.time});},seek:(id,at=0)=>{const idx=game.path.findIndex(n=>STAGES[n].id===id);if(idx<0)throw Error('Stage is not on route');game.stageIndex=idx;game.stageTime=at;game.travel=at*(id==='manor'?14:id==='fault'?27:24);renderer.actors.reset();game.phase='ride';game.phaseTime=at;game.entities=[];game.spawnTimer=.2;game.bossSpawned=false;game.bridgeBroken=false;stageChanged();updateHud();},setAim:(x,y)=>{aim.x=x;aim.y=y;},render:()=>renderer.render(game,aim,{time:game?.time??0,menu:mode==='menu'})});
+ for(let t=0;t<seconds&&mode==='playing';t+=1/60){if(live&&!autoplay)renderer.sync(game,aim);if(autoplay){renderer.sync(game,aim);const target=game.entities.find(e=>!e.dead&&e.age>.2&&renderer.project(e)?.visible!==false);if(target){const p=renderer.project(target,innerWidth/innerHeight);aim.x=p.hx;aim.y=p.hy;game.shoot(aim.x,aim.y,innerWidth/innerHeight);}if(game.focus>=100)game.activateFocus();}step(1/60);}updateHud();renderer.render(game,aim,{time:game.time});},seek:(id,at=0)=>{if(!seekTo(id,at))throw Error('Stage is not on route');},setAim:(x,y)=>{aim.x=x;aim.y=y;},render:()=>renderer.render(game,aim,{time:game?.time??0,menu:mode==='menu'})});

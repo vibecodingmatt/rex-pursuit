@@ -22,3 +22,8 @@
 .board li.new{color:#f5cf88;animation:board-new .8s ease-in-out infinite alternate}@keyframes board-new{to{text-shadow:0 0 9px #f5cf88}}
 .flourish b{display:inline-block;animation:rank-in 1s cubic-bezier(.2,1.6,.4,1) .25s both}
 @keyframes rank-in{0%{transform:scale(3.4) rotate(-14deg);opacity:0;text-shadow:0 0 34px #f5cf88}100%{transform:none;opacity:1;text-shadow:0 0 12px rgba(245,207,136,.55)}}
+/* A15: the attract demo's call to play. */
+.attract{position:fixed;left:50%;bottom:16%;transform:translateX(-50%);text-align:center;pointer-events:none;z-index:30}.attract b{display:block;font:900 clamp(26px,5vw,54px)/1 Impact,'Arial Black',sans-serif;letter-spacing:.06em;color:#f5cf88;text-shadow:0 0 18px rgba(245,207,136,.55),0 3px 0 #000;animation:attract-blink 1.1s steps(2,jump-none) infinite}.attract span{display:block;margin-top:8px;font-size:10px;letter-spacing:3px;color:#c3cbb8}
+@keyframes attract-blink{50%{opacity:.15}}
+body[data-attract] #pause,body[data-attract] .focus-button{visibility:hidden}
+body[data-attract] #radio,body[data-attract] #announcement{visibility:hidden}
