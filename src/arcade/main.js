@@ -10,7 +10,7 @@ const test=new URLSearchParams(location.search).get('test')==='1';
 let clearCard=0,game=null,mode='menu',route='extended',ready=false,fire=false,frozen=false,clock=0,accumulator=0,last=performance.now(),announcementTime=0,radioTime=0,saved=false;
 const aim={x:.5,y:.5},keys=new Set();let pointerId=null;
 // A15: the cabinet's ten-second CONTINUE? countdown, and gamepad state (buttons held last frame).
-let continueClock=0,padHeld=[],entering=false,lastMultiplier=1;
+let continueClock=0,padHeld=[],entering=false,lastMultiplier=1,hiBest=0;
 // A15 attract mode: after ATTRACT_IDLE seconds on the menu a demo plays live gameplay, a stage per segment.
 const ATTRACT_IDLE=25,ATTRACT_SEGMENT=18,ATTRACT_STAGES=['gates','river','fault','hybrid','lagoon','manor','visitor'];let idle=0,attract=null;
 canvas.tabIndex=0;
@@ -31,7 +31,7 @@ function stageChanged(){
  announce(`${String(game.stageIndex+1).padStart(2,'0')} / ${String(game.path.length).padStart(2,'0')} — ${stage.era}`,stage.name,'HOLD TO FIRE · SHOOT DEBRIS · KEEP MOVING');radio(stage.radio);
 }
 function unlockField(){fieldInit??=field.init().then(()=>{audio.worldSounds=false;if(field.muted!==audio.muted)field.mute();if(mode!=='playing')return field.pause(true);}).catch(e=>{console.warn('Recorded audio unavailable:',e.message);});if(field.context)field.pause(false).catch(()=>{});}
-function start(){if(!ready)return;clearCard=0;audio.reset();field.stopCalls();void audio.unlock();unlockField();game=new Circuit({route,difficulty:$('difficulty').value});game.projector=(e,aspect)=>renderer.project(e,aspect);saved=false;fire=false;keys.clear();renderer.reset();clock=0;accumulator=0;showMode('playing');canvas.focus({preventScroll:true});processEvents();updateHud();}
+function start(){if(!ready)return;clearCard=0;hiBest=readBest()||0;audio.reset();field.stopCalls();void audio.unlock();unlockField();game=new Circuit({route,difficulty:$('difficulty').value});game.projector=(e,aspect)=>renderer.project(e,aspect);saved=false;fire=false;keys.clear();renderer.reset();clock=0;accumulator=0;showMode('playing');canvas.focus({preventScroll:true});processEvents();updateHud();}
 function processEvents(){for(const event of game.drain()){
  renderer.event(event);audio.event(event);fieldEvent(event);
  if(event.type==='stage')stageChanged();
@@ -120,8 +120,8 @@ function bossCues(){
  }
 }
 function updateHud(){
- if(!game)return;$('score').textContent=String(game.score).padStart(6,'0');
- {const w=document.querySelector('.weapon-label'),pw=game.power>0,sp=game.scatter>0,on=pw||sp;w.classList.toggle('powered',pw);w.classList.toggle('spread',sp&&!pw);w.querySelector('b').textContent=pw&&sp?'EXPLOSIVE SPREAD':sp?'SPREAD SHOT':pw?'EXPLOSIVE ROUNDS':'TX–94 AUTOMATIC';w.querySelector('span').innerHTML=on?`${[sp&&'THREE TARGETS',pw&&'EVERY ROUND ×2'].filter(Boolean).join(' · ')} · <i>${Math.ceil(Math.max(game.power,game.scatter))}s</i>`:'TRANQUILIZER SYSTEM <i>∞</i>';}$('health').textContent=Math.ceil(game.hp);
+ if(!game)return;{const s=String(game.score).padStart(6,'0'),el=$('score'),h=String(Math.max(game.score,hiBest)).padStart(6,'0'),hi=$('hi-score');el.textContent=s;el.dataset.ghost='8'.repeat(s.length);hi.textContent=h;hi.dataset.ghost='8'.repeat(h.length);}
+ {const w=document.querySelector('.weapon-label'),pw=game.power>0,sp=game.scatter>0,on=pw||sp;w.classList.toggle('powered',pw);w.classList.toggle('spread',sp&&!pw);w.querySelector('b').textContent=pw&&sp?'EXPLOSIVE SPREAD':sp?'SPREAD SHOT':pw?'EXPLOSIVE ROUNDS':'TX–94 AUTOMATIC';w.querySelector('span').innerHTML=on?`${[sp&&'THREE TARGETS',pw&&'EVERY ROUND ×2'].filter(Boolean).join(' · ')} · <i>${Math.ceil(Math.max(game.power,game.scatter))}s</i>`:'TRANQUILIZER SYSTEM <i>∞</i>';}$('health').textContent=Math.ceil(game.hp);{const panel=document.querySelector('.lower-hud .health');panel.classList.toggle('low',game.hp<=30);panel.classList.toggle('mid',game.hp>30&&game.hp<=60);$('credits').textContent=`CREDITS ${'●'.repeat(game.credits)}${'○'.repeat(Math.max(0,2-game.credits))}`;}
  $('health-bars').replaceChildren(...Array.from({length:10},(_,i)=>{const bar=document.createElement('i');if(i>=Math.ceil(game.hp/10))bar.className='empty';if(game.hp<30&&bar.className!=='empty')bar.style.background='#ef9c6f';return bar;}));
  {const mult=Math.min(5,1+Math.floor(game.combo/5)),badge=$('multiplier');badge.textContent=`×${mult}`;
   // Each step up the chain multiplier pops the badge and chimes higher; the top step gets a radio call.
