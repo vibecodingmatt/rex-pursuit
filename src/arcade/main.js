@@ -260,7 +260,7 @@ let pad=null;
 /** Jumps the running game to a stage at a time (shared by the attract mode and the test API). */
 function seekTo(id,at=0){const idx=game.path.findIndex(n=>STAGES[n].id===id);if(idx<0)return false;game.stageIndex=idx;game.stageTime=at;game.travel=at*(id==='manor'?14:id==='fault'?27:24);renderer.actors.reset();game.phase='ride';game.phaseTime=at;game.entities=[];game.spawnTimer=.2;game.bossSpawned=false;game.bridgeBroken=false;stageChanged();updateHud();return true;}
 function startAttract(){const was=route;route='extended';start();route=was;attract={index:Math.floor(Math.random()*ATTRACT_STAGES.length)-1,t:0};nextAttract();$('attract').hidden=false;document.body.dataset.attract='1';}
-function nextAttract(){if(!attract)return;attract.index=(attract.index+1)%ATTRACT_STAGES.length;attract.t=0;const id=ATTRACT_STAGES[attract.index];game.hp=100;game.status='playing';seekTo(id,['gates','river','hybrid','visitor'].includes(id)&&Math.random()<.5?26:2+Math.random()*10);}
+function nextAttract(){if(!attract)return;attract.index=(attract.index+1)%ATTRACT_STAGES.length;attract.t=0;const id=ATTRACT_STAGES[attract.index];game.hp=100;game.status='playing';const st=STAGES.find(s=>s.id===id);seekTo(id,st.boss&&Math.random()<.5?st.duration-8:2+Math.random()*10);}
 function stopAttract(){if(!attract)return;attract=null;$('attract').hidden=true;delete document.body.dataset.attract;backToMenu();}
 /** The demo's gunner: eases the reticle onto the nearest visible threat and fires when on it. */
 function autopilot(dt){
