@@ -28,4 +28,4 @@
 body[data-attract] #pause,body[data-attract] .focus-button{visibility:hidden}
 body[data-attract] #radio,body[data-attract] #announcement{visibility:hidden}
 /* Explosive rounds: the weapon label burns orange while they last. */
-.weapon-label.powered b,.weapon-label.powered i{color:#ff9a3c;text-shadow:0 0 10px rgba(255,140,40,.7)}.weapon-label.powered span{color:#ffd0a0}
+.weapon-label.powered b,.weapon-label.powered i{color:#ff9a3c;text-shadow:0 0 10px rgba(255,140,40,.7)}.weapon-label.powered span{color:#ffd0a0}.weapon-label.spread b,.weapon-label.spread i{color:#5cd2ff;text-shadow:0 0 10px rgba(60,190,255,.7)}.weapon-label.spread span{color:#bfeaff}

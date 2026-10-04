@@ -39,7 +39,7 @@ export class CircuitActors {
  makeShadow(){const c=document.createElement('canvas');c.width=c.height=64;const x=c.getContext('2d'),g=x.createRadialGradient(32,32,4,32,32,32);g.addColorStop(0,'#000b');g.addColorStop(1,'#0000');x.fillStyle=g;x.fillRect(0,0,64,64);return new T.CanvasTexture(c);}
  reset(){for(const [id,w]of this.walls)this.dropWall(id,w);for(const a of this.actors.values())if(a.mesh)disposeProp(a.mesh);this.actors.clear();this.corpses=[];this.critters.reset({empty:true});this.flyers.reset({empty:true});for(const s of this.shadows)s.visible=false;}
  /** A power crate (explosive rounds) is the supply crate in hazard orange with a glowing band. */
- paintPower(mesh,e){if(!e.power||!mesh)return mesh;mesh.traverse(o=>{if(o.isMesh){o.material=o.material.clone();o.material.userData.shared=false;o.material.color?.set(0xff8a1e);if(o.material.emissive)o.material.emissive.set(0x5a2000);}});return mesh;}
+ paintPower(mesh,e){if(!e.power||!mesh)return mesh;mesh.traverse(o=>{if(o.isMesh){o.material=o.material.clone();o.material.userData.shared=false;const spread=e.power==='spread';o.material.color?.set(spread?0x3ec8ff:0xff8a1e);if(o.material.emissive)o.material.emissive.set(spread?0x063a5c:0x5a2000);}});return mesh;}
  makeProp(kind,stage){
   if(kind==='rock'&&stage==='fault'&&this.world.fault){const m=this.world.fault.meteor();this.scene.add(m);return m;}
   if(kind==='ichthy'&&this.ichthy){const mesh=createIchthy(this.ichthy);mesh.scale.setScalar(1.15);this.scene.add(mesh);return mesh;}

@@ -28,7 +28,7 @@ export class RideAudio {
  }
  event(e){
   if(e.type==='threat')this.roar(9);
-  if(e.type==='shot'){if(this.worldSounds!==false){this.hiss(.055,.13,2400);this.tone(170,.065,.09,'triangle',65);}if(e.precise)this.tone(1350,.06,.035,'sine',780);}
+  if(e.type==='shot'&&!e.pellet){if(this.worldSounds!==false){this.hiss(.055,.13,2400);this.tone(170,.065,.09,'triangle',65);}if(e.precise)this.tone(1350,.06,.035,'sine',780);}
   if(e.type==='damage'||e.type==='blast'){this.hiss(.45,.5,850);this.tone(72,.65,.36,'sine',27);}
   if(e.type==='boss'&&!(this.modeledRex&&['rex','twins','indominus'].includes(e.kind))&&!(this.modeledMosa&&e.kind==='mosa'))this.roar(e.kind==='indoraptor'?14:1);
   if(e.type==='stage'){this.tone(220,.6,.13,'triangle',440);this.tone(330,.7,.1,'triangle',660);}

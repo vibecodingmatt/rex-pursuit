@@ -40,7 +40,7 @@ function processEvents(){for(const event of game.drain()){
  if(event.type==='clear'){if(game.clearHold>3.5)clearCard=2.1;else announce('SECTOR CLEAR','Still in one piece.','INTEGRITY +12 · SECTOR BONUS +1,500',3);}
  if(event.type==='bridge'){announce('HOLD ON','There goes the bridge.','SHOOT THE FALLING DEBRIS',2);radio('Brace! Clear the debris. We are jumping the gap!');}
  if(event.type==='focus')radio('Overdrive online. Five seconds. Make them count.');
- if(event.type==='power'){announce('EXPLOSIVE ROUNDS','Every round counts double.','8 SECONDS · SHOOT EVERYTHING',1.6);radio('Explosive rounds loaded! Light them up!');}
+ if(event.type==='power'){if(event.kind==='spread'){announce('SPREAD SHOT','Every round finds two more.','8 SECONDS · SWEEP THE PACK',1.6);radio('Spread rounds loaded! Sweep them!');}else{announce('EXPLOSIVE ROUNDS','Every round counts double.','8 SECONDS · SHOOT EVERYTHING',1.6);radio('Explosive rounds loaded! Light them up!');}}
  if(event.type==='beat'&&event.text)radio(event.text);
  if(event.type==='threat')radio(`Raptors on the ${event.side}! They are keeping pace. Watch for the turn!`);
  if(attract&&(event.type==='loss'||event.type==='win')){nextAttract();continue;}
@@ -57,7 +57,7 @@ function fieldEvent(e){
  if(!field.context)return;
  // Each beat is announced by its animals, from their side of the track.
  if(e.type==='beat'){const cam=renderer.world.camera.position,at={x:cam.x+e.side*14,y:cam.y,z:cam.z+28},name={raptor:'raptor',dilo:'dilophosaurus',galli:'gallimimus',trike:'triceratops'}[e.kind];if(e.kind==='ptero')field.screech(at);else if(e.pattern==='stampede')field.herd(at);else if(name)field.call(name,at);}
- if(e.type==='shot'){field.gun();if(e.hit){const wound=renderer.lastWound,actor=renderer.actors?.actors.get(e.id),at=wound?.point||actor?.position;if(at)field.hit('flesh',at.distanceTo(renderer.world.camera.position),at);renderer.lastWound=null;}}
+ if(e.type==='shot'){if(!e.pellet)field.gun();if(e.hit){const wound=renderer.lastWound,actor=renderer.actors?.actors.get(e.id),at=wound?.point||actor?.position;if(at)field.hit('flesh',at.distanceTo(renderer.world.camera.position),at);renderer.lastWound=null;}}
  if(e.type==='blast')field.impact(true);
  if(e.type==='leap'){const a=renderer.actors?.actors.get(e.id);if(a)field.call('raptor',a.position);}
 }
@@ -119,7 +119,7 @@ function bossCues(){
 }
 function updateHud(){
  if(!game)return;$('score').textContent=String(game.score).padStart(6,'0');
- {const w=document.querySelector('.weapon-label'),on=game.power>0;w.classList.toggle('powered',on);w.querySelector('b').textContent=on?'EXPLOSIVE ROUNDS':'TX–94 AUTOMATIC';w.querySelector('span').innerHTML=on?`EVERY ROUND ×2 · <i>${Math.ceil(game.power)}s</i>`:'TRANQUILIZER SYSTEM <i>∞</i>';}$('health').textContent=Math.ceil(game.hp);
+ {const w=document.querySelector('.weapon-label'),pw=game.power>0,sp=game.scatter>0,on=pw||sp;w.classList.toggle('powered',pw);w.classList.toggle('spread',sp&&!pw);w.querySelector('b').textContent=pw&&sp?'EXPLOSIVE SPREAD':sp?'SPREAD SHOT':pw?'EXPLOSIVE ROUNDS':'TX–94 AUTOMATIC';w.querySelector('span').innerHTML=on?`${[sp&&'THREE TARGETS',pw&&'EVERY ROUND ×2'].filter(Boolean).join(' · ')} · <i>${Math.ceil(Math.max(game.power,game.scatter))}s</i>`:'TRANQUILIZER SYSTEM <i>∞</i>';}$('health').textContent=Math.ceil(game.hp);
  $('health-bars').replaceChildren(...Array.from({length:10},(_,i)=>{const bar=document.createElement('i');if(i>=Math.ceil(game.hp/10))bar.className='empty';if(game.hp<30&&bar.className!=='empty')bar.style.background='#ef9c6f';return bar;}));
  $('multiplier').textContent=`×${Math.min(5,1+Math.floor(game.combo/5))}`;$('chain-text').textContent=game.combo?`${game.combo} CHAIN`:'MAKE IT COUNT';$('chain-fill').style.width=`${game.chainTime/4.5*100}%`;
  $('focus-fill').style.width=`${game.focusTime>0?game.focusTime/5*100:game.focus}%`;$('focus-value').textContent=game.focusTime>0?'ACTIVE':game.focus>=100?'READY ↗':`${Math.floor(game.focus)}%`;$('focus').classList.toggle('ready',game.focus>=100);$('focus').setAttribute('aria-label',game.focus>=100?'Activate Overdrive':`Overdrive charging ${Math.floor(game.focus)} percent`);

@@ -36,6 +36,8 @@ export class CircuitImpacts{
   if(end<0)return;
   // Explosive rounds (the power crate): every round that lands bursts in orange sparks and a puff of smoke.
   if(game.power>0){for(let i=0;i<7;i++)fx.speck(at,tmp.set(Math.random()-.5,Math.random()*.8+.2,Math.random()-.5).normalize().multiplyScalar(3+Math.random()*3),0xff9a3c,.06,.5);fx.haze(at,tmp.set(0,.8,0),{life:.7,size:.5,growth:2.4,opacity:.35,color:0x3a2a20});}
+  // Spread pellets land in a blue-white spit of sparks.
+  if(e.pellet)for(let i=0;i<6;i++)fx.speck(at,tmp.set(Math.random()-.5,Math.random()*.7+.2,Math.random()-.5).normalize().multiplyScalar(2.5+Math.random()*3),0x7adcff,.05,.4);
   if(kind==='boss')return;// boss-rex.js already wounds her and throws flecks
   if(kind)return this.strike(kind,at,e.precise);
   this.ground(GROUND[id]||'dirt',at);
