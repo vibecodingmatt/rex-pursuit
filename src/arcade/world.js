@@ -153,8 +153,10 @@ export class CircuitWorld {
   // Rocks, clumped planting and track clutter (ground.js); rock buckets are keyed by their scan.
   const rockBuckets=new Map(),blobs=[],pebbles=[],stillItems={bark:[],shrub:[],palm:[],fern:[]},kit=this.kit,C=kit.clutter,matrix=new T.Matrix4(),q=new T.Quaternion(),e=new T.Euler(),sv=new T.Vector3(),pv=new T.Vector3();
   const buckets={grass,fern:ferns,bush:bushes,treeFern:treeFerns,blob:blobs,pebble:pebbles};
-  const put=(bucket,off,y,z,sx,sy,sz,rx=0,ry=0,rz=0,tint)=>{let arr=buckets[bucket];if(!arr){if(!rockBuckets.has(bucket))rockBuckets.set(bucket,[]);arr=rockBuckets.get(bucket);}arr.push([routeX(z,id)+off,y,z-mid,sx,sy,sz,rx,ry,rz,tint]);};
-  const still=(kind,off,y,z,yaw,scale,tone)=>{matrix.compose(pv.set(routeX(z,id)+off,y,z-mid),q.setFromEuler(e.set(0,yaw,0)),sv.setScalar(scale));const m2=matrix.clone();
+  // The Visitor Center's forecourt and building stay clear of forest; it frames them from the sides.
+  const plaza=(off,z)=>id==='visitor'&&z>PLAZA-16&&Math.abs(off)<36;
+  const put=(bucket,off,y,z,sx,sy,sz,rx=0,ry=0,rz=0,tint)=>{if(plaza(off,z))return;let arr=buckets[bucket];if(!arr){if(!rockBuckets.has(bucket))rockBuckets.set(bucket,[]);arr=rockBuckets.get(bucket);}arr.push([routeX(z,id)+off,y,z-mid,sx,sy,sz,rx,ry,rz,tint]);};
+  const still=(kind,off,y,z,yaw,scale,tone)=>{if(plaza(off,z))return;matrix.compose(pv.set(routeX(z,id)+off,y,z-mid),q.setFromEuler(e.set(0,yaw,0)),sv.setScalar(scale));const m2=matrix.clone();
    if(kind==='limb'){const limb=C.limbs[stillItems.bark.length%2];stillItems.bark.push({geometry:limb.wood,matrix:m2});stillItems.shrub.push({geometry:limb.leaves,matrix:m2,tone});}
    else if(kind==='root')stillItems.bark.push({geometry:this.geometry.roots[Math.floor(noise(z*3.1+off)*3)],matrix:matrix.compose(pv.set(routeX(z,id)+off,y,z-mid),q.setFromEuler(e.set(0,yaw,0)),sv.set(scale*.9,scale*.9,scale*3.2)).clone(),tone});
    else if(kind==='branch')stillItems.bark.push({geometry:C.branches[Math.floor(noise(z*7.3+off)*3)],matrix:m2,tone});
@@ -162,7 +164,7 @@ export class CircuitWorld {
   if(!interior){
    // Trees have tapered trunks, crowns and layered branch cards; understory hides entrances.
    const count=cave?0:canyon?3:urban?6:15;
-   for(let i=0;i<count;i++){const seed=index*73+i*19,z=start+noise(seed)*32,side=i%2?1:-1,off=side*((river?29:urban?12:8)+noise(seed+1)*(canyon?35:29)),height=9+noise(seed+2)*12;
+   for(let i=0;i<count;i++){const seed=index*73+i*19,z=start+noise(seed)*32,side=i%2?1:-1,off=side*((river?29:urban?(plaza(12,z)?37:12):8)+noise(seed+1)*(canyon?35:29)),height=9+noise(seed+2)*12;
     const ground=Math.min(hAt(off,z),hAt(off+.6,z),hAt(off-.6,z)),base=ground-routeY(z,id);
     add(i%3===0?palms:trunks,off,base,z,height,height,height,0,seed,side*.015,.85+noise(seed+3)*.3);
     // Surface roots fan out from the giants' buttresses and dive into the litter.
