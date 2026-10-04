@@ -66,7 +66,7 @@ export class Circuit {
   this.route=route;this.rush=route==='bossrush';this.difficulty=difficulty;this.rng=seed;// practice-N plays stage N alone (from the menu's practice list).
   this.path=route==='classic'?[0,1,2,6]:/^practice-[0-6]$/.test(route)?[+route.slice(9)]:[0,1,2,3,4,5,6];
   this.status='playing';this.stageIndex=0;this.stageTime=0;this.time=0;this.phase='intro';this.phaseTime=0;this.hp=100;this.score=0;
-  this.combo=0;this.maxCombo=0;this.chainTime=0;this.shots=0;this.hits=0;this.power=0;this.scatter=0;this.grenades=GRENADES;this.lobs=[];this.lobCooldown=0;this.tallyFrom=[0,0];this.stageHurt=false;this.perfects=[];this.offer=null;this.offerTime=0;this.upgrades=[];this.fireRate=1;this.armor=1;this.charge=1;this.grenadeCap=GRENADE_MAX;this.kills=0;this.bosses=0;this.credits=2;this.continues=0;
+  this.combo=0;this.maxCombo=0;this.chainTime=0;this.shots=0;this.hits=0;this.power=0;this.scatter=0;this.pierce=0;this.grenades=GRENADES;this.lobs=[];this.lobCooldown=0;this.tallyFrom=[0,0];this.stageHurt=false;this.perfects=[];this.offer=null;this.offerTime=0;this.upgrades=[];this.fireRate=1;this.armor=1;this.charge=1;this.grenadeCap=GRENADE_MAX;this.kills=0;this.bosses=0;this.credits=2;this.continues=0;
   this.entities=[];this.events=[];this.serial=0;this.spawnTimer=2.5;this.beats=null;this.hazardTimer=6;this.supplyTimer=11;this.travel=0;this.speed=0;
   this.cooldown=0;this.focus=0;this.focusTime=0;this.invulnerable=0;this.bossSpawned=false;this.bridgeBroken=false;this.wave=0;
   this.rushStart();this.emit('stage',{stage:this.stage.id});
@@ -156,12 +156,13 @@ export class Circuit {
   this.hits++;target.hit=.14;
   if(target.kind==='supply'){
    // Every other crate is explosive rounds: every round counts double for POWER seconds.
-   target.dead=true;if(target.power){this[target.power==='spread'?'scatter':'power']=POWER;this.emit('power',{x:target.x,y:target.y,id:target.id,kind:target.power});}else{this.hp=Math.min(100,this.hp+22);this.focus=Math.min(100,this.focus+25*this.charge);this.grenades=Math.min(this.grenadeCap,this.grenades+1);}this.emit('supply',{x:target.x,y:target.y,id:target.id,power:!!target.power});return true;
+   target.dead=true;if(target.power){this[{spread:'scatter',pierce:'pierce',explosive:'power'}[target.power]||'power']=POWER;this.emit('power',{x:target.x,y:target.y,id:target.id,kind:target.power});}else{this.hp=Math.min(100,this.hp+22);this.focus=Math.min(100,this.focus+25*this.charge);this.grenades=Math.min(this.grenadeCap,this.grenades+1);}this.emit('supply',{x:target.x,y:target.y,id:target.id,power:!!target.power});return true;
   }
   if(target.kind==='barrel'){
    target.hp--;if(target.hp<=0)this.blast(target,list);
    return true;
   }
+  if(this.pierce>0)this.through(list,target,x,y,aspect);
   target.hp-=(precise?(target.boss&&target.weak?5:3):1)*(this.power>0?2:1);
   if(target.boss&&precise&&target.weak){target.weakHits++;if(target.weakHits>=9){target.age=Math.floor(target.age/6.4)*6.4+6.4;target.weakHits=0;this.emit('stagger',{id:target.id,x:target.x,y:target.y});}}
   if(target.hp<=0)this.kill(target,precise);
@@ -175,6 +176,12 @@ export class Circuit {
  pick(i){const key=this.offer?.[i];if(!key||this.offerTime>OFFER_TIME)return false;this.offer=null;this.offerTime=0;this.upgrades.push(key);
   if(key==='rapid')this.fireRate*=1.2;if(key==='armor')this.armor*=.8;if(key==='charge')this.charge*=1.3;if(key==='grenade'){this.grenadeCap++;this.grenades=Math.min(this.grenadeCap,this.grenades+1);}
   this.emit('upgrade',{key,label:UPGRADES[key][0]});return true;}
+ /** Piercing rounds: the round goes on through every other animal under the sight (body hits, never a crate). */
+ through(list,skip,x,y,aspect){
+  for(const e of list){if(e===skip||e.dead||e.kind==='supply')continue;const p=this.projector?this.projector(e,aspect):project(e,aspect);if(!p||p.visible===false||p.test)continue;
+   const head=Math.hypot((x-p.hx)*aspect,y-p.hy)<Math.max(.035,p.h*.15),body=((x-p.x)/(p.w*.4))**2+((y-p.y)/(p.h*.46))**2<1;if(!head&&!body)continue;
+   e.hit=.14;this.emit('shot',{x:p.x,y:p.y,hit:true,precise:false,id:e.id,pellet:true});if(e.kind==='barrel'){e.hp--;if(e.hp<=0)this.blast(e,list);continue;}e.hp-=this.power>0?2:1;if(e.hp<=0)this.kill(e);}
+ }
  /** Lob a grenade at the sight; it bursts after GRENADE_FUSE. */
  launch(x,y,aspect=16/9){
   if(this.status!=='playing'||this.phase==='clear'||this.grenades<=0||this.lobCooldown>0)return false;
@@ -200,7 +207,7 @@ export class Circuit {
  finish(){this.status='won';this.score+=Math.round(this.hp)*50+(this.continues===0?5000:0);this.emit('win');}
  update(dt){
   if(this.status!=='playing')return;
-  this.power=Math.max(0,(this.power||0)-dt);this.scatter=Math.max(0,(this.scatter||0)-dt);
+  this.power=Math.max(0,(this.power||0)-dt);this.scatter=Math.max(0,(this.scatter||0)-dt);this.pierce=Math.max(0,(this.pierce||0)-dt);
   dt=clamp(dt,0,.05);this.lobCooldown=Math.max(0,(this.lobCooldown||0)-dt);if(this.offer&&(this.offerTime-=dt)<=0)this.offer=null;if(this.lobs?.length){for(const l of this.lobs)l.t-=dt;const due=this.lobs.filter(l=>l.t<=0);this.lobs=this.lobs.filter(l=>l.t>0);for(const l of due)this.detonate(l);}this.time+=dt;this.phaseTime+=dt;this.cooldown=Math.max(0,this.cooldown-dt);this.cooldown2=Math.max(0,(this.cooldown2||0)-dt);this.invulnerable=Math.max(0,this.invulnerable-dt);
   const cruise=this.stage.id==='manor'?14:this.stage.id==='fault'?27:24;
   const drive=DRIVE[this.stage.boss],brake=clamp((this.phaseTime-.8)/1.8,0,1);
@@ -223,7 +230,7 @@ export class Circuit {
     if(this.stageTime>15&&this.wave%3===0)this.spawn(roster[0],{delay:.4});
    }
    if(this.hazardTimer<=0){this.spawn(this.stage.id==='manor'?'spit':'rock');this.hazardTimer=5.2;}
-   if(this.supplyTimer<=0){const c=this.spawn(this.wave%2?'supply':'barrel');if(c.kind==='supply'&&(this.crates=(this.crates||0)+1)%2===0)c.power=this.crates%4?'explosive':'spread';this.supplyTimer=12;}
+   if(this.supplyTimer<=0){const c=this.spawn(this.wave%2?'supply':'barrel');if(c.kind==='supply'&&(this.crates=(this.crates||0)+1)%2===0)c.power=['explosive','spread','pierce'][(this.crates/2-1)%3];this.supplyTimer=12;}
    if(this.stage.setpiece==='bridge'&&this.stageTime>19&&!this.bridgeBroken){this.bridgeBroken=true;this.bridgeOrigin=this.travel+30;this.emit('bridge');for(let i=0;i<3;i++)this.spawn('rock',{x:.27+i*.23,delay:i*.6});}
    if(this.stageTime>=this.stage.duration){
     this.phase='boss';this.phaseTime=0;

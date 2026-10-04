@@ -59,6 +59,9 @@ console.log('Lost Circuit rules: complete routes, phone targets, frame rates, lo
 // Boss rush: every stage starts 10 s before its boss, and the run can be won.
 {const g=new Circuit({route:'bossrush'});assert.equal(g.stageTime,g.stage.duration-10);let n=0;while(g.status==='playing'&&n++<60*400){for(const e of g.entities)if(!e.dead&&(!e.boss||g.phaseTime>4)&&e.age>.5){e.hp=0;g.kill(e);}g.hp=100;g.update(1/60);g.drain();}
  assert.equal(g.status,'won','a boss rush can be won');assert(g.time<200,'a boss rush is short');}
+// Piercing rounds: a violet crate makes each round go through every animal under the sight.
+{const g=new Circuit();g.phase='ride';g.drain();const es=[.5,.5,.8].map(x=>{const e=g.spawn('raptor');e.age=1;e.px=x;return e;});g.projector=e=>e.kind==='supply'?{x:.2,y:.2,w:.1,h:.1,hx:.2,hy:.2}:{x:e.px,y:.5,w:.1,h:.2,hx:e.px,hy:.3};
+ const c=g.spawn('supply');c.age=1;c.power='pierce';g.shoot(.2,.2,16/9);assert.equal(g.pierce,8);const hp=es.map(e=>e.hp);g.cooldown=0;g.shoot(.5,.5,16/9);assert.deepEqual(es.map((e,i)=>hp[i]-e.hp),[1,1,0],'through both stacked raptors, not the one aside');}
 const memory=new Map(),storage=()=>({getItem:key=>memory.get(key),setItem:(key,value)=>memory.set(key,value)}),round={route:'classic',difficulty:'arcade',continues:0,score:98765};
 assert.equal(saveRecord(storage,round).saved,true);assert.equal(readRecord(storage,'classic','arcade'),98765);saveRecord(storage,{...round,score:10});assert.equal(readRecord(storage,'classic','arcade'),98765);saveRecord(storage,{...round,continues:1,score:120000});assert.equal(readRecord(storage,'classic','arcade',true),120000);assert.equal(readRecord(storage,'extended','arcade'),0);
 const denied=()=>{throw Error('Storage denied');};
