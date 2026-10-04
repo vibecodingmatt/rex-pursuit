@@ -15,6 +15,7 @@ import {Spray} from './spray.js';
 import {BOW} from './boat.js';
 import {Fault} from './fault.js';
 import {Promenade} from './promenade.js';
+import {Glass} from './glass.js';
 
 const TAU=Math.PI*2,clamp=T.MathUtils.clamp,smooth=(a,b,x)=>{const t=clamp((x-a)/(b-a),0,1);return t*t*(3-2*t);};
 export const noise=n=>{const v=Math.sin(n*127.1+311.7)*43758.5453;return v-Math.floor(v);};
@@ -111,7 +112,7 @@ export class CircuitWorld {
   this.signs={gates:labelTexture('JURASSIC PARK','ISLA NUBLAR • NORTH GATE'),river:labelTexture('RIVER OF GIANTS'),fault:labelTexture('SERVICE CROSSING','UNSTABLE GROUND • DO NOT STOP'),hybrid:labelTexture('INNOVATION VALLEY'),lagoon:labelTexture('LAGOON OBSERVATORY'),manor:labelTexture('THE CONSERVATORY'),visitor:labelTexture('VISITOR CENTER','WHEN GIANTS RULED THE EARTH')};
   this.materials.porcelain=new T.MeshStandardMaterial({color:0xcdbf9f,roughness:.2});this.materials.voltSign=new T.MeshStandardMaterial({map:voltTexture(),roughness:.55,metalness:.25});this.sparks=new Sparks(this.scene);
   this.fault=new Fault(this.scene,{rock:this.materials.rock,diffuse:gateDiffuse,normal:gateNormal,routeX,routeY,routeHeading,terrain:(off,z)=>terrainY(off,z,'fault',{canyon:true,bridge:z>=288&&z<640})});this.gate=new Gate(this.scene,{stone:this.materials.stone,sign:this.signs.gates,light:this.practicalLights[0],diffuse:gateDiffuse,normal:gateNormal,routeX,routeY,routeHeading,groundAt});
-  this.promenade=new Promenade(this.scene,{routeX,routeY,routeHeading});
+  this.promenade=new Promenade(this.scene,{routeX,routeY,routeHeading});this.glass=new Glass(this.scene);this.glass.floor=(x,z)=>groundAt(x,z,this.id);
   this.ready=true;
  }
  instances(parent,geo,mat,items,shadow=true){
@@ -254,6 +255,7 @@ export class CircuitWorld {
   this.spray.update(dt,{dir:this.light.key,sun:this.sunLit,fill:this.fill},this.camVel);
   if(id==='fault'){this.fault.haze=this.scene.fog?.color;this.fault.reduced=reduced;this.fault.update(game,this.chunks,{camera:this.camera,time:this.time,dt,effects:this.vehicle?.effects});}else if(this.fault.plume.visible){this.fault.plume.visible=false;for(const b of this.fault.bombs){b.live=false;b.mesh.visible=b.flame.visible=false;}}
   if(id==='hybrid')this.promenade.update(game,this.camera);else this.promenade.hide();
+  this.glass.update(dt);
   WIND.value=this.time;this.sky.update(this.camera,this.time);this.post.settings.motionBlur=reduced?0:.65;
  }
  // Creatures (and only creatures) take a rim of the stage's key light.

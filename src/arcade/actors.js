@@ -94,6 +94,8 @@ export class CircuitActors {
    if(id==='manor'&&e.kind==='raptor')lift=Math.max(0,1-age/.8)**2*11;
    if(e.kind==='barrel'||e.kind==='supply')lift=e.kind==='barrel'?.8:.55;
    a.position.y+=lift;
+   // A13: in the conservatory they come through the glass roof.
+   if(id==='manor'&&e.kind==='raptor'&&!a.crashed&&age<.3){a.crashed=true;this.world.glass?.burst(new T.Vector3(a.position.x,a.position.y-lift+9.4,a.position.z),{count:55});}
    if(e.dead){if(!a.dead){a.dead=true;a.deathPosition=a.position.clone();
     // A shot crate tumbles away from the gun; a barrel goes up with its blast.
     if(a.mesh&&fixed){const blast=e.kind==='barrel',r=Math.random;v.subVectors(a.position,this.world.camera.position).setY(0).normalize();a.tumble={v:new T.Vector3(v.x*(blast?5:3.5)+(r()-.5)*2,blast?9:4.5,v.z*(blast?5:3.5)),spin:new T.Vector3(r()-.5,r()-.5,r()-.5).normalize().multiplyScalar(blast?14:8),r:blast?.75:.55};}if(a.c&&species[e.kind]){Object.assign(a.c,{look:0,tailYaw:0,crouch:0,pant:0});a.c.hp=1;

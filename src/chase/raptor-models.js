@@ -4,10 +4,25 @@ import {createRaptors} from '../ravine/raptors.js';
 // Keep the encounter's positions, health and body physics; render them with the
 // same authored hide and skeleton as Ravine. Safari's forward axis is +Z.
 const UNITS=4.4,flip=new T.Quaternion().setFromAxisAngle(new T.Vector3(0,1,0),Math.PI);
+/**
+ * An optional pattern on one raptor's hide (the arcade's Indoraptor sets c.pattern = 1): the hide
+ * goes near-black and a gold stripe runs from behind the eye down the neck and along the flank to
+ * the tail. Rest space: head toward -z, feet at y -2.7.
+ */
+function addPattern(material){
+ const pattern={value:0},before=material.onBeforeCompile,key=material.customProgramCacheKey.bind(material);material.userData.pattern=pattern;
+ material.onBeforeCompile=(s,r)=>{before.call(material,s,r);s.uniforms.uPattern=pattern;
+  s.vertexShader=s.vertexShader.replace('#include <common>','#include <common>\nvarying vec3 vPatternRest;').replace('#include <begin_vertex>','#include <begin_vertex>\nvPatternRest=position;');
+  s.fragmentShader=s.fragmentShader.replace('#include <common>','#include <common>\nuniform float uPattern;varying vec3 vPatternRest;').replace('#include <color_fragment>',`#include <color_fragment>
+   if(uPattern>.5){vec3 q=vPatternRest;float line=mix(1.75,.5,smoothstep(-3.4,-1.,q.z))+.06*sin(q.z*5.),band=1.-smoothstep(.07,.12,abs(q.y-line));
+    band*=smoothstep(.18,.32,abs(q.x))*smoothstep(-3.6,-3.3,q.z)*(1.-smoothstep(4.,4.6,q.z));
+    diffuseColor.rgb=mix(diffuseColor.rgb*.14,vec3(.62,.42,.08),band);}`);};
+ material.customProgramCacheKey=()=>key()+'|pattern';
+}
 export async function loadRaptorModels(scene,kind){
  const pack=await createRaptors(scene,{capacity:kind.max,trackDynamics:false});
  const local=new T.Vector3(),q=new T.Quaternion();let detail=true;
- kind.pool.forEach((c,i)=>{c.rig=pack.pool[i];c.rig.root.name='Ravine raptor';c.rig.baseColors=c.rig.meshes.map(m=>{m.material=m.material.clone();return m.material.color.clone();});});
+ kind.pool.forEach((c,i)=>{c.rig=pack.pool[i];c.rig.root.name='Ravine raptor';c.rig.baseColors=c.rig.meshes.map(m=>{m.material=m.material.clone();if(m.name==='Dromaeosaur')addPattern(m.material);return m.material.color.clone();});});
  const sample=kind.pool[0];sample.scale=UNITS;sample.phase=0;sample.stride=0;sample.p.set(0,0,0);sample.yaw=0;
  render(sample,true);
  kind.centre=sample.rig.body.y/UNITS;
@@ -36,7 +51,8 @@ export async function loadRaptorModels(scene,kind){
    pack.pose(a,{x:c.p.x,z:c.p.z,groundY:c.p.y,yaw:c.yaw+Math.PI,phase:(c.stride||0)<.2?'idle':'run',age:c.poseTime??c.timer??0,seed:0,posePhase:c.phase,leapAmount:Math.max(0,-c.curl),airLift:0,focus:false,alert,reach:boarded?.5*alert:undefined,bank:c.roll,flash:c.flinch*.16,side:c.flinchSide,crouch:c.crouch,look:c.look,pant:c.pant,recoil:c.recoil,hitHead:c.hitHead});
    a.root.visible=force||c.on&&kind.visible!==false;
   }
-  a.meshes.forEach((m,i)=>{m.castShadow=detail;m.material.color.copy(a.baseColors[i]);if(c.species==='ghostRaptor'&&m.name==='Dromaeosaur')m.material.color.setRGB(1.9,2.5,3.2);});
+  a.meshes.forEach((m,i)=>{m.castShadow=detail;m.material.color.copy(a.baseColors[i]);if(c.species==='ghostRaptor'&&m.name==='Dromaeosaur')m.material.color.setRGB(1.9,2.5,3.2);
+   if(m.material.userData.pattern)m.material.userData.pattern.value=c.pattern||0;if(c.pattern&&m.name==='Eye')m.material.color.setRGB(2.4,1.7,.5);});
   refresh(a);
  }
  return {pack,render,reset(){for(const a of pack.pool)a.root.visible=false;},setQuality(t){detail=!!t.detail;},

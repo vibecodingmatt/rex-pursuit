@@ -201,10 +201,16 @@ function critterMaterial(lizard,detail=false){
    // The model-space slope, in view space, tilts the normal (tangential part only).
    s.fragmentShader=s.fragmentShader.replace('#include <normal_fragment_maps>',`#include <normal_fragment_maps>
     {vec3 g=vAX*skinG.x+vAY*skinG.y+vAZ*skinG.z;normal=normalize(normal-(g-normal*dot(normal,g)));}`);
+   // An optional per-instance pattern (the look texture's z; only the arcade sets it): 1 paints the
+   // Indoraptor's gold stripe from behind the eye down the neck and along the flank to the tail.
+   s.vertexShader=s.vertexShader.replace('#include <common>','#include <common>\nvarying float vPattern;').replace('#include <begin_vertex>','#include <begin_vertex>\nvPattern=texelFetch(uLook,ivec2(gl_InstanceID,0),0).z;');
+   s.fragmentShader=s.fragmentShader.replace('#include <common>','#include <common>\nvarying float vPattern;').replace('#include <roughnessmap_fragment>',`if(vPattern>.5){float line=.31+.13*smoothstep(.05,.42,vHide.z),band=1.-smoothstep(.007,.015,abs(vHide.y-line+.012*sin(vHide.z*24.)));
+     band*=smoothstep(.025,.055,abs(vHide.x))*(1.-smoothstep(.4,.44,vHide.z))*smoothstep(-.8,-.62,vHide.z);diffuseColor.rgb=mix(diffuseColor.rgb,vec3(.6,.4,.07),band);}
+    #include <roughnessmap_fragment>`);
   }
   // Rain darkens the hide a little and gives it a wet sheen.
   s.fragmentShader=s.fragmentShader.replace('#include <common>','#include <common>\nuniform float uWet;').replace('#include <color_fragment>','#include <color_fragment>\ndiffuseColor.rgb*=1.-uWet*.25;').replace('#include <roughnessmap_fragment>','#include <roughnessmap_fragment>\nroughnessFactor*=1.-uWet*.5;');};
- m.customProgramCacheKey=()=>`rex-critter-${lizard?'lizard':'compy'}-${detail}-v10`;
+ m.customProgramCacheKey=()=>`rex-critter-${lizard?'lizard':'compy'}-${detail}-v11`;
  // Shadows step with the legs too.
  const depth=new T.MeshDepthMaterial({depthPacking:T.RGBADepthPacking});depth.onBeforeCompile=vertex;depth.customProgramCacheKey=()=>`rex-critter-depth-${lizard?'lizard':'compy'}-${detail}-v7`;
  return{material:m,depth,lookTex};
@@ -481,7 +487,7 @@ export function createCritters(scene,{jungle,camera=null,capacities={}}){
    else livePose(c,sc);
    m.compose(pos,q,s.setScalar(sc));k.mesh.setMatrixAt(n,m);k.mesh.setColorAt(n,c.tint);
    B[n*4]=c.body.x;B[n*4+1]=c.body.y;B[n*4+2]=c.body.z;B[n*4+3]=k.centre;
-   k.frill.array[n]=c.frill??1;if(k.lookTex){const L=k.lookTex.image.data;L[n*4]=c.look||0;L[n*4+1]=c.tailYaw||0;if(c.look||c.tailYaw)looking=true;}
+   k.frill.array[n]=c.frill??1;if(k.lookTex){const L=k.lookTex.image.data;L[n*4]=c.look||0;L[n*4+1]=c.tailYaw||0;L[n*4+2]=c.pattern||0;if(c.look||c.tailYaw||c.pattern)looking=true;}
    P[n*4]=c.phase;P[n*4+1]=(c.stride||0)*k.swing*c.vigor;P[n*4+2]=c.peck+c.flinch*.35;P[n*4+3]=c.curl||0;n++;}
   // An empty pool issues no draw (a zero-instance draw still binds its program).
   k.mesh.count=n;k.mesh.visible=k.visible!==false&&n>0;if(n){k.mesh.instanceMatrix.needsUpdate=true;k.mesh.instanceColor.needsUpdate=true;k.pose.needsUpdate=true;if(k.motion){k.body.needsUpdate=true;k.frill.needsUpdate=true;}}

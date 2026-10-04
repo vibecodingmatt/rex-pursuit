@@ -61,6 +61,16 @@ function bossCues(){
  for(const cue of renderer.world.fault?.drain()||[]){if(!field.context||mode!=='playing')continue;if(cue.type==='snap')field.woodBreak(cue.weight*.7);if(cue.type==='bounce'){field.groundImpact(Math.min(1,cue.weight*.8),cue.at);renderer.shake=Math.max(renderer.shake,cue.weight*.3);}if(cue.type==='land'){field.groundImpact(1);field.woodBreak(.5);renderer.shake=Math.max(renderer.shake,.7);const c=renderer.world.camera.position;for(let i=0;i<5;i++)renderer.effects.groundDust(c.clone().set(c.x+(i-2)*1.4,c.y-2.4,c.z+2+i%2),c.clone().set((i-2)*.8,.6,1.5),{life:1.6,size:1.1,opacity:.38,color:0x8a6f5a});}}
  for(const cue of renderer.world.promenade?.drain()||[])if(field.context&&mode==='playing'){field.sample('wind',{volume:.6,rate:1.45,duration:4.2,lowpass:2600,at:cue.at,fade:.8});field.sample('engine-loop',{volume:.32,rate:2.3,duration:3.4,lowpass:1700,at:cue.at,fade:.7});}
  for(const cue of renderer.world.gate?.drain()||[])if(field.context&&mode==='playing'&&cue.type==='slam'){field.woodBreak(.45);field.groundImpact(.7,cue.at);renderer.shake=Math.max(renderer.shake,.25);}
+ // A13: roof glass shattering, and the Indoraptor (boss-indoraptor.js).
+ for(const cue of renderer.world.glass?.drain()||[])if(field.context&&mode==='playing'){field.sample('branch-snap',{volume:.9,rate:2.4,at:cue.at,wet:.5});field.sample('branch-snap',{volume:.6,rate:3.1,at:cue.at,delay:.07,wet:.5});for(let i=0;i<5;i++)audio.hiss(.03+Math.random()*.07,.05+Math.random()*.05,5200+Math.random()*4200);}
+ for(const cue of renderer.bossIndo?.drain()||[]){if(!field.context||mode!=='playing')continue;
+  if(cue.type==='crash')renderer.shake=Math.max(renderer.shake,.4);
+  if(cue.type==='land'){field.groundImpact(.6,cue.at);renderer.shake=Math.max(renderer.shake,.5);}
+  if(cue.type==='step')field.footstep(.35,cue.at);
+  if(cue.type==='shriek')field.play(10,1,.82,{vocal:false,at:cue.at,wet:.55});
+  if(cue.type==='bite'){field.bite();field.impact();renderer.shake=Math.max(renderer.shake,1.1);}
+  if(cue.type==='pain')field.play(13,.85,1,{vocal:false,at:cue.at,wet:.5});
+  if(cue.type==='fall'){field.play(13,1,.78,{vocal:false,at:cue.at,wet:.6});field.groundImpact(.7,cue.at);}}
  // The Mosasaurus (boss-mosa.js): breach, slam, surfacing, bite, pain and her death roll.
  for(const cue of renderer.bossMosa?.drain()||[]){if(!field.context||mode!=='playing')continue;
   if(cue.type==='breach'){field.splash('enter',cue.at,1);field.play(field.roles.opening,1,.58,{vocal:false,at:cue.at,wet:.5});renderer.shake=Math.max(renderer.shake,.5);}
