@@ -88,7 +88,7 @@ A reproducible loss can be triggered after starting: transition to `pursuit`, se
 
 Listen for both `pageerror` and browser console errors. Shader compilation failures can appear only in the console and leave a page that still responds to input. Screenshots alone cannot prove successful compilation.
 
-`verify-lost-circuit.cjs`'s "actual pointer input hits" check is intermittent on the touch views: landscape failed once locally (2026-10-03) and compact once against the live site (2026-10-04), each passing on the next run with no change. Rerun before investigating; if it repeats, check whether the tap (target head, 42 px low) lands on the GRENADE or Overdrive buttons.
+`verify-lost-circuit.cjs`'s "actual pointer input hits" check is intermittent on the touch views: landscape failed once locally (2026-10-03) and compact once against the live site (2026-10-04), each passing on the next run with no change. The cause was timing: the ride runs for the 400 ms hold and the animal moves off a fixed tap point. Since 2026-10-04 the check sends touch-move events that follow the animal while the finger is down, so it no longer depends on frame timing. If it fails now, investigate.
 
 ## Publishing when authorized
 
