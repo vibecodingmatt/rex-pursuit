@@ -126,9 +126,10 @@ export class Circuit {
   this.score+=Math.round(points);this.focus=Math.min(100,this.focus+(e.boss?30:9)*this.charge);
   if(e.boss)this.bosses++;this.emit('kill',{id:e.id,x:e.x,y:e.y,points:Math.round(points),kind:e.kind,boss:e.boss,precise});
  }
- shoot(x,y,aspect=16/9){
-  if(this.status!=='playing'||this.cooldown>0||this.phase==='clear')return false;
-  this.cooldown=(this.focusTime>0?.057:.09)/this.fireRate;
+ /** A round at screen (x, y) from player 1, or player 2 in co-op (its own cooldown and stats; score and Jeep shared). */
+ shoot(x,y,aspect=16/9,player=1){
+  const cd=player===2?'cooldown2':'cooldown';if(this.status!=='playing'||this[cd]>0||this.phase==='clear')return false;
+  this[cd]=(this.focusTime>0?.057:.09)/this.fireRate;const p2=player===2?this.p2??={shots:0,hits:0}:null;
   // A round on an upgrade card picks it (and is not counted against accuracy).
   if(this.offer&&this.offerTime<=OFFER_TIME){const i=CARDS.x.findIndex(cx=>Math.abs(x-cx)<CARDS.w&&Math.abs(y-CARDS.y)<CARDS.h);if(i>=0){this.pick(i);return true;}}this.shots++;
   const list=this.entities.filter(e=>!e.dead&&e.age>.15).sort((a,b)=>b.size-a.size);
@@ -143,7 +144,8 @@ export class Circuit {
    const body=((x-cx)/(w*.4))**2+((y-cy)/(h*.46))**2<1;
    if(head||body){target=e;precise=head;break;}
   }
-  this.emit('shot',{x,y,hit:!!target,precise,id:target?.id});
+  if(p2){p2.shots++;if(target)p2.hits++;}
+  this.emit('shot',{x,y,hit:!!target,precise,id:target?.id,player});
   if(this.scatter>0)this.pellets(list,target,x,y,aspect);
   if(!target)return true;
   this.hits++;target.hit=.14;
@@ -192,7 +194,7 @@ export class Circuit {
  update(dt){
   if(this.status!=='playing')return;
   this.power=Math.max(0,(this.power||0)-dt);this.scatter=Math.max(0,(this.scatter||0)-dt);
-  dt=clamp(dt,0,.05);this.lobCooldown=Math.max(0,(this.lobCooldown||0)-dt);if(this.offer&&(this.offerTime-=dt)<=0)this.offer=null;if(this.lobs?.length){for(const l of this.lobs)l.t-=dt;const due=this.lobs.filter(l=>l.t<=0);this.lobs=this.lobs.filter(l=>l.t>0);for(const l of due)this.detonate(l);}this.time+=dt;this.phaseTime+=dt;this.cooldown=Math.max(0,this.cooldown-dt);this.invulnerable=Math.max(0,this.invulnerable-dt);
+  dt=clamp(dt,0,.05);this.lobCooldown=Math.max(0,(this.lobCooldown||0)-dt);if(this.offer&&(this.offerTime-=dt)<=0)this.offer=null;if(this.lobs?.length){for(const l of this.lobs)l.t-=dt;const due=this.lobs.filter(l=>l.t<=0);this.lobs=this.lobs.filter(l=>l.t>0);for(const l of due)this.detonate(l);}this.time+=dt;this.phaseTime+=dt;this.cooldown=Math.max(0,this.cooldown-dt);this.cooldown2=Math.max(0,(this.cooldown2||0)-dt);this.invulnerable=Math.max(0,this.invulnerable-dt);
   const cruise=this.stage.id==='manor'?14:this.stage.id==='fault'?27:24;
   const drive=DRIVE[this.stage.boss],brake=clamp((this.phaseTime-.8)/1.8,0,1);
   this.speed=this.phase==='ride'?cruise*(this.stage.setpiece==='brachio'?fordSlow(this.travel):this.stage.id==='visitor'?clamp((ROTUNDA-this.travel)/34,.4,1):1):this.stage.id==='visitor'&&this.phase!=='intro'?0:this.phase==='intro'?8+16*clamp(this.phaseTime/3,0,1):drive&&this.phase==='boss'?5+(drive-5)*brake*brake*(3-2*brake):drive&&this.phase==='clear'?drive*(1-clamp((this.phaseTime-.4)/2.6,0,1)):7;

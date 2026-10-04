@@ -39,7 +39,7 @@ function stageChanged(){
  announce(`${String(game.stageIndex+1).padStart(2,'0')} / ${String(game.path.length).padStart(2,'0')} — ${stage.era}`,stage.name,'HOLD TO FIRE · SHOOT DEBRIS · KEEP MOVING');radio(stage.radio);
 }
 function unlockField(){fieldInit??=field.init().then(()=>{audio.worldSounds=false;if(field.muted!==audio.muted)field.mute();if(mode!=='playing')return field.pause(true);}).catch(e=>{console.warn('Recorded audio unavailable:',e.message);});if(field.context)field.pause(false).catch(()=>{});}
-function start(){if(!ready)return;clearCard=0;hiBest=readBest()||0;audio.reset();field.stopCalls();void audio.unlock();unlockField();game=new Circuit({route:daily?'extended':route,difficulty:$('difficulty').value,seed:daily?Number(today()):94});if(daily)game.route=dailyRoute();game.projector=(e,aspect)=>renderer.project(e,aspect);saved=false;fire=false;keys.clear();renderer.reset();clock=0;accumulator=0;showMode('playing');canvas.focus({preventScroll:true});processEvents();updateHud();}
+function start(){if(!ready)return;clearCard=0;p2=null;hiBest=readBest()||0;audio.reset();field.stopCalls();void audio.unlock();unlockField();game=new Circuit({route:daily?'extended':route,difficulty:$('difficulty').value,seed:daily?Number(today()):94});if(daily)game.route=dailyRoute();game.projector=(e,aspect)=>renderer.project(e,aspect);saved=false;fire=false;keys.clear();renderer.reset();clock=0;accumulator=0;showMode('playing');canvas.focus({preventScroll:true});processEvents();updateHud();}
 function processEvents(){for(const event of game.drain()){
  renderer.event(event);audio.event(event);fieldEvent(event);
  if(event.type==='stage')stageChanged();
@@ -140,7 +140,7 @@ function updateHud(){
  if(!game)return;{const s=String(game.score).padStart(6,'0'),el=$('score'),h=String(Math.max(game.score,hiBest)).padStart(6,'0'),hi=$('hi-score');el.textContent=s;el.dataset.ghost='8'.repeat(s.length);hi.textContent=h;hi.dataset.ghost='8'.repeat(h.length);
   // Passing the standing record mid-run: the readout flashes gold, relabels and chimes, once.
   const beaten=hiBest>0&&game.score>hiBest,block=hi.closest('.hi-block');if(beaten&&!block.classList.contains('beaten')){block.classList.add('beaten');block.querySelector('.label').textContent='NEW HI-SCORE';audio.chime(5);}else if(!beaten&&block.classList.contains('beaten')){block.classList.remove('beaten');block.querySelector('.label').textContent='HI-SCORE';}}
- {const w=document.querySelector('.weapon-label'),pw=game.power>0,sp=game.scatter>0,on=pw||sp;w.classList.toggle('powered',pw);w.classList.toggle('spread',sp&&!pw);w.querySelector('b').textContent=pw&&sp?'EXPLOSIVE SPREAD':sp?'SPREAD SHOT':pw?'EXPLOSIVE ROUNDS':'TX–94 AUTOMATIC';w.querySelector('span').innerHTML=on?`${[sp&&'THREE TARGETS',pw&&'EVERY ROUND ×2'].filter(Boolean).join(' · ')} · <i>${Math.ceil(Math.max(game.power,game.scatter))}s</i>`:game.upgrades?.length?`${Object.entries(game.upgrades.reduce((n,k)=>(n[k]=(n[k]||0)+1,n),{})).map(([k,c])=>UPGRADES[k][0]+(c>1?` ×${c}`:'')).join(' · ')} <i>∞</i>`:'TRANQUILIZER SYSTEM <i>∞</i>';}$('health').textContent=Math.ceil(game.hp);{const box=$('upgrades'),o=game.offerTime<=OFFER_TIME?game.offer:null;box.hidden=!o;if(o){const key=o.join();if(box.dataset.key!==key){box.dataset.key=key;box.querySelectorAll('[data-pick]').forEach((b,i)=>{b.querySelector('b').textContent=UPGRADES[o[i]][0];b.querySelector('span').textContent=UPGRADES[o[i]][1];});}$('upgrade-time').style.width=`${game.offerTime/OFFER_TIME*40}%`;}}{const n=game.grenades||0,b=$('grenade');$('grenade-count').textContent=n?'●'.repeat(n):'EMPTY';b.classList.toggle('empty',!n);}{const panel=document.querySelector('.lower-hud .health');panel.classList.toggle('low',game.hp<=30);panel.classList.toggle('mid',game.hp>30&&game.hp<=60);$('credits').textContent=`CREDITS ${'●'.repeat(game.credits)}${'○'.repeat(Math.max(0,2-game.credits))}`;}
+ {const w=document.querySelector('.weapon-label'),pw=game.power>0,sp=game.scatter>0,on=pw||sp;w.classList.toggle('powered',pw);w.classList.toggle('spread',sp&&!pw);w.querySelector('b').textContent=pw&&sp?'EXPLOSIVE SPREAD':sp?'SPREAD SHOT':pw?'EXPLOSIVE ROUNDS':'TX–94 AUTOMATIC';w.querySelector('span').innerHTML=on?`${[sp&&'THREE TARGETS',pw&&'EVERY ROUND ×2'].filter(Boolean).join(' · ')} · <i>${Math.ceil(Math.max(game.power,game.scatter))}s</i>`:game.upgrades?.length?`${Object.entries(game.upgrades.reduce((n,k)=>(n[k]=(n[k]||0)+1,n),{})).map(([k,c])=>UPGRADES[k][0]+(c>1?` ×${c}`:'')).join(' · ')} <i>∞</i>`:'TRANQUILIZER SYSTEM <i>∞</i>';}$('health').textContent=Math.ceil(game.hp);$('players').textContent=p2?'PLAYER 01 + 02':'PLAYER 01';{const box=$('upgrades'),o=game.offerTime<=OFFER_TIME?game.offer:null;box.hidden=!o;if(o){const key=o.join();if(box.dataset.key!==key){box.dataset.key=key;box.querySelectorAll('[data-pick]').forEach((b,i)=>{b.querySelector('b').textContent=UPGRADES[o[i]][0];b.querySelector('span').textContent=UPGRADES[o[i]][1];});}$('upgrade-time').style.width=`${game.offerTime/OFFER_TIME*40}%`;}}{const n=game.grenades||0,b=$('grenade');$('grenade-count').textContent=n?'●'.repeat(n):'EMPTY';b.classList.toggle('empty',!n);}{const panel=document.querySelector('.lower-hud .health');panel.classList.toggle('low',game.hp<=30);panel.classList.toggle('mid',game.hp>30&&game.hp<=60);$('credits').textContent=`CREDITS ${'●'.repeat(game.credits)}${'○'.repeat(Math.max(0,2-game.credits))}`;}
  $('health-bars').replaceChildren(...Array.from({length:10},(_,i)=>{const bar=document.createElement('i');if(i>=Math.ceil(game.hp/10))bar.className='empty';if(game.hp<30&&bar.className!=='empty')bar.style.background='#ef9c6f';return bar;}));
  {const mult=Math.min(5,1+Math.floor(game.combo/5)),badge=$('multiplier');badge.textContent=`×${mult}`;
   // Each step up the chain multiplier pops the badge and chimes higher; the top step gets a radio call.
@@ -158,7 +158,7 @@ function showContinue(){showMode('continue');overlay('Ride interrupted.',game.cr
  else showResult(false);
 }
 function showResult(won){showMode('result');overlay(won?'You made it out.':'The island wins.',won?`${game.route==='classic'?'The ’94 Circuit':game.route.startsWith('daily-')?'Today’s daily run':'The Extended Cut'} complete. ${game.continues?'Continued-run record.':'One credit. A whole lot of dinosaurs.'}`:`Reached ${game.stage.name}. Ride again for a cleaner run.`,won?'EXPEDITION COMPLETE':'GAME OVER');
- const stats=[[fmt(game.score),'FINAL SCORE'],[grade(game),'RANK'],[`${Math.round(game.hits/Math.max(1,game.shots)*100)}%`,'ACCURACY'],[String(game.maxCombo),'BEST CHAIN'],[`${game.perfects?.length||0}/${game.path.length}`,'PERFECT STAGES'],[String(game.continues),'CONTINUES']];
+ const stats=[[fmt(game.score),'FINAL SCORE'],[grade(game),'RANK'],[`${Math.round(game.hits/Math.max(1,game.shots)*100)}%`,'ACCURACY'],[String(game.maxCombo),'BEST CHAIN'],[`${game.perfects?.length||0}/${game.path.length}`,'PERFECT STAGES'],game.p2?[`${Math.round(game.p2.hits/Math.max(1,game.p2.shots)*100)}%`,'P2 ACCURACY']:[String(game.continues),'CONTINUES']];
  $('result-stats').replaceChildren(...stats.map(([v,l])=>{const el=document.createElement('div'),b=document.createElement('b'),small=document.createElement('small');if(l==='RANK')el.className='flourish';b.textContent=v;small.textContent=l;el.append(b,small);return el;}));$('restart').hidden=false;$('restart').focus();persist();showBoard();
 }
 // A15: the local top ten. A qualifying score asks for initials first (keyboard, phone or d-pad).
@@ -222,9 +222,21 @@ function rumble(strong,weak,ms){if(renderer.reduced||mode!=='playing')return;con
  else if(touchSeen&&strong>=.5&&navigator.vibrate){try{navigator.vibrate(Math.min(ms,140));}catch{/* Blocked. */}}}
 addEventListener('pointerdown',e=>{if(e.pointerType==='touch')touchSeen=true;},true);
 function gamepad(){
- const pads=navigator.getGamepads?.()||[],p=[...pads].find(g=>g&&g.connected);if(!p){padHeld=[];return null;}
+ const pads=navigator.getGamepads?.()||[],p=[...pads].find(g=>g&&g.connected&&g.index!==p2?.index);if(!p){padHeld=[];return null;}
  const dz=v=>Math.abs(v)<.16?0:Math.sign(v)*((Math.abs(v)-.16)/.84)**1.6,b=i=>!!p.buttons[i]?.pressed||(p.buttons[i]?.value||0)>.35;
- const held=p.buttons.map((_,i)=>b(i)),prev=padHeld,pressed=i=>held[i]&&!prev[i];const out={x:dz(p.axes[0]||0)+(held[15]?1:0)-(held[14]?1:0),y:dz(p.axes[1]||0)+(held[13]?1:0)-(held[12]?1:0),fire:held[7]||held[0]||held[5],pressed};padHeld=held;return out;
+ const held=p.buttons.map((_,i)=>b(i)),prev=padHeld,pressed=i=>held[i]&&!prev[i];const out={index:p.index,x:dz(p.axes[0]||0)+(held[15]?1:0)-(held[14]?1:0),y:dz(p.axes[1]||0)+(held[13]?1:0)-(held[12]?1:0),fire:held[7]||held[0]||held[5],pressed};if(held.some(Boolean)||out.x||out.y)p1Pad=p.index;padHeld=held;return out;
+}
+// Co-op (A15 stretch): a gamepad player 1 is not using joins as player 2 with Start: its stick aims a second
+// (blue) reticle and RT, A or RB fires from the Jeep's other side. Score, integrity and credits are shared.
+let p2=null,p1Pad=null;
+function coop(dt){
+ const pads=[...(navigator.getGamepads?.()||[])].filter(g=>g&&g.connected),free=pads.find(g=>g.index!==p1Pad&&g.index!==p2?.index);
+ $('coop-hint').hidden=!(mode==='playing'&&!p2&&free);
+ if(!p2&&free&&mode==='playing'&&(free.buttons[9]?.pressed)){p2={index:free.index,aim:{x:.62,y:.5}};announce('PLAYER 2','Two guns on the Jeep.','SHARED SCORE · SHARED INTEGRITY',1.6);radio('Second gunner on board! Cover the other side!');}
+ if(!p2)return;const g=pads.find(x=>x.index===p2.index);if(!g){p2=null;return;}
+ const dz=v=>Math.abs(v)<.16?0:Math.sign(v)*((Math.abs(v)-.16)/.84)**1.6,b=i=>!!g.buttons[i]?.pressed||(g.buttons[i]?.value||0)>.35;
+ p2.aim.x=Math.max(.02,Math.min(.98,p2.aim.x+(dz(g.axes[0]||0)+(b(15)?1:0)-(b(14)?1:0))*dt*1.15));p2.aim.y=Math.max(.19,Math.min(.85,p2.aim.y+(dz(g.axes[1]||0)+(b(13)?1:0)-(b(12)?1:0))*dt*1.15));
+ if(mode==='playing'&&(b(7)||b(0)||b(5))&&game.shoot(p2.aim.x,p2.aim.y,innerWidth/innerHeight,2))processEvents();
 }
 let pad=null;
 /** Jumps the running game to a stage at a time (shared by the attract mode and the test API). */
@@ -267,7 +279,7 @@ function frame(now){const raw=now-last,dt=Math.min(.1,raw/1000);last=now;
  if(!frozen){if(mode==='menu'&&!document.hidden)clock+=dt;if(mode==='playing'){if(hitStop>0)hitStop-=dt;else{accumulator+=dt*slowScale(dt);while(accumulator>=1/60){step(1/60);accumulator-=1/60;}}hudTick+=dt;if(hudTick>.08){updateHud();hudTick=0;}
    // Low integrity: a heartbeat in time with the pulsing vignette (light.js).
    heartbeat-=dt;if(game.hp<=30&&game.status==='playing'&&heartbeat<=0){heartbeat=.84;audio.tone(58,.11,.14,'sine',42);setTimeout(()=>audio.tone(52,.13,.11,'sine',38),170);}}}
- renderer.render(game,aim,{menu:mode==='menu',time:game?.time??clock});bossCues();
+ coop(dt);renderer.render(game,aim,{menu:mode==='menu',time:game?.time??clock,aim2:mode==='playing'?p2?.aim:null});bossCues();
  // Inside the rotunda the reverb becomes a stone hall: gunfire and roars ring off the walls.
  field.space?.(mode==='playing'&&renderer.world.rotunda?.root.visible?'hall':'forest');requestAnimationFrame(frame);
 }

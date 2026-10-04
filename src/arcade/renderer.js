@@ -36,7 +36,7 @@ export class RideRenderer {
   if(e.id){const boss=this.bossRex?.slots.find(s=>s.id===e.id&&s.started),trike=!boss&&this.bossTrike?.slot?.id===e.id&&this.bossTrike.handles(this.bossTrike.slot.entity),other=!boss&&!trike&&(this.bossMosa?.slot?.id===e.id&&this.bossMosa.handles(this.bossMosa.slot.entity)?this.bossMosa:this.bossIndo?.slot?.id===e.id&&this.bossIndo.handles(this.bossIndo.slot.entity)?this.bossIndo:null),actor=this.actors?.actors.get(e.id),p=boss?this.bossRex.project(boss.entity,this.w/this.h):trike?this.bossTrike.project(this.bossTrike.slot.entity,this.w/this.h):other?other.project(other.slot.entity,this.w/this.h):actor&&this.project(actor.e);if(p?.visible&&e.type!=='shot')e={...e,x:boss||trike||other?p.hx:p.x,y:boss||trike||other?p.hy:p.y};}
   // Rounds that meet her hide leave a wound and throw flecks and mist back toward the gun.
   if(e.type==='shot'&&e.hit&&e.id){const wound=this.bossRex?.wound(e)||this.bossTrike?.wound(e)||this.bossMosa?.wound(e)||this.bossIndo?.wound(e);if(wound){this.effects.burst(wound.point,true);this.lastWound=wound;}}
-  if(e.type==='shot'){if(!e.pellet){this.recoil=1;this.heat=Math.min(1,this.heat+.13);this.weapon?.fire();}this.impacts?.shot(e);if(e.hit){this.hitMark=.11;this.confirm={x:e.x,y:e.y,precise:e.precise,life:.22};}}
+  if(e.type==='shot'){const p2=e.player===2;if(!e.pellet&&!p2){this.recoil=1;this.heat=Math.min(1,this.heat+.13);this.weapon?.fire();}this.impacts?.shot(e);if(e.hit){if(p2)this.confirm2={life:.22,precise:e.precise};else{this.hitMark=.11;this.confirm={x:e.x,y:e.y,precise:e.precise,life:.22};}}}
   if(e.type==='kill'){const a=this.actors?.actors.get(e.id),trike=this.bossTrike?.slot?.id===e.id&&this.bossTrike.slot.c,at=a?a.position.clone():trike?this.bossTrike.head(this.bossTrike.slot):null;if(at)this.impacts?.kill(e,at);else this.burst(e.x,e.y,e.boss?'#f5cf88':'#d4af6f',e.boss?50:20,1);
     const chain=Math.min(5,1+Math.floor((this.game?.combo||0)/5));this.labels.push({x:e.x*this.w,y:e.y*this.h,at:at?.add(this.lift.set(0,e.kind==='trike'?2.6:1.6,0)),text:`+${e.points.toLocaleString()}`,tag:e.precise?'PRECISION':chain>1?`CHAIN ×${chain}`:'',life:1.15,max:1.15,color:CHAIN[chain-1],size:Math.min(34,18+Math.log10(Math.max(10,e.points))*3)});if(e.boss)this.shake=.5;}
   if(e.type==='damage'||e.type==='attack'){this.shake=.7;this.flash=.5;}
@@ -49,7 +49,7 @@ export class RideRenderer {
   if(e.type==='bridge')this.shake=1.2;
   if(e.type==='splat'){this.impacts?.splat(e,this.actors?.actors.get(e.id)?.position);this.shake=Math.max(this.shake,.35);}
  }
- update(dt){this.age+=dt;this.effects?.update(dt,0);this.impacts?.update(dt);this.heat=Math.max(0,this.heat-dt*1.7);if(this.confirm&&(this.confirm.life-=dt)<=0)this.confirm=null;this.shake=Math.max(0,this.shake-dt);this.flash=Math.max(0,this.flash-dt);this.recoil=Math.max(0,this.recoil-dt*9);this.hitMark=Math.max(0,this.hitMark-dt);
+ update(dt){this.age+=dt;this.effects?.update(dt,0);this.impacts?.update(dt);this.heat=Math.max(0,this.heat-dt*1.7);if(this.confirm&&(this.confirm.life-=dt)<=0)this.confirm=null;if(this.confirm2&&(this.confirm2.life-=dt)<=0)this.confirm2=null;this.shake=Math.max(0,this.shake-dt);this.flash=Math.max(0,this.flash-dt);this.recoil=Math.max(0,this.recoil-dt*9);this.hitMark=Math.max(0,this.hitMark-dt);
   for(const p of this.particles){p.x+=p.vx*dt;p.y+=p.vy*dt;p.vy+=150*dt;p.life-=dt;}this.particles=this.particles.filter(p=>p.life>0);
   for(const p of this.labels){if(p.at)p.at.y+=dt*.8;else p.y-=dt*35;p.life-=dt;}this.labels=this.labels.filter(p=>p.life>0);
   for(const p of this.tracers)p.life-=dt;this.tracers=this.tracers.filter(p=>p.life>0);
@@ -133,7 +133,7 @@ export class RideRenderer {
  }
  /** Where a grenade aimed at screen (x, y) lands: the first animal it caught, else the ground under the sight. */
  landing(e){const hit=(e.hits||[]).map(id=>this.actors?.actors.get(id)?.position).find(Boolean);if(hit)return hit.clone();const r=this.impacts?.aim(e.x,e.y);if(!r)return null;const d=this.impacts.surface(r,this.game?.stage.id||'gates');return r.at(d>0?d:40,new T.Vector3());}
- render(game,aim,{menu=false,time=0}={}){
+ render(game,aim,{menu=false,time=0,aim2=null}={}){
   const c=this.ctx,w=this.w,h=this.h;let index=menu?0:game?.stage.bg||0;c.clearRect(0,0,w,h);
   if(game?.stage.id==='fault'&&game.stageTime<10)index=5;
   if(game?.stage.id==='hybrid'&&game.stageTime<12)index=7;
@@ -172,6 +172,9 @@ export class RideRenderer {
    for(let i=0;i<4;i++){const a=i*Math.PI/2;c.beginPath();c.moveTo(x+Math.cos(a)*spread,y+Math.sin(a)*spread);c.lineTo(x+Math.cos(a)*(spread+10),y+Math.sin(a)*(spread+10));c.stroke();}
    c.beginPath();c.arc(x,y,3,0,7);c.stroke();if(this.hitMark){c.beginPath();c.moveTo(x-7,y-7);c.lineTo(x+7,y+7);c.moveTo(x+7,y-7);c.lineTo(x-7,y+7);c.stroke();}
    if(this.confirm){const k=1-this.confirm.life/.22;c.globalAlpha=1-k;c.strokeStyle=this.confirm.precise?'#ffd27a':'#f4ecd2';c.beginPath();c.arc(x,y,spread+4+k*14,0,7);c.stroke();c.globalAlpha=1;}
+   // Co-op: player 2's reticle, blue, with its own hit ring.
+   if(aim2){const x2=aim2.x*w,y2=aim2.y*h;c.strokeStyle='#7fd6ff';for(let i=0;i<4;i++){const a=i*Math.PI/2+Math.PI/4;c.beginPath();c.moveTo(x2+Math.cos(a)*9,y2+Math.sin(a)*9);c.lineTo(x2+Math.cos(a)*19,y2+Math.sin(a)*19);c.stroke();}c.beginPath();c.arc(x2,y2,3,0,7);c.stroke();
+    if(this.confirm2?.life>0){const k=1-this.confirm2.life/.22;c.globalAlpha=1-k;c.beginPath();c.arc(x2,y2,13+k*14,0,7);c.stroke();c.globalAlpha=1;}c.strokeStyle='#ffd27a';}
    if(head){const hx=head.hx*w,hy=head.hy*h,r=Math.max(10,head.h*h*.13),l=r*.45;c.strokeStyle='#ffd27a';c.lineWidth=2;for(const [sx,sy]of [[-1,-1],[1,-1],[-1,1],[1,1]]){c.beginPath();c.moveTo(hx+sx*r,hy+sy*(r-l));c.lineTo(hx+sx*r,hy+sy*r);c.lineTo(hx+sx*(r-l),hy+sy*r);c.stroke();}}
    c.restore();
   }
