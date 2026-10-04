@@ -23,7 +23,7 @@ function bannerTexture(){
 
 export class Promenade {
  constructor(scene,{routeX,routeY,routeHeading}){
-  Object.assign(this,{scene,routeX,routeY,routeHeading});this.dummy=new T.Object3D();this.v=new T.Vector3();
+  Object.assign(this,{scene,routeX,routeY,routeHeading});this.cues=[];this.heard=-1;this.dummy=new T.Object3D();this.v=new T.Vector3();
   const shared=m=>{m.userData.shared=true;return m;};
   this.concrete=shared(new T.MeshStandardMaterial({color:0xbdb9b0,roughness:.86}));
   this.steel=shared(new T.MeshStandardMaterial({color:0x6d7775,roughness:.42,metalness:.65}));
@@ -84,11 +84,14 @@ export class Promenade {
  }
  // ---- Every frame ----------------------------------------------------------------------------
  update(game,camera){
-  const t=game?.stageTime??0,camZ=camera.position.z,id='hybrid';let front=null;
-  for(const [t0,speed]of PASSES)if(t>=t0&&t<t0+9){front=CRUISE*t0+AHEAD-speed*(t-t0);break;}
+  const t=game?.stageTime??0,camZ=camera.position.z,id='hybrid';let front=null;if(t<PASSES[0][0])this.heard=-1;
+  let pass=-1;PASSES.forEach(([t0,speed],i)=>{if(front===null&&t>=t0&&t<t0+9){front=CRUISE*t0+AHEAD-speed*(t-t0);pass=i;}});
   this.train.visible=front!==null&&front>camZ-CARS*(CAR+.5)-10;if(!this.train.visible)return;
   // The train rides the beam: each car takes the route's place and heading at its own middle.
   const z=front+CAR/2,h=this.routeHeading(z,id);this.train.position.set(this.routeX(z,id)+RAIL.x*Math.cos(h),this.routeY(z,id)+RAIL.top+.1,z);this.train.rotation.set(0,h,0);
+  // It rushes past: one cue as the nose closes inside 45 m.
+  if(pass!==this.heard&&front-camZ<45){this.heard=pass;this.cues.push({type:'pass',at:this.train.position.clone()});}
  }
+ drain(){return this.cues.splice(0);}
  hide(){this.train.visible=false;}
 }
