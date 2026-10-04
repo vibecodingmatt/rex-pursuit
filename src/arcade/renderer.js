@@ -139,7 +139,8 @@ export class RideRenderer {
   if(game?.stage.id==='hybrid'&&game.stageTime<12)index=7;
   // A15: once the world and the hero Rex are in, the menu shows the 3D title (title.js) and the 2D key art fades off it.
   // Real time: after a run the menu is handed the finished game's frozen clock.
-  const title=menu&&this.world?.ready&&this.bossRex?.ready,now=performance.now()/1000;if(title&&this.titleStart==null)this.titleStart=now;
+  // The Low tier keeps the 2D key art: the title is the heaviest view in the game.
+  const title=menu&&this.world?.ready&&this.bossRex?.ready&&this.tierName!=='low',now=performance.now()/1000;if(title&&this.titleStart==null)this.titleStart=now;
   const art=menu?title?1-clamp((now-this.titleStart)/1.2,0,1):1:0;
   this.terrain.style.visibility=menu&&!title?'hidden':'visible';
   if(!title&&this.titleLens){this.titleLens=false;this.world.resize(this.w,this.h);}
