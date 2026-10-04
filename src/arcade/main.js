@@ -34,7 +34,7 @@ function announce(top,title,bottom='',seconds=3,over=false){const el=$('announce
 function radio(copy){$('radio').querySelector('span').textContent=copy;radioTime=7;$('radio').style.opacity='1';}
 function stageChanged(){
  const stage=game.stage;ambience.setStage(stage.id);$('location').textContent=stage.location;$('stage-name').textContent=stage.name;
- $('route-dots').replaceChildren(...game.path.map((_,i)=>{const dot=document.createElement('i');dot.className=i<game.stageIndex?'done':i===game.stageIndex?'current':'';return dot;}));
+ $('route-dots').replaceChildren(...game.path.map((_,i)=>{const dot=document.createElement('i');dot.className=i<game.stageIndex?game.perfects?.includes(i)?'done perfect':'done':i===game.stageIndex?'current':'';return dot;}));
  announce(`${String(game.stageIndex+1).padStart(2,'0')} / ${String(game.path.length).padStart(2,'0')} — ${stage.era}`,stage.name,'HOLD TO FIRE · SHOOT DEBRIS · KEEP MOVING');radio(stage.radio);
 }
 function unlockField(){fieldInit??=field.init().then(()=>{audio.worldSounds=false;if(field.muted!==audio.muted)field.mute();if(mode!=='playing')return field.pause(true);}).catch(e=>{console.warn('Recorded audio unavailable:',e.message);});if(field.context)field.pause(false).catch(()=>{});}
@@ -59,6 +59,8 @@ function fieldEvent(e){
  // Bodies and the vehicle react with or without sound; a blow knocks the camera away from its source.
  if(e.type==='shot'&&e.hit)renderer.actors?.hit(e.id,e.precise,e.x);
  // A broken boss attack freezes the action for 50 ms and lands a low thump.
+ // A head-shot kill lands with a 30 ms hit-stop.
+ if(e.type==='kill'&&e.precise&&!e.boss)hitStop=Math.max(hitStop,.03);
  if(e.type==='stagger'){hitStop=.05;if(field.context)field.groundImpact(1);}
  if(e.type==='damage')renderer.vehicle?.hit(renderer.actors?.actors.get(e.id)?.position||null,Math.min(1.6,.4+e.amount/14));
  if(!field.context)return;
@@ -148,7 +150,7 @@ function showContinue(){showMode('continue');overlay('Ride interrupted.',game.cr
  else showResult(false);
 }
 function showResult(won){showMode('result');overlay(won?'You made it out.':'The island wins.',won?`${game.route==='classic'?'The ’94 Circuit':game.route.startsWith('daily-')?'Today’s daily run':'The Extended Cut'} complete. ${game.continues?'Continued-run record.':'One credit. A whole lot of dinosaurs.'}`:`Reached ${game.stage.name}. Ride again for a cleaner run.`,won?'EXPEDITION COMPLETE':'GAME OVER');
- const stats=[[fmt(game.score),'FINAL SCORE'],[grade(game),'RANK'],[`${Math.round(game.hits/Math.max(1,game.shots)*100)}%`,'ACCURACY'],[String(game.maxCombo),'BEST CHAIN'],[String(game.bosses),'BOSSES REPELLED'],[String(game.continues),'CONTINUES']];
+ const stats=[[fmt(game.score),'FINAL SCORE'],[grade(game),'RANK'],[`${Math.round(game.hits/Math.max(1,game.shots)*100)}%`,'ACCURACY'],[String(game.maxCombo),'BEST CHAIN'],[`${game.perfects?.length||0}/${game.path.length}`,'PERFECT STAGES'],[String(game.continues),'CONTINUES']];
  $('result-stats').replaceChildren(...stats.map(([v,l])=>{const el=document.createElement('div'),b=document.createElement('b'),small=document.createElement('small');if(l==='RANK')el.className='flourish';b.textContent=v;small.textContent=l;el.append(b,small);return el;}));$('restart').hidden=false;$('restart').focus();persist();showBoard();
 }
 // A15: the local top ten. A qualifying score asks for initials first (keyboard, phone or d-pad).

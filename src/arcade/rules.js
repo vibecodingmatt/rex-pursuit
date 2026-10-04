@@ -59,7 +59,7 @@ export class Circuit {
  constructor({route='extended',difficulty='arcade',seed=94}={}) {
   this.route=route;this.difficulty=difficulty;this.rng=seed;this.path=route==='classic'?[0,1,2,6]:[0,1,2,3,4,5,6];
   this.status='playing';this.stageIndex=0;this.stageTime=0;this.time=0;this.phase='intro';this.phaseTime=0;this.hp=100;this.score=0;
-  this.combo=0;this.maxCombo=0;this.chainTime=0;this.shots=0;this.hits=0;this.power=0;this.scatter=0;this.grenades=GRENADES;this.lobs=[];this.lobCooldown=0;this.tallyFrom=[0,0];this.stageHurt=false;this.kills=0;this.bosses=0;this.credits=2;this.continues=0;
+  this.combo=0;this.maxCombo=0;this.chainTime=0;this.shots=0;this.hits=0;this.power=0;this.scatter=0;this.grenades=GRENADES;this.lobs=[];this.lobCooldown=0;this.tallyFrom=[0,0];this.stageHurt=false;this.perfects=[];this.kills=0;this.bosses=0;this.credits=2;this.continues=0;
   this.entities=[];this.events=[];this.serial=0;this.spawnTimer=2.5;this.beats=null;this.hazardTimer=6;this.supplyTimer=11;this.travel=0;this.speed=0;
   this.cooldown=0;this.focus=0;this.focusTime=0;this.invulnerable=0;this.bossSpawned=false;this.bridgeBroken=false;this.wave=0;
   this.emit('stage',{stage:this.stage.id});
@@ -153,7 +153,7 @@ export class Circuit {
   return true;
  }
  /** The stage's tally, banked as it clears: accuracy (50 points a percent) and NO DAMAGE (TALLY_PERFECT). */
- tally(){const shots=this.shots-this.tallyFrom[0],hits=this.hits-this.tallyFrom[1],accuracy=shots?Math.round(hits/shots*100):0,accBonus=accuracy*50,perfect=!this.stageHurt,perfectBonus=perfect?TALLY_PERFECT:0;this.score+=accBonus+perfectBonus;return{accuracy,accBonus,perfect,perfectBonus};}
+ tally(){const shots=this.shots-this.tallyFrom[0],hits=this.hits-this.tallyFrom[1],accuracy=shots?Math.round(hits/shots*100):0,accBonus=accuracy*50,perfect=!this.stageHurt,perfectBonus=perfect?TALLY_PERFECT:0;this.score+=accBonus+perfectBonus;if(perfect)this.perfects.push(this.stageIndex);return{accuracy,accBonus,perfect,perfectBonus};}
  /** Lob a grenade at the sight; it bursts after GRENADE_FUSE. */
  launch(x,y,aspect=16/9){
   if(this.status!=='playing'||this.phase==='clear'||this.grenades<=0||this.lobCooldown>0)return false;
