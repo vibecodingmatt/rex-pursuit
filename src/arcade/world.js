@@ -252,7 +252,9 @@ export class CircuitWorld {
   // A14 closing shot: after the last king falls the crane keeps rising and looks up at the rotunda's banner.
   const closing=id==='visitor'&&game?.phase==='clear'?T.MathUtils.smootherstep(game.phaseTime,2.1,4.9)*move:0;
   // The vehicle (vehicle.js) rides under the route eye point; its spring rig tilts the camera with it.
-  const eye=(this.eye??=new T.Vector3()).set(routeX(z,id)+Math.sin(z*.11)*.10*move,routeY(z,id)+2.65-drop,z);
+  // A14: up the Visitor Center's steps the Jeep thumps over each tread (0.51 m apart).
+  const along=id==='visitor'?plazaAxis(z):0,treads=along>STEPS[0]&&along<STEPS[1]?(1-Math.abs(Math.sin((along-STEPS[0])/.508*Math.PI)))*.09*move:0;
+  const eye=(this.eye??=new T.Vector3()).set(routeX(z,id)+Math.sin(z*.11)*.10*move,routeY(z,id)+2.65-drop-treads,z);
   this.look.set(routeX(z+24,id),routeY(z+24,id)+2.25-drop+nose-crane*3.3,z+24);const rig=game&&this.vehicle?this.vehicle.ride(dt,eye,this.look,{id,rough,move,hp:game.hp}):null;
   this.camera.position.copy(eye);this.camera.position.y+=crane*3.6+closing*4.5+Math.sin(this.time*64)*shake*.12*move+(rig?rig.heave:Math.sin(z*1.2)*.025*rough*move);
   if(closing>0){(this.closingAt??=new T.Vector3()).copy(this.rotunda.centre);this.camera.lookAt(this.closingAt.lerp(this.look,1-closing));}else this.camera.lookAt(this.look);this.camera.rotateZ(roll);if(rig){this.camera.rotateY(rig.yaw);this.camera.rotateX(rig.pitch);this.camera.rotateZ(rig.roll);}this.camera.updateMatrixWorld();
