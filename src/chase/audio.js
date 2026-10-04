@@ -18,6 +18,14 @@ function onsets(b){
 // A generated impulse response for the rainforest (a room model, not a synthesized sound):
 // sparse early reflections off trunks, smeared slaps back from the treeline, then a dense
 // tail whose highs the foliage soaks up first. Independent noise per ear keeps it wide.
+/** A stone hall: discrete early reflections off near walls, then a long, bright, slowly darkening tail. */
+function hallImpulse(c,seconds=3.6){
+ const sr=c.sampleRate,n=Math.floor(seconds*sr),b=c.createBuffer(2,n,sr);
+ for(let ch=0;ch<2;ch++){const d=b.getChannelData(ch);let lp=0;
+  for(let i=0;i<n;i++){const t=i/sr,a=Math.exp(-2*Math.PI*(900+9000*Math.exp(-t*1.1))/sr);lp+=(1-a)*((Math.random()*2-1)-lp);d[i]=lp*Math.exp(-t*1.55)*Math.min(1,Math.max(0,(t-.03)/.08))*1.25;}
+  for(const [t,g] of [[.021,.7],[.034,.55],[.047,.5],[.063,.42],[.081,.34],[.109,.28]]){const i=Math.floor((t+ch*.0037)*sr);if(i<n)d[i]+=g*(ch?-1:1);}}
+ return b;
+}
 function forestImpulse(c,seconds=2.4){
  const sr=c.sampleRate,n=Math.floor(seconds*sr),b=c.createBuffer(2,n,sr);
  for(let ch=0;ch<2;ch++){const d=b.getChannelData(ch);let lp=0;
@@ -50,7 +58,7 @@ export class ChaseAudio {
   // Everything except the Rex runs through the world bus, which ducks under her calls.
   this.world=c.createGain();this.world.connect(this.master);
   // Forest reverb: one-shots send to it by their own amount; the loops stay dry.
-  this.reverb=c.createConvolver();this.reverb.buffer=forestImpulse(c);this.reverbReturn=c.createGain();this.reverb.connect(this.reverbReturn);this.reverbReturn.connect(this.master);
+  this.reverb=c.createConvolver();this.reverb.buffer=this.forestBuffer=forestImpulse(c);this.reverbReturn=c.createGain();this.reverb.connect(this.reverbReturn);this.reverbReturn.connect(this.master);
   // Her voice is placed in 3D at her head (HRTF), muffled and a little quieter with distance.
   // The reverb send is taken before the distance loss, so far calls sound further away.
   this.ear={x:0,y:1.6,z:0};this.rexVoice=c.createGain();this.rexTone=c.createBiquadFilter();this.rexTone.type='lowpass';this.rexTone.frequency.value=20000;this.rexPanner=this.panner(null,{rolloff:.35,ref:14});
@@ -198,6 +206,8 @@ export class ChaseAudio {
  flush(at){if(!this.context||this.context.currentTime-(this.lastFlush||0)<.5)return;this.lastFlush=this.context.currentTime;this.sample('birds-takeoff',{volume:.18,rate:1.2+Math.random()*.2,at,duration:.9,fade:.3,wet:.2});this.play(12,.05,2.3+Math.random()*.3,{vocal:false,at,wet:.15});}
  /** The passing brachiosaur's trumpet, placed at her head. */
  brachio(at){this.play(Math.random()<.5?30:31,.32,.92+Math.random()*.08,{vocal:false,at,wet:.45});}
+ /** The reverb's room: 'forest' (the default) or 'hall', a stone hall's longer tail with a louder return (the arcade's rotunda). */
+ space(kind){if(!this.context||this.room===kind)return;this.room=kind;const hall=kind==='hall';this.reverb.buffer=hall?(this.hallBuffer??=hallImpulse(this.context)):this.forestBuffer;this.reverbReturn.gain.setTargetAtTime(hall?2.4:1,this.context.currentTime,.08);}
  stopVoice(){if(this.voice){try{this.voice.source.stop();}catch{}}this.voice=null;}
  roar(opening=false){return this.play(opening?this.roles.opening:this.roles.charge,opening?1.35:1.12,opening?.95:1.03,{vocal:'roar'});}
  growl(){if(this.voice)return;this.play(this.roles.growl,.72,.96,{vocal:'growl'});}
