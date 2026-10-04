@@ -85,7 +85,7 @@ export class BossMosa {
   if(crossed(3.15)){for(const z of [-2.6,-1.2,.2,1.6]){const p=this.v.set(0,0,z).applyMatrix4(m.matrixWorld);burst(p,1.8,2.6);}const at=this.v.set(0,0,0).applyMatrix4(m.matrixWorld).clone();this.cues.push({type:'slam',at});w.vehicle?.hit(at,1.3);
    // The displacement wave: it runs out at about 9 m/s and lifts the launch when it gets there.
    s.swell={t:at.distanceTo(this.world.camera.position)/9,side:Math.sign(at.x-this.world.camera.position.x)||1};}
-  if(s.swell&&(s.swell.t-=dt)<=0){const bow=this.v.set(0,0,-3).applyQuaternion(this.world.camera.quaternion).add(this.world.camera.position).setY(LEVEL);w.vehicle?.swell?.(1,s.swell.side);w.spray?.burst(bow,1.4);w.river?.ring(bow.x,bow.z,1.2);this.cues.push({type:'swell',at:bow.clone()});s.swell=null;}
+  if(s.swell&&(s.swell.t-=dt)<=0){const bow=this.v.set(0,0,-3).applyQuaternion(this.world.camera.quaternion).add(this.world.camera.position).setY(LEVEL);w.vehicle?.surge?.(1,s.swell.side);w.spray?.burst(bow,1.4);w.river?.ring(bow.x,bow.z,1.2);this.cues.push({type:'swell',at:bow.clone()});s.swell=null;}
   if(crossed(4.05)||crossed(.25)){burst(head,1,1.6);this.cues.push({type:'surface',at:head.clone()});}
  }
  /** Rules hits: a ray against her body spheres in model space; anything under the water is water. */
