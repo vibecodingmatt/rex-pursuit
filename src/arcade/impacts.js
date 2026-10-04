@@ -11,6 +11,7 @@ import {createSpitSmear} from './smear.js';
 
 const GROUND={gates:'dirt',river:'water',fault:'rock',hybrid:'concrete',lagoon:'water',manor:'tile',visitor:'concrete'};
 const SCALE={raptor:1.4,dilo:1.6,galli:1.6,trike:2.3,ptero:1.8,ichthy:2};
+const SPREAD_TRACE={core:[7,13,20],halo:[.5,1.5,3.6]},EXPLOSIVE_TRACE={core:[22,8,2.2],halo:[4.4,1.1,.2]};
 const rnd=Math.random,ray=new T.Raycaster(),dir=new T.Vector3(),hit=new T.Vector3(),v=new T.Vector3(),tmp=new T.Vector3(),ndc=new T.Vector2();
 
 export class CircuitImpacts{
@@ -32,7 +33,8 @@ export class CircuitImpacts{
   }else if(e.hit&&this.r.lastWound){end=this.r.lastWound.point.distanceTo(r.origin);kind='boss';}
   else end=this.surface(r,id);
   const at=r.at(end>0?end:90,hit).clone();
-  if(shot)fx.trace(shot.origin,at);
+  // Power rounds burn their crate's colour: blue for spread shot, red-orange for explosive.
+  if(shot)fx.trace(shot.origin,at,e.pellet||game.scatter>0?SPREAD_TRACE:game.power>0?EXPLOSIVE_TRACE:null);
   if(end<0)return;
   // Explosive rounds (the power crate): every round that lands bursts in orange sparks and a puff of smoke.
   if(game.power>0){for(let i=0;i<7;i++)fx.speck(at,tmp.set(Math.random()-.5,Math.random()*.8+.2,Math.random()-.5).normalize().multiplyScalar(3+Math.random()*3),0xff9a3c,.06,.5);fx.haze(at,tmp.set(0,.8,0),{life:.7,size:.5,growth:2.4,opacity:.35,color:0x3a2a20});}

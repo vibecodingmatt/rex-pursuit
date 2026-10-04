@@ -26,18 +26,18 @@ export function createEffects(scene,dustMap){
  // on-screen minimum so rounds stay visible end-on from the gunner's seat.
  const tracerGeo=new T.PlaneGeometry(1,1,1,16);
  const tracers=[];for(let i=0;i<24;i++){
-  const u={a:{value:new T.Vector3()},b:{value:new T.Vector3()},head:{value:0},tail:{value:0},seg:{value:.3},trail:{value:1},slug:{value:1},gain:{value:1}};
+  const u={a:{value:new T.Vector3()},b:{value:new T.Vector3()},head:{value:0},tail:{value:0},seg:{value:.3},trail:{value:1},slug:{value:1},gain:{value:1},core:{value:new T.Vector3(18,10.5,4)},halo:{value:new T.Vector3(3.6,1.7,.5)}};
   const m=new T.Mesh(tracerGeo,new T.ShaderMaterial({uniforms:u,transparent:true,depthWrite:false,blending:T.CustomBlending,blendSrc:T.OneFactor,blendDst:T.OneFactor,blendEquation:T.AddEquation,fog:false,
    vertexShader:`uniform vec3 a,b;uniform float head,tail;varying vec2 vUv;varying float vT;
     void main(){float t=mix(tail,head,position.y+.5);vec3 p=mix(a,b,t);vec3 dir=normalize(b-a),toCam=cameraPosition-p;float d=length(toCam);vec3 side=normalize(cross(dir,toCam/d));
      float width=max(.13,d*.014);p+=side*position.x*width;vUv=vec2(position.x*2.,position.y+.5);vT=t;gl_Position=projectionMatrix*viewMatrix*vec4(p,1.);}`,
-   fragmentShader:`uniform float head,seg,trail,slug,gain;varying vec2 vUv;varying float vT;void main(){
-     float x=vUv.x;float core=exp(-x*x*9.),halo=exp(-x*x*2.2)*.7;
+   fragmentShader:`uniform float head,seg,trail,slug,gain;uniform vec3 core,halo;varying vec2 vUv;varying float vT;void main(){
+     float x=vUv.x;float c=exp(-x*x*9.),h=exp(-x*x*2.2)*.7;
      float s=smoothstep(head-seg,head-seg*.25,vT)*slug;
      // Short dim tail behind the slug only; no continuous line back to the muzzle.
      float tailGlow=smoothstep(head-seg*3.,head-seg,vT)*(1.-step(head,vT))*.22*trail;
      float k=(s+tailGlow)*gain;
-     vec3 col=vec3(18.,10.5,4.)*core+vec3(3.6,1.7,.5)*halo;
+     vec3 col=core*c+halo*h;
      gl_FragColor=vec4(col*k,1.);}`}));
   m.frustumCulled=false;m.visible=false;m.renderOrder=6;scene.add(m);tracers.push({mesh:m,u,age:0,flight:.1,life:0,hold:0});
  }let traceId=0,roundCount=0;
@@ -123,8 +123,9 @@ export function createEffects(scene,dustMap){
   debris(kind,p,v,scale=1){chunks.spawn(kind,p,v,scale);},
   speck(p,v,color,size,life){emit(p,v,color,size,life);},
   reset(){life.fill(0);position.fill(-1000);groundRelative.fill(0);geo.attributes.position.needsUpdate=true;for(const d of dust){d.life=0;d.sprite.visible=false;}for(const p of fire){p.life=0;p.sprite.visible=false;}soft.reset();chunks.reset();for(const t of tracers){t.life=0;t.mesh.visible=false;}lightTime=0;burstLight.intensity=0;screenFlash=0;stats.footsteps=stats.bodyImpacts=stats.explosions=stats.breaths=0;},
-  trace(a,b){
-   shotDir.subVectors(b,a).normalize();const t=tracers[traceId++%tracers.length];t.u.a.value.copy(a);t.u.b.value.copy(b);const bright=roundCount++%3===0;const d=a.distanceTo(b);t.flight=Math.min(.2,Math.max(.07,d/160));t.hold=.05;t.u.gain.value=bright?1:.5;t.age=0;t.life=t.flight+t.hold;t.mesh.visible=true;t.u.head.value=0;t.u.tail.value=0;t.u.seg.value=Math.min(.6,(bright?6:3.5)/Math.max(d,1));t.u.trail.value=1;t.u.slug.value=1;
+  /** A round's tracer from a to b; `tint` ({core, halo} as [r,g,b] HDR) recolours it (the arcade's power rounds). */
+  trace(a,b,tint=null){
+   shotDir.subVectors(b,a).normalize();const t=tracers[traceId++%tracers.length];t.u.a.value.copy(a);t.u.b.value.copy(b);t.u.core.value.fromArray(tint?.core||[18,10.5,4]);t.u.halo.value.fromArray(tint?.halo||[3.6,1.7,.5]);const bright=roundCount++%3===0;const d=a.distanceTo(b);t.flight=Math.min(.2,Math.max(.07,d/160));t.hold=.05;t.u.gain.value=bright?1:.5;t.age=0;t.life=t.flight+t.hold;t.mesh.visible=true;t.u.head.value=0;t.u.tail.value=0;t.u.seg.value=Math.min(.6,(bright?6:3.5)/Math.max(d,1));t.u.trail.value=1;t.u.slug.value=1;
    // Muzzle haze drifts off with the air as the Jeep drives on.
    if(rnd()<.3)launch(puffs,puffId++,a.clone().add(new T.Vector3((rnd()-.5)*.1,.05,.25)),{life:.3+rnd()*.2,size:.12,growth:.5,opacity:.07,velocity:new T.Vector3((rnd()-.5)*.4,.35,1.2),color:0xc9c3b3,ground:true});
   },
