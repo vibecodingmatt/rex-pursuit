@@ -1,4 +1,5 @@
 import * as T from 'three';
+import {mergeSiblings,referenced} from './merge.js';
 import {createJeep} from '../chase/jeep.js';
 import {createBoat,BOAT_EYE} from './boat.js';
 
@@ -53,6 +54,8 @@ export class CircuitVehicle{
   this.scrapes=[[.42,-1.42,.4,85],[-.5,-1.62,-.5,70],[.08,-1.25,.25,55]].map(([x,z,turn,below],i)=>{const d=decal(clawTexture(11+i*7),[.55,.55]);d.position.set(x,1.395,z);d.rotation.set(-Math.PI/2,0,turn);d.userData.below=below;j.body.add(d);return d;});
   const hinge=this.hinge=new T.Group();hinge.position.set(0,1.45,-1.03);hinge.rotation.x=-1.6;j.body.add(hinge);
   this.crack=decal(crackTexture(),[1.55,.7]);this.crack.position.set(0,.44,.07);this.crack.rotation.x=.18;this.crack.translateZ(.012);this.crack.material.side=T.DoubleSide;hinge.add(this.crack);
+  // Phone pass 4: the body's static parts merge per material (decals and referenced parts stay separate).
+  this.merged=mergeSiblings(j.body,{keep:new Set([...this.scrapes,this.crack,...referenced(j)])});
   // On the boat the claws gouge the teak foredeck; heavy blows bend the bow pulpit.
   const b=this.boat;this.boatScrapes=[[.55,-4.1,.5,85],[-.6,-5.3,-.4,70],[.15,-3.35,.2,55]].map(([x,z,turn,below],i)=>{const d=decal(clawTexture(31+i*5),[.7,.7]);d.position.set(x,b.deckY(x,z)+.012,z);d.rotation.set(-Math.PI/2,0,turn);d.userData.below=below;b.root.add(d);return d;});
  }
