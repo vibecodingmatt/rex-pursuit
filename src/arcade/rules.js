@@ -61,12 +61,12 @@ export function project(e,aspect){
 }
 export class Circuit {
  constructor({route='extended',difficulty='arcade',seed=94}={}) {
-  this.route=route;this.difficulty=difficulty;this.rng=seed;this.path=route==='classic'?[0,1,2,6]:[0,1,2,3,4,5,6];
+  this.route=route;this.rush=route==='bossrush';this.difficulty=difficulty;this.rng=seed;this.path=route==='classic'?[0,1,2,6]:[0,1,2,3,4,5,6];
   this.status='playing';this.stageIndex=0;this.stageTime=0;this.time=0;this.phase='intro';this.phaseTime=0;this.hp=100;this.score=0;
   this.combo=0;this.maxCombo=0;this.chainTime=0;this.shots=0;this.hits=0;this.power=0;this.scatter=0;this.grenades=GRENADES;this.lobs=[];this.lobCooldown=0;this.tallyFrom=[0,0];this.stageHurt=false;this.perfects=[];this.offer=null;this.offerTime=0;this.upgrades=[];this.fireRate=1;this.armor=1;this.charge=1;this.grenadeCap=GRENADE_MAX;this.kills=0;this.bosses=0;this.credits=2;this.continues=0;
   this.entities=[];this.events=[];this.serial=0;this.spawnTimer=2.5;this.beats=null;this.hazardTimer=6;this.supplyTimer=11;this.travel=0;this.speed=0;
   this.cooldown=0;this.focus=0;this.focusTime=0;this.invulnerable=0;this.bossSpawned=false;this.bridgeBroken=false;this.wave=0;
-  this.emit('stage',{stage:this.stage.id});
+  this.rushStart();this.emit('stage',{stage:this.stage.id});
  }
  get stage(){return STAGES[this.path[this.stageIndex]];}
  // The finale holds longer for its closing shot (world.js) before the results.
@@ -162,6 +162,8 @@ export class Circuit {
   if(target.hp<=0)this.kill(target,precise);
   return true;
  }
+ /** Boss rush: each stage starts 10 s before its boss, already on the road there (the bridge set piece skipped). */
+ rushStart(){if(!this.rush)return;const d=this.stage.duration,id=this.stage.id,cruise=id==='manor'?14:id==='fault'?27:24;this.stageTime=d-10;this.travel=Math.max(0,(d-10)*cruise-40);this.bridgeBroken=true;this.bridgeOrigin=-1e4;}
  /** The stage's tally, banked as it clears: accuracy (50 points a percent) and NO DAMAGE (TALLY_PERFECT). */
  tally(){const shots=this.shots-this.tallyFrom[0],hits=this.hits-this.tallyFrom[1],accuracy=shots?Math.round(hits/shots*100):0,accBonus=accuracy*50,perfect=!this.stageHurt,perfectBonus=perfect?TALLY_PERFECT:0;this.score+=accBonus+perfectBonus;if(perfect)this.perfects.push(this.stageIndex);return{accuracy,accBonus,perfect,perfectBonus};}
  /** Take offered upgrade i (0-2): it lasts the run. */
@@ -244,7 +246,7 @@ export class Circuit {
   if(this.phase==='boss'&&this.entities.every(e=>e.dead)&&this.phaseTime>1.5){this.phase='clear';this.phaseTime=0;this.hp=Math.min(100,this.hp+12);this.score+=1500;this.emit('clear',this.tally());}
   if(this.phase==='clear'&&this.phaseTime>this.clearHold){
    if(this.stageIndex===this.path.length-1)this.finish();
-   else{this.stageIndex++;this.goldenSeen=false;this.goldenAt=null;{const keys=Object.keys(UPGRADES);for(let i=keys.length-1;i>0;i--){const j=Math.floor(this.random()*(i+1));[keys[i],keys[j]]=[keys[j],keys[i]];}this.offer=keys.slice(0,3);this.offerTime=OFFER_TIME+OFFER_DELAY;}this.tallyFrom=[this.shots,this.hits];this.stageHurt=false;this.grenades=Math.min(this.grenadeCap,this.grenades+1);this.stageTime=0;this.travel=0;this.phase='intro';this.phaseTime=0;this.entities=[];this.spawnTimer=1;this.beats=null;this.hazardTimer=5;this.supplyTimer=9;this.bossSpawned=false;this.bridgeBroken=false;this.emit('stage',{stage:this.stage.id});}
+   else{this.stageIndex++;this.goldenSeen=false;this.goldenAt=null;{const keys=Object.keys(UPGRADES);for(let i=keys.length-1;i>0;i--){const j=Math.floor(this.random()*(i+1));[keys[i],keys[j]]=[keys[j],keys[i]];}this.offer=keys.slice(0,3);this.offerTime=OFFER_TIME+OFFER_DELAY;}this.tallyFrom=[this.shots,this.hits];this.stageHurt=false;this.grenades=Math.min(this.grenadeCap,this.grenades+1);this.stageTime=0;this.travel=0;this.phase='intro';this.phaseTime=0;this.entities=[];this.spawnTimer=1;this.beats=null;this.hazardTimer=5;this.supplyTimer=9;this.bossSpawned=false;this.bridgeBroken=false;this.rushStart();this.emit('stage',{stage:this.stage.id});}
   }
  }
  snapshot(){return{status:this.status,phase:this.phase,stage:this.stage.id,time:this.time,hp:this.hp,score:this.score,shots:this.shots,hits:this.hits,combo:this.combo,focus:this.focus,continues:this.continues,entities:this.entities.map(e=>({...e}))};}

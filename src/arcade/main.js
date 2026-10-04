@@ -20,10 +20,13 @@ const ATTRACT_IDLE=25,ATTRACT_SEGMENT=18,ATTRACT_STAGES=['gates','river','fault'
 canvas.tabIndex=0;
 const fmt=n=>Math.round(n).toLocaleString('en-US');
 const names={trike:'TRICERATOPS · STAMPEDE LEADER',rex:'TYRANNOSAURUS REX',indominus:'INDOMINUS REX',indoraptor:'INDORAPTOR',mosa:'MOSASAURUS',twins:'TWO KINGS. ONE EXIT.'};
-function readBest(){return readRecord(()=>localStorage,daily?dailyRoute():route,$('difficulty').value);}
+function readBest(){return readRecord(()=>localStorage,rush?'bossrush':daily?dailyRoute():route,$('difficulty').value);}
 // The daily run: the Extended Cut on today's seed (local date), with its own best and top ten.
 let daily=false;const today=()=>{const d=new Date();return `${d.getFullYear()}${String(d.getMonth()+1).padStart(2,'0')}${String(d.getDate()).padStart(2,'0')}`;},dailyRoute=()=>`daily-${today()}`;
-function setDaily(on){daily=on;$('daily').setAttribute('aria-pressed',String(on));document.querySelector('.route-picker').classList.toggle('locked',on);updateBest();}
+// Boss rush: every boss back to back (rules rushStart); its own best and top ten. Exclusive with the daily run.
+let rush=false;function setRush(on){rush=on;$('rush').setAttribute('aria-pressed',String(on));if(on&&daily)setDaily(false);document.querySelector('.route-picker').classList.toggle('locked',on||daily);updateBest();}
+$('rush').addEventListener('click',()=>setRush(!rush));
+function setDaily(on){daily=on;if(on&&rush)setRush(false);$('daily').setAttribute('aria-pressed',String(on));document.querySelector('.route-picker').classList.toggle('locked',on);updateBest();}
 $('daily').addEventListener('click',()=>setDaily(!daily));
 function updateBest(){$('best').textContent=`BEST ${readBest()?fmt(readBest()):'—'}`;}
 function persist(){
@@ -39,7 +42,7 @@ function stageChanged(){
  announce(`${String(game.stageIndex+1).padStart(2,'0')} / ${String(game.path.length).padStart(2,'0')} — ${stage.era}`,stage.name,'HOLD TO FIRE · SHOOT DEBRIS · KEEP MOVING');radio(stage.radio);
 }
 function unlockField(){fieldInit??=field.init().then(()=>{audio.worldSounds=false;if(field.muted!==audio.muted)field.mute();if(mode!=='playing')return field.pause(true);}).catch(e=>{console.warn('Recorded audio unavailable:',e.message);});if(field.context)field.pause(false).catch(()=>{});}
-function start(){if(!ready)return;clearCard=0;p2=null;hiBest=readBest()||0;audio.reset();field.stopCalls();void audio.unlock();unlockField();game=new Circuit({route:daily?'extended':route,difficulty:$('difficulty').value,seed:daily?Number(today()):94});if(daily)game.route=dailyRoute();game.projector=(e,aspect)=>renderer.project(e,aspect);saved=false;fire=false;keys.clear();renderer.reset();clock=0;accumulator=0;showMode('playing');canvas.focus({preventScroll:true});processEvents();updateHud();}
+function start(){if(!ready)return;clearCard=0;p2=null;hiBest=readBest()||0;audio.reset();field.stopCalls();void audio.unlock();unlockField();game=new Circuit({route:rush?'bossrush':daily?'extended':route,difficulty:$('difficulty').value,seed:daily?Number(today()):94});if(daily)game.route=dailyRoute();game.projector=(e,aspect)=>renderer.project(e,aspect);saved=false;fire=false;keys.clear();renderer.reset();clock=0;accumulator=0;showMode('playing');canvas.focus({preventScroll:true});processEvents();updateHud();}
 function processEvents(){for(const event of game.drain()){
  renderer.event(event);audio.event(event);fieldEvent(event);
  if(event.type==='stage')stageChanged();
@@ -159,7 +162,7 @@ function showContinue(){showMode('continue');overlay('Ride interrupted.',game.cr
  if(game.credits){$('continue').hidden=false;$('continue').textContent=`CONTINUE · ${game.credits} CREDITS ↗`;$('continue').focus();continueClock=10;$('overlay-kicker').textContent='CONTINUE? 10';}
  else showResult(false);
 }
-function showResult(won){showMode('result');overlay(won?'You made it out.':'The island wins.',won?`${game.route==='classic'?'The ’94 Circuit':game.route.startsWith('daily-')?'Today’s daily run':'The Extended Cut'} complete. ${game.continues?'Continued-run record.':'One credit. A whole lot of dinosaurs.'}`:`Reached ${game.stage.name}. Ride again for a cleaner run.`,won?'EXPEDITION COMPLETE':'GAME OVER');
+function showResult(won){showMode('result');overlay(won?'You made it out.':'The island wins.',won?`${game.route==='classic'?'The ’94 Circuit':game.route.startsWith('daily-')?'Today’s daily run':game.route==='bossrush'?'The boss rush':'The Extended Cut'} complete. ${game.continues?'Continued-run record.':'One credit. A whole lot of dinosaurs.'}`:`Reached ${game.stage.name}. Ride again for a cleaner run.`,won?'EXPEDITION COMPLETE':'GAME OVER');
  const stats=[[fmt(game.score),'FINAL SCORE'],[grade(game),'RANK'],[`${Math.round(game.hits/Math.max(1,game.shots)*100)}%`,'ACCURACY'],[String(game.maxCombo),'BEST CHAIN'],[`${game.perfects?.length||0}/${game.path.length}`,'PERFECT STAGES'],game.p2?[`${Math.round(game.p2.hits/Math.max(1,game.p2.shots)*100)}%`,'P2 ACCURACY']:[String(game.continues),'CONTINUES']];
  $('result-stats').replaceChildren(...stats.map(([v,l])=>{const el=document.createElement('div'),b=document.createElement('b'),small=document.createElement('small');if(l==='RANK')el.className='flourish';b.textContent=v;small.textContent=l;el.append(b,small);return el;}));$('restart').hidden=false;$('restart').focus();persist();showBoard();
 }
@@ -196,7 +199,7 @@ function slowScale(dt){if(!game||game.stage.id!=='fault'||!game.bridgeBroken){sl
 function motionLabel(){$('motion').textContent=renderer.reduced?'MOTION LOW':'MOTION FULL';$('motion').setAttribute('aria-pressed',String(renderer.reduced));}motionLabel();
 $('motion').addEventListener('click',()=>{renderer.reduced=!renderer.reduced;motionLabel();});
 $('difficulty').addEventListener('change',updateBest);
-document.querySelectorAll('[data-route]').forEach(button=>button.addEventListener('click',()=>{route=button.dataset.route;setDaily(false);document.querySelectorAll('[data-route]').forEach(b=>b.setAttribute('aria-pressed',String(b===button)));updateBest();}));
+document.querySelectorAll('[data-route]').forEach(button=>button.addEventListener('click',()=>{route=button.dataset.route;setDaily(false);setRush(false);document.querySelectorAll('[data-route]').forEach(b=>b.setAttribute('aria-pressed',String(b===button)));updateBest();}));
 $('about-open').addEventListener('click',()=>$('about').showModal());$('about-close').addEventListener('click',()=>$('about').close());
 function pointer(e){aim.x=Math.max(.02,Math.min(.98,e.clientX/innerWidth));aim.y=Math.max(.19,Math.min(.85,(e.clientY-(e.pointerType==='touch'?42:0))/innerHeight));}
 canvas.addEventListener('pointerdown',e=>{if(mode!=='playing'||(e.pointerType==='mouse'&&e.button!==0)||pointerId!==null)return;pointerId=e.pointerId;canvas.setPointerCapture(e.pointerId);pointer(e);fire=true;void audio.unlock();e.preventDefault();});
