@@ -42,6 +42,12 @@ console.log('Lost Circuit rules: complete routes, phone targets, frame rates, lo
  const crate=g.spawn('supply');crate.age=1;crate.power='spread';g.cooldown=0;g.shoot(.2,.2,16/9);assert.equal(g.scatter,8);assert(g.drain().some(e=>e.type==='power'&&e.kind==='spread'),'the crate announces spread shot');
  const before=es.map(e=>e.hp);g.cooldown=0;g.shoot(.5,.5,16/9);assert.deepEqual(es.map((e,i)=>before[i]-e.hp),[1,1,1,0],'spread shot strikes the two nearest in reach');
  assert.equal(g.drain().filter(e=>e.type==='shot'&&e.pellet).length,2,'two pellet shots');g.update(9);assert.equal(g.scatter,0,'spread shot runs out');}
+// Grenades: three to start; one bursts after its fuse, killing raptors in reach and sparing the rest; a cooldown between lobs; a repair crate adds one.
+{const g=new Circuit();g.phase='ride';g.drain();const es=[.5,.55,.9].map(x=>{const e=g.spawn('raptor');e.age=1;e.px=x;return e;});g.projector=e=>e.kind==='supply'?{x:.2,y:.2,w:.1,h:.1,hx:.2,hy:.2}:{x:e.px,y:.5,w:.1,h:.2,hx:e.px,hy:.3};
+ assert.equal(g.grenades,3);assert(g.launch(.52,.5,16/9));assert.equal(g.launch(.52,.5,16/9),false,'one lob at a time');for(let i=0;i<30;i++)g.update(1/60);
+ assert.deepEqual(es.map(e=>e.dead),[true,true,false],'the burst catches the two in reach');assert(g.drain().some(e=>e.type==='grenade'&&e.hits.length===2));
+ const crate=g.spawn('supply');crate.age=1;g.cooldown=0;g.shoot(.2,.2,16/9);assert.equal(g.grenades,3,'a repair crate adds a grenade');
+ g.grenades=0;g.lobCooldown=0;assert.equal(g.launch(.5,.5),false,'none left');}
 const memory=new Map(),storage=()=>({getItem:key=>memory.get(key),setItem:(key,value)=>memory.set(key,value)}),round={route:'classic',difficulty:'arcade',continues:0,score:98765};
 assert.equal(saveRecord(storage,round).saved,true);assert.equal(readRecord(storage,'classic','arcade'),98765);saveRecord(storage,{...round,score:10});assert.equal(readRecord(storage,'classic','arcade'),98765);saveRecord(storage,{...round,continues:1,score:120000});assert.equal(readRecord(storage,'classic','arcade',true),120000);assert.equal(readRecord(storage,'extended','arcade'),0);
 const denied=()=>{throw Error('Storage denied');};assert.equal(readRecord(denied,'classic','arcade'),0);assert.equal(saveRecord(denied,round).saved,false);memory.set(recordKey('classic','tour'),'Infinity');assert.equal(readRecord(storage,'classic','tour'),0);console.log('Records: persistence, best-only updates, continued/category isolation, corrupt values and storage-denied fallback passed.');

@@ -36,6 +36,9 @@ const clamp=(v,a,b)=>Math.max(a,Math.min(b,v));
 export const ROTUNDA=740;
 /** Seconds of explosive rounds or spread shot from a power crate. */
 export const POWER=8;
+/** Grenades: start with GRENADES, one more per stage and per repair crate (at most GRENADE_MAX). A grenade bursts
+ * GRENADE_FUSE s after launch, hurting everything within BLAST screen heights of where it was aimed (more for big animals). */
+export const GRENADES=3,GRENADE_MAX=5,GRENADE_FUSE=.35,BLAST=.17;
 /** Spread shot: each round also strikes the two animals nearest the sight within this reach (screen heights). */
 export const SPREAD=.24;
 // A Rex or Triceratops boss is fought in reverse: the vehicle brakes, then backs away
@@ -54,7 +57,7 @@ export class Circuit {
  constructor({route='extended',difficulty='arcade',seed=94}={}) {
   this.route=route;this.difficulty=difficulty;this.rng=seed;this.path=route==='classic'?[0,1,2,6]:[0,1,2,3,4,5,6];
   this.status='playing';this.stageIndex=0;this.stageTime=0;this.time=0;this.phase='intro';this.phaseTime=0;this.hp=100;this.score=0;
-  this.combo=0;this.maxCombo=0;this.chainTime=0;this.shots=0;this.hits=0;this.power=0;this.scatter=0;this.kills=0;this.bosses=0;this.credits=2;this.continues=0;
+  this.combo=0;this.maxCombo=0;this.chainTime=0;this.shots=0;this.hits=0;this.power=0;this.scatter=0;this.grenades=GRENADES;this.lobs=[];this.lobCooldown=0;this.kills=0;this.bosses=0;this.credits=2;this.continues=0;
   this.entities=[];this.events=[];this.serial=0;this.spawnTimer=2.5;this.beats=null;this.hazardTimer=6;this.supplyTimer=11;this.travel=0;this.speed=0;
   this.cooldown=0;this.focus=0;this.focusTime=0;this.invulnerable=0;this.bossSpawned=false;this.bridgeBroken=false;this.wave=0;
   this.emit('stage',{stage:this.stage.id});
@@ -136,7 +139,7 @@ export class Circuit {
   this.hits++;target.hit=.14;
   if(target.kind==='supply'){
    // Every other crate is explosive rounds: every round counts double for POWER seconds.
-   target.dead=true;if(target.power){this[target.power==='spread'?'scatter':'power']=POWER;this.emit('power',{x:target.x,y:target.y,id:target.id,kind:target.power});}else{this.hp=Math.min(100,this.hp+22);this.focus=Math.min(100,this.focus+25);}this.emit('supply',{x:target.x,y:target.y,id:target.id,power:!!target.power});return true;
+   target.dead=true;if(target.power){this[target.power==='spread'?'scatter':'power']=POWER;this.emit('power',{x:target.x,y:target.y,id:target.id,kind:target.power});}else{this.hp=Math.min(100,this.hp+22);this.focus=Math.min(100,this.focus+25);this.grenades=Math.min(GRENADE_MAX,this.grenades+1);}this.emit('supply',{x:target.x,y:target.y,id:target.id,power:!!target.power});return true;
   }
   if(target.kind==='barrel'){
    target.hp--;if(target.hp<=0)this.blast(target,list);
@@ -146,6 +149,17 @@ export class Circuit {
   if(target.boss&&precise&&target.weak){target.weakHits++;if(target.weakHits>=9){target.age=Math.floor(target.age/6.4)*6.4+6.4;target.weakHits=0;this.emit('stagger',{id:target.id,x:target.x,y:target.y});}}
   if(target.hp<=0)this.kill(target,precise);
   return true;
+ }
+ /** Lob a grenade at the sight; it bursts after GRENADE_FUSE. */
+ launch(x,y,aspect=16/9){
+  if(this.status!=='playing'||this.phase==='clear'||this.grenades<=0||this.lobCooldown>0)return false;
+  this.grenades--;this.lobCooldown=.6;this.lobs.push({x,y,aspect,t:GRENADE_FUSE});this.emit('launch',{x,y});return true;
+ }
+ detonate({x,y,aspect}){
+  const list=this.entities.filter(e=>!e.dead&&e.age>.15),hits=[];
+  for(const e of list){if(e.kind==='supply')continue;const p=this.projector?this.projector(e,aspect):project(e,aspect);if(!p||p.visible===false)continue;if(Math.hypot((p.x-x)*aspect,p.y-y)<=BLAST+(p.h||0)*.25)hits.push(e);}
+  this.emit('grenade',{x,y,hits:hits.map(e=>e.id)});
+  for(const e of hits){if(e.dead)continue;if(e.kind==='barrel'){this.blast(e,list);continue;}e.hit=.14;e.hp-=e.boss?8:6;if(e.hp<=0)this.kill(e);}
  }
  blast(target,list){this.kill(target);this.emit('blast',{x:target.x,y:target.y});for(const e of list)if(e!==target&&!e.dead){e.hp-=e.boss?14:20;if(e.hp<=0)this.kill(e);}}
  // Spread shot: up to two pellets find the animals nearest the sight (never a boss or a crate); body hits only.
@@ -162,7 +176,7 @@ export class Circuit {
  update(dt){
   if(this.status!=='playing')return;
   this.power=Math.max(0,(this.power||0)-dt);this.scatter=Math.max(0,(this.scatter||0)-dt);
-  dt=clamp(dt,0,.05);this.time+=dt;this.phaseTime+=dt;this.cooldown=Math.max(0,this.cooldown-dt);this.invulnerable=Math.max(0,this.invulnerable-dt);
+  dt=clamp(dt,0,.05);this.lobCooldown=Math.max(0,(this.lobCooldown||0)-dt);if(this.lobs?.length){for(const l of this.lobs)l.t-=dt;const due=this.lobs.filter(l=>l.t<=0);this.lobs=this.lobs.filter(l=>l.t>0);for(const l of due)this.detonate(l);}this.time+=dt;this.phaseTime+=dt;this.cooldown=Math.max(0,this.cooldown-dt);this.invulnerable=Math.max(0,this.invulnerable-dt);
   const cruise=this.stage.id==='manor'?14:this.stage.id==='fault'?27:24;
   const drive=DRIVE[this.stage.boss],brake=clamp((this.phaseTime-.8)/1.8,0,1);
   this.speed=this.phase==='ride'?cruise*(this.stage.setpiece==='brachio'?fordSlow(this.travel):this.stage.id==='visitor'?clamp((ROTUNDA-this.travel)/34,.4,1):1):this.stage.id==='visitor'&&this.phase!=='intro'?0:this.phase==='intro'?8+16*clamp(this.phaseTime/3,0,1):drive&&this.phase==='boss'?5+(drive-5)*brake*brake*(3-2*brake):drive&&this.phase==='clear'?drive*(1-clamp((this.phaseTime-.4)/2.6,0,1)):7;
@@ -209,7 +223,7 @@ export class Circuit {
   if(this.phase==='boss'&&this.entities.every(e=>e.dead)&&this.phaseTime>1.5){this.phase='clear';this.phaseTime=0;this.hp=Math.min(100,this.hp+12);this.score+=1500;this.emit('clear');}
   if(this.phase==='clear'&&this.phaseTime>this.clearHold){
    if(this.stageIndex===this.path.length-1)this.finish();
-   else{this.stageIndex++;this.stageTime=0;this.travel=0;this.phase='intro';this.phaseTime=0;this.entities=[];this.spawnTimer=1;this.beats=null;this.hazardTimer=5;this.supplyTimer=9;this.bossSpawned=false;this.bridgeBroken=false;this.emit('stage',{stage:this.stage.id});}
+   else{this.stageIndex++;this.grenades=Math.min(GRENADE_MAX,this.grenades+1);this.stageTime=0;this.travel=0;this.phase='intro';this.phaseTime=0;this.entities=[];this.spawnTimer=1;this.beats=null;this.hazardTimer=5;this.supplyTimer=9;this.bossSpawned=false;this.bridgeBroken=false;this.emit('stage',{stage:this.stage.id});}
   }
  }
  snapshot(){return{status:this.status,phase:this.phase,stage:this.stage.id,time:this.time,hp:this.hp,score:this.score,shots:this.shots,hits:this.hits,combo:this.combo,focus:this.focus,continues:this.continues,entities:this.entities.map(e=>({...e}))};}

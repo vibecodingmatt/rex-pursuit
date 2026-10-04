@@ -59,6 +59,8 @@ function fieldEvent(e){
  if(e.type==='beat'){const cam=renderer.world.camera.position,at={x:cam.x+e.side*14,y:cam.y,z:cam.z+28},name={raptor:'raptor',dilo:'dilophosaurus',galli:'gallimimus',trike:'triceratops'}[e.kind];if(e.kind==='ptero')field.screech(at);else if(e.pattern==='stampede')field.herd(at);else if(name)field.call(name,at);}
  if(e.type==='shot'){if(!e.pellet)field.gun();if(e.hit){const wound=renderer.lastWound,actor=renderer.actors?.actors.get(e.id),at=wound?.point||actor?.position;if(at)field.hit('flesh',at.distanceTo(renderer.world.camera.position),at);renderer.lastWound=null;}}
  if(e.type==='blast')field.impact(true);
+ if(e.type==='launch'){audio.tone(120,.16,.16,'sine',48);audio.hiss(.1,.08,900);}
+ if(e.type==='grenade'){field.impact(true);field.groundImpact(1);}
  if(e.type==='leap'){const a=renderer.actors?.actors.get(e.id);if(a)field.call('raptor',a.position);}
 }
 // Her calls, bite, pain and footfalls come from the modeled Rex's own timing.
@@ -121,7 +123,7 @@ function bossCues(){
 }
 function updateHud(){
  if(!game)return;{const s=String(game.score).padStart(6,'0'),el=$('score'),h=String(Math.max(game.score,hiBest)).padStart(6,'0'),hi=$('hi-score');el.textContent=s;el.dataset.ghost='8'.repeat(s.length);hi.textContent=h;hi.dataset.ghost='8'.repeat(h.length);}
- {const w=document.querySelector('.weapon-label'),pw=game.power>0,sp=game.scatter>0,on=pw||sp;w.classList.toggle('powered',pw);w.classList.toggle('spread',sp&&!pw);w.querySelector('b').textContent=pw&&sp?'EXPLOSIVE SPREAD':sp?'SPREAD SHOT':pw?'EXPLOSIVE ROUNDS':'TX–94 AUTOMATIC';w.querySelector('span').innerHTML=on?`${[sp&&'THREE TARGETS',pw&&'EVERY ROUND ×2'].filter(Boolean).join(' · ')} · <i>${Math.ceil(Math.max(game.power,game.scatter))}s</i>`:'TRANQUILIZER SYSTEM <i>∞</i>';}$('health').textContent=Math.ceil(game.hp);{const panel=document.querySelector('.lower-hud .health');panel.classList.toggle('low',game.hp<=30);panel.classList.toggle('mid',game.hp>30&&game.hp<=60);$('credits').textContent=`CREDITS ${'●'.repeat(game.credits)}${'○'.repeat(Math.max(0,2-game.credits))}`;}
+ {const w=document.querySelector('.weapon-label'),pw=game.power>0,sp=game.scatter>0,on=pw||sp;w.classList.toggle('powered',pw);w.classList.toggle('spread',sp&&!pw);w.querySelector('b').textContent=pw&&sp?'EXPLOSIVE SPREAD':sp?'SPREAD SHOT':pw?'EXPLOSIVE ROUNDS':'TX–94 AUTOMATIC';w.querySelector('span').innerHTML=on?`${[sp&&'THREE TARGETS',pw&&'EVERY ROUND ×2'].filter(Boolean).join(' · ')} · <i>${Math.ceil(Math.max(game.power,game.scatter))}s</i>`:'TRANQUILIZER SYSTEM <i>∞</i>';}$('health').textContent=Math.ceil(game.hp);{const n=game.grenades||0,b=$('grenade');$('grenade-count').textContent=n?'●'.repeat(n):'EMPTY';b.classList.toggle('empty',!n);}{const panel=document.querySelector('.lower-hud .health');panel.classList.toggle('low',game.hp<=30);panel.classList.toggle('mid',game.hp>30&&game.hp<=60);$('credits').textContent=`CREDITS ${'●'.repeat(game.credits)}${'○'.repeat(Math.max(0,2-game.credits))}`;}
  $('health-bars').replaceChildren(...Array.from({length:10},(_,i)=>{const bar=document.createElement('i');if(i>=Math.ceil(game.hp/10))bar.className='empty';if(game.hp<30&&bar.className!=='empty')bar.style.background='#ef9c6f';return bar;}));
  {const mult=Math.min(5,1+Math.floor(game.combo/5)),badge=$('multiplier');badge.textContent=`×${mult}`;
   // Each step up the chain multiplier pops the badge and chimes higher; the top step gets a radio call.
@@ -160,6 +162,9 @@ function renderBoard(board,highlight){
 function backToMenu(){audio.reset();audio.pause(true);field.stopCalls();field.pause(true).catch(()=>{});showMode('menu');game=null;fire=false;keys.clear();pointerId=null;renderer.reset();updateBest();$('start').focus();}
 $('start').addEventListener('click',start);$('initials-save').addEventListener('click',saveInitials);$('initials').addEventListener('keydown',e=>{if(e.key==='Enter'){e.preventDefault();saveInitials();}});$('restart').addEventListener('click',start);$('pause').addEventListener('click',()=>mode==='playing'?pause():resume());$('resume').addEventListener('click',resume);$('to-menu').addEventListener('click',backToMenu);
 $('continue').addEventListener('click',()=>{if(game?.continueRun()){showMode('playing');void audio.unlock();unlockField();canvas.focus({preventScroll:true});processEvents();updateHud();}});
+// A grenade at the sight: right mouse, G or Q, a gamepad shoulder (LB/LT) or the touch button.
+function lob(){if(mode==='playing'&&game?.launch(aim.x,aim.y,innerWidth/innerHeight))processEvents();}
+$('grenade').addEventListener('click',lob);canvas.addEventListener('pointerdown',e=>{if(e.pointerType==='mouse'&&e.button===2)lob();});
 $('focus').addEventListener('click',()=>{if(mode==='playing'){game.activateFocus();processEvents();canvas.focus({preventScroll:true});}});
 $('sound').addEventListener('click',()=>{audio.mute(!audio.muted);if(field.muted!==audio.muted)field.mute();$('sound').textContent=audio.muted?'SOUND OFF':'SOUND ON';$('sound').setAttribute('aria-pressed',String(audio.muted));$('sound').setAttribute('aria-label',audio.muted?'Enable sound':'Mute sound');if(mode==='playing')void audio.unlock();});
 let quality=null,hitStop=0,slow=0,slowDone=false;
@@ -187,6 +192,7 @@ addEventListener('keydown',e=>{
  if(mode!=='playing'||e.target.closest('button,select,a,input'))return;
  if(['ArrowLeft','ArrowRight','ArrowUp','ArrowDown',' '].includes(e.key)){e.preventDefault();keys.add(e.key);}
  if(e.key.toLowerCase()==='e'&&!e.repeat){game.activateFocus();processEvents();}
+ if(['g','q'].includes(e.key.toLowerCase())&&!e.repeat)lob();
 });
 addEventListener('keyup',e=>keys.delete(e.key));addEventListener('blur',()=>{fire=false;pointerId=null;keys.clear();pause();});document.addEventListener('visibilitychange',()=>{if(document.hidden)pause();});addEventListener('resize',()=>renderer.resize());
 /** The first connected gamepad: stick (with dead zone), fire, and buttons pressed this frame. */
@@ -212,7 +218,7 @@ function step(dt){
  if(attract){attract.t+=dt;autopilot(dt);if(attract.t>ATTRACT_SEGMENT)nextAttract();}
  if(mode!=='playing')return;
  const speed=.65;aim.x=Math.max(.02,Math.min(.98,aim.x+((keys.has('ArrowRight')?1:0)-(keys.has('ArrowLeft')?1:0))*dt*speed));aim.y=Math.max(.19,Math.min(.85,aim.y+((keys.has('ArrowDown')?1:0)-(keys.has('ArrowUp')?1:0))*dt*speed));
- if(pad){aim.x=Math.max(.02,Math.min(.98,aim.x+pad.x*dt*1.15));aim.y=Math.max(.19,Math.min(.85,aim.y+pad.y*dt*1.15));if((pad.pressed(3)||pad.pressed(1))&&game.focus>=100){game.activateFocus();}}
+ if(pad){aim.x=Math.max(.02,Math.min(.98,aim.x+pad.x*dt*1.15));aim.y=Math.max(.19,Math.min(.85,aim.y+pad.y*dt*1.15));if((pad.pressed(3)||pad.pressed(1))&&game.focus>=100){game.activateFocus();}if(pad.pressed(4)||pad.pressed(6))lob();}
  game.update(dt);if(fire||keys.has(' ')||pad?.fire){renderer.sync(game,aim);game.shoot(aim.x,aim.y,innerWidth/innerHeight);}processEvents();renderer.update(dt);audio.update(game);
  if(field.context&&renderer.bossRex){renderer.bossRex.voice=field.vocalPose(dt);field.listen(renderer.world.camera,renderer.bossRex.headOf(renderer.bossRex.voiceSlot??0));field.update(Math.min(16,Math.abs(game.speed)),dt,true,BOSS_STAGES.includes(game.stage.id));}
  if(field.context)ambience.update(true);

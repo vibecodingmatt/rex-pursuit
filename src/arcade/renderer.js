@@ -41,6 +41,9 @@ export class RideRenderer {
     const chain=Math.min(5,1+Math.floor((this.game?.combo||0)/5));this.labels.push({x:e.x*this.w,y:e.y*this.h,at:at?.add(this.lift.set(0,e.kind==='trike'?2.6:1.6,0)),text:`+${e.points.toLocaleString()}`,tag:e.precise?'PRECISION':chain>1?`CHAIN ×${chain}`:'',life:1.15,max:1.15,color:CHAIN[chain-1],size:Math.min(34,18+Math.log10(Math.max(10,e.points))*3)});if(e.boss)this.shake=.5;}
   if(e.type==='damage'||e.type==='attack'){this.shake=.7;this.flash=.5;}
   if(e.type==='blast'){this.world.air?.startle(this.world.distance+30);this.shake=.7;}
+  // Grenades: a hot round arcs off the muzzle; the burst lands on the nearest animal caught, else the ground.
+  if(e.type==='launch'||e.type==='grenade'){const at=this.landing(e);if(e.type==='launch'){this.recoil=1.6;this.weapon?.fire();const sh=this.weapon?.shot;if(sh&&at)this.effects.trace(sh.origin,at,{core:[22,9,2.5],halo:[5,1.5,.3]});}
+   else if(at){this.effects.burst(at,false,true);this.world.air?.startle(this.world.distance+30);this.shake=Math.max(this.shake,.85);}}
   if(e.type==='stagger'){this.shake=.3;this.labels.push({x:e.x*this.w,y:e.y*this.h,text:'ATTACK BROKEN',life:1.3,color:'#9ff8e0'});}
   if(e.type==='supply'){const a=this.actors?.actors.get(e.id);if(a)this.impacts?.kill({kind:'supply'},a.position.clone());else this.burst(e.x,e.y,'#a8ffcb');this.labels.push({x:e.x*this.w,y:e.y*this.h,text:'REPAIR +22',life:1.2,color:'#a8ffcb'});}
   if(e.type==='bridge')this.shake=1.2;
@@ -128,6 +131,8 @@ export class RideRenderer {
   if(slot?.started){const head=slot.rex.headPosition();t.camera(this.world.camera,head,time,aspect);t.light(this.world.practicalLights,head,time);}
   this.world.render();
  }
+ /** Where a grenade aimed at screen (x, y) lands: the first animal it caught, else the ground under the sight. */
+ landing(e){const hit=(e.hits||[]).map(id=>this.actors?.actors.get(id)?.position).find(Boolean);if(hit)return hit.clone();const r=this.impacts?.aim(e.x,e.y);if(!r)return null;const d=this.impacts.surface(r,this.game?.stage.id||'gates');return r.at(d>0?d:40,new T.Vector3());}
  render(game,aim,{menu=false,time=0}={}){
   const c=this.ctx,w=this.w,h=this.h;let index=menu?0:game?.stage.bg||0;c.clearRect(0,0,w,h);
   if(game?.stage.id==='fault'&&game.stageTime<10)index=5;
