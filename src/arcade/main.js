@@ -9,6 +9,8 @@ const $=id=>document.getElementById(id),canvas=$('ride'),renderer=new RideRender
 const test=new URLSearchParams(location.search).get('test')==='1';
 let clearCard=0,game=null,mode='menu',route='extended',ready=false,fire=false,frozen=false,clock=0,accumulator=0,last=performance.now(),announcementTime=0,radioTime=0,saved=false;
 const aim={x:.5,y:.5},keys=new Set();let pointerId=null;
+// A15: the cabinet's ten-second CONTINUE? countdown, and gamepad state (buttons held last frame).
+let continueClock=0,padHeld=[];
 canvas.tabIndex=0;
 const fmt=n=>Math.round(n).toLocaleString('en-US');
 const names={trike:'TRICERATOPS · STAMPEDE LEADER',rex:'TYRANNOSAURUS REX',indominus:'INDOMINUS REX',indoraptor:'INDORAPTOR',mosa:'MOSASAURUS',twins:'TWO KINGS. ONE EXIT.'};
@@ -123,7 +125,7 @@ function overlay(title,copy,kicker){$('overlay-title').textContent=title;$('over
 function pause(){if(mode!=='playing')return;field.pause(true).catch(()=>{});showMode('paused');overlay('Ride paused.','Aim with mouse or arrow keys. Hold mouse or Space to fire. E activates Overdrive.','TAKE A BREATH');$('resume').hidden=false;$('resume').focus();}
 function resume(){if(mode!=='paused')return;showMode('playing');void audio.unlock();unlockField();canvas.focus({preventScroll:true});}
 function showContinue(){showMode('continue');overlay('Ride interrupted.',game.credits?`Your vehicle took one hit too many. ${game.credits} free continues remain. Your route and score will be preserved.`:'You gave the island a run for its money. Your score is ready.','CONTINUE?');
- if(game.credits){$('continue').hidden=false;$('continue').textContent=`CONTINUE · ${game.credits} CREDITS ↗`;$('continue').focus();}
+ if(game.credits){$('continue').hidden=false;$('continue').textContent=`CONTINUE · ${game.credits} CREDITS ↗`;$('continue').focus();continueClock=10;$('overlay-kicker').textContent='CONTINUE? 10';}
  else showResult(false);
 }
 function showResult(won){showMode('result');overlay(won?'You made it out.':'The island wins.',won?`${game.route==='classic'?'The ’94 Circuit':'The Extended Cut'} complete. ${game.continues?'Continued-run record.':'One credit. A whole lot of dinosaurs.'}`:`Reached ${game.stage.name}. Ride again for a cleaner run.`,won?'EXPEDITION COMPLETE':'GAME OVER');
@@ -159,17 +161,31 @@ addEventListener('keydown',e=>{
  if(e.key.toLowerCase()==='e'&&!e.repeat){game.activateFocus();processEvents();}
 });
 addEventListener('keyup',e=>keys.delete(e.key));addEventListener('blur',()=>{fire=false;pointerId=null;keys.clear();pause();});document.addEventListener('visibilitychange',()=>{if(document.hidden)pause();});addEventListener('resize',()=>renderer.resize());
+/** The first connected gamepad: stick (with dead zone), fire, and buttons pressed this frame. */
+function gamepad(){
+ const pads=navigator.getGamepads?.()||[],p=[...pads].find(g=>g&&g.connected);if(!p){padHeld=[];return null;}
+ const dz=v=>Math.abs(v)<.16?0:Math.sign(v)*((Math.abs(v)-.16)/.84)**1.6,b=i=>!!p.buttons[i]?.pressed||(p.buttons[i]?.value||0)>.35;
+ const held=p.buttons.map((_,i)=>b(i)),prev=padHeld,pressed=i=>held[i]&&!prev[i];const out={x:dz(p.axes[0]||0)+(held[15]?1:0)-(held[14]?1:0),y:dz(p.axes[1]||0)+(held[13]?1:0)-(held[12]?1:0),fire:held[7]||held[0]||held[5],pressed};padHeld=held;return out;
+}
+let pad=null;
 function step(dt){
  if(mode!=='playing')return;
  const speed=.65;aim.x=Math.max(.02,Math.min(.98,aim.x+((keys.has('ArrowRight')?1:0)-(keys.has('ArrowLeft')?1:0))*dt*speed));aim.y=Math.max(.19,Math.min(.85,aim.y+((keys.has('ArrowDown')?1:0)-(keys.has('ArrowUp')?1:0))*dt*speed));
- game.update(dt);if(fire||keys.has(' ')){renderer.sync(game,aim);game.shoot(aim.x,aim.y,innerWidth/innerHeight);}processEvents();renderer.update(dt);audio.update(game);
+ if(pad){aim.x=Math.max(.02,Math.min(.98,aim.x+pad.x*dt*1.15));aim.y=Math.max(.19,Math.min(.85,aim.y+pad.y*dt*1.15));if((pad.pressed(3)||pad.pressed(1))&&game.focus>=100){game.activateFocus();}}
+ game.update(dt);if(fire||keys.has(' ')||pad?.fire){renderer.sync(game,aim);game.shoot(aim.x,aim.y,innerWidth/innerHeight);}processEvents();renderer.update(dt);audio.update(game);
  if(field.context&&renderer.bossRex){renderer.bossRex.voice=field.vocalPose(dt);field.listen(renderer.world.camera,renderer.bossRex.headOf(renderer.bossRex.voiceSlot??0));field.update(Math.min(16,Math.abs(game.speed)),dt,true,BOSS_STAGES.includes(game.stage.id));}
  if(field.context)ambience.update(true);
  if(clearCard>0&&(clearCard-=dt)<=0)announce('SECTOR CLEAR','Still in one piece.','INTEGRITY +12 · SECTOR BONUS +1,500',2.6,true);
  announcementTime=Math.max(0,announcementTime-dt);radioTime=Math.max(0,radioTime-dt);$('announcement').style.opacity=String(Math.min(1,announcementTime*2));$('radio').style.opacity=String(Math.min(1,radioTime));
 }
 let hudTick=0;
-function frame(now){const raw=now-last,dt=Math.min(.1,raw/1000);last=now;if(quality&&!frozen&&!document.hidden&&quality.sample(raw,mode==='playing'))qualityLabel();
+function frame(now){const raw=now-last,dt=Math.min(.1,raw/1000);last=now;
+ pad=gamepad();
+ // Gamepad on the screens: A starts, continues or restarts; Start pauses and resumes.
+ if(pad){if(pad.pressed(9)){if(mode==='playing')pause();else if(mode==='paused')resume();}
+  if(pad.pressed(0)){if(mode==='menu')$('start').click();else if(mode==='continue'&&!$('continue').hidden)$('continue').click();else if(mode==='result')$('restart').click();}}
+ // CONTINUE? 10 … 1: the last three tick higher; at zero the run ends.
+ if(!frozen&&mode==='continue'&&continueClock>0){const was=Math.ceil(continueClock);continueClock-=dt;const left=Math.max(0,Math.ceil(continueClock));if(left!==was&&left>0)audio.tone(left<=3?880:620,.08,.1,'square');$('overlay-kicker').textContent=`CONTINUE? ${left}`;if(continueClock<=0){continueClock=0;showResult(false);}}if(quality&&!frozen&&!document.hidden&&quality.sample(raw,mode==='playing'))qualityLabel();
  if(!frozen){if(mode==='menu'&&!document.hidden)clock+=dt;if(mode==='playing'){if(hitStop>0)hitStop-=dt;else{accumulator+=dt*slowScale(dt);while(accumulator>=1/60){step(1/60);accumulator-=1/60;}}hudTick+=dt;if(hudTick>.08){updateHud();hudTick=0;}}}
  renderer.render(game,aim,{menu:mode==='menu',time:game?.time??clock});bossCues();requestAnimationFrame(frame);
 }
