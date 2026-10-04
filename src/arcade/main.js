@@ -19,7 +19,11 @@ const ATTRACT_IDLE=25,ATTRACT_SEGMENT=18,ATTRACT_STAGES=['gates','river','fault'
 canvas.tabIndex=0;
 const fmt=n=>Math.round(n).toLocaleString('en-US');
 const names={trike:'TRICERATOPS · STAMPEDE LEADER',rex:'TYRANNOSAURUS REX',indominus:'INDOMINUS REX',indoraptor:'INDORAPTOR',mosa:'MOSASAURUS',twins:'TWO KINGS. ONE EXIT.'};
-function readBest(){return readRecord(()=>localStorage,route,$('difficulty').value);}
+function readBest(){return readRecord(()=>localStorage,daily?dailyRoute():route,$('difficulty').value);}
+// The daily run: the Extended Cut on today's seed (local date), with its own best and top ten.
+let daily=false;const today=()=>{const d=new Date();return `${d.getFullYear()}${String(d.getMonth()+1).padStart(2,'0')}${String(d.getDate()).padStart(2,'0')}`;},dailyRoute=()=>`daily-${today()}`;
+function setDaily(on){daily=on;$('daily').setAttribute('aria-pressed',String(on));document.querySelector('.route-picker').classList.toggle('locked',on);updateBest();}
+$('daily').addEventListener('click',()=>setDaily(!daily));
 function updateBest(){$('best').textContent=`BEST ${readBest()?fmt(readBest()):'—'}`;}
 function persist(){
  if(saved||test)return;saved=true;
@@ -34,7 +38,7 @@ function stageChanged(){
  announce(`${String(game.stageIndex+1).padStart(2,'0')} / ${String(game.path.length).padStart(2,'0')} — ${stage.era}`,stage.name,'HOLD TO FIRE · SHOOT DEBRIS · KEEP MOVING');radio(stage.radio);
 }
 function unlockField(){fieldInit??=field.init().then(()=>{audio.worldSounds=false;if(field.muted!==audio.muted)field.mute();if(mode!=='playing')return field.pause(true);}).catch(e=>{console.warn('Recorded audio unavailable:',e.message);});if(field.context)field.pause(false).catch(()=>{});}
-function start(){if(!ready)return;clearCard=0;hiBest=readBest()||0;audio.reset();field.stopCalls();void audio.unlock();unlockField();game=new Circuit({route,difficulty:$('difficulty').value});game.projector=(e,aspect)=>renderer.project(e,aspect);saved=false;fire=false;keys.clear();renderer.reset();clock=0;accumulator=0;showMode('playing');canvas.focus({preventScroll:true});processEvents();updateHud();}
+function start(){if(!ready)return;clearCard=0;hiBest=readBest()||0;audio.reset();field.stopCalls();void audio.unlock();unlockField();game=new Circuit({route:daily?'extended':route,difficulty:$('difficulty').value,seed:daily?Number(today()):94});if(daily)game.route=dailyRoute();game.projector=(e,aspect)=>renderer.project(e,aspect);saved=false;fire=false;keys.clear();renderer.reset();clock=0;accumulator=0;showMode('playing');canvas.focus({preventScroll:true});processEvents();updateHud();}
 function processEvents(){for(const event of game.drain()){
  renderer.event(event);audio.event(event);fieldEvent(event);
  if(event.type==='stage')stageChanged();
@@ -143,7 +147,7 @@ function showContinue(){showMode('continue');overlay('Ride interrupted.',game.cr
  if(game.credits){$('continue').hidden=false;$('continue').textContent=`CONTINUE · ${game.credits} CREDITS ↗`;$('continue').focus();continueClock=10;$('overlay-kicker').textContent='CONTINUE? 10';}
  else showResult(false);
 }
-function showResult(won){showMode('result');overlay(won?'You made it out.':'The island wins.',won?`${game.route==='classic'?'The ’94 Circuit':'The Extended Cut'} complete. ${game.continues?'Continued-run record.':'One credit. A whole lot of dinosaurs.'}`:`Reached ${game.stage.name}. Ride again for a cleaner run.`,won?'EXPEDITION COMPLETE':'GAME OVER');
+function showResult(won){showMode('result');overlay(won?'You made it out.':'The island wins.',won?`${game.route==='classic'?'The ’94 Circuit':game.route.startsWith('daily-')?'Today’s daily run':'The Extended Cut'} complete. ${game.continues?'Continued-run record.':'One credit. A whole lot of dinosaurs.'}`:`Reached ${game.stage.name}. Ride again for a cleaner run.`,won?'EXPEDITION COMPLETE':'GAME OVER');
  const stats=[[fmt(game.score),'FINAL SCORE'],[grade(game),'RANK'],[`${Math.round(game.hits/Math.max(1,game.shots)*100)}%`,'ACCURACY'],[String(game.maxCombo),'BEST CHAIN'],[String(game.bosses),'BOSSES REPELLED'],[String(game.continues),'CONTINUES']];
  $('result-stats').replaceChildren(...stats.map(([v,l])=>{const el=document.createElement('div'),b=document.createElement('b'),small=document.createElement('small');if(l==='RANK')el.className='flourish';b.textContent=v;small.textContent=l;el.append(b,small);return el;}));$('restart').hidden=false;$('restart').focus();persist();showBoard();
 }
@@ -179,7 +183,7 @@ function slowScale(dt){if(!game||game.stage.id!=='fault'||!game.bridgeBroken){sl
 function motionLabel(){$('motion').textContent=renderer.reduced?'MOTION LOW':'MOTION FULL';$('motion').setAttribute('aria-pressed',String(renderer.reduced));}motionLabel();
 $('motion').addEventListener('click',()=>{renderer.reduced=!renderer.reduced;motionLabel();});
 $('difficulty').addEventListener('change',updateBest);
-document.querySelectorAll('[data-route]').forEach(button=>button.addEventListener('click',()=>{route=button.dataset.route;document.querySelectorAll('[data-route]').forEach(b=>b.setAttribute('aria-pressed',String(b===button)));updateBest();}));
+document.querySelectorAll('[data-route]').forEach(button=>button.addEventListener('click',()=>{route=button.dataset.route;setDaily(false);document.querySelectorAll('[data-route]').forEach(b=>b.setAttribute('aria-pressed',String(b===button)));updateBest();}));
 $('about-open').addEventListener('click',()=>$('about').showModal());$('about-close').addEventListener('click',()=>$('about').close());
 function pointer(e){aim.x=Math.max(.02,Math.min(.98,e.clientX/innerWidth));aim.y=Math.max(.19,Math.min(.85,(e.clientY-(e.pointerType==='touch'?42:0))/innerHeight));}
 canvas.addEventListener('pointerdown',e=>{if(mode!=='playing'||(e.pointerType==='mouse'&&e.button!==0)||pointerId!==null)return;pointerId=e.pointerId;canvas.setPointerCapture(e.pointerId);pointer(e);fire=true;void audio.unlock();e.preventDefault();});
@@ -243,7 +247,9 @@ function frame(now){const raw=now-last,dt=Math.min(.1,raw/1000);last=now;
  // CONTINUE? 10 … 1: the last three tick higher; at zero the run ends.
  if(!frozen&&mode==='continue'&&continueClock>0){const was=Math.ceil(continueClock);continueClock-=dt;const left=Math.max(0,Math.ceil(continueClock));if(left!==was&&left>0)audio.tone(left<=3?880:620,.08,.1,'square');$('overlay-kicker').textContent=`CONTINUE? ${left}`;if(continueClock<=0){continueClock=0;showResult(false);}}if(quality&&!frozen&&!document.hidden&&quality.sample(raw,mode==='playing'))qualityLabel();
  if(!frozen){if(mode==='menu'&&!document.hidden)clock+=dt;if(mode==='playing'){if(hitStop>0)hitStop-=dt;else{accumulator+=dt*slowScale(dt);while(accumulator>=1/60){step(1/60);accumulator-=1/60;}}hudTick+=dt;if(hudTick>.08){updateHud();hudTick=0;}}}
- renderer.render(game,aim,{menu:mode==='menu',time:game?.time??clock});bossCues();requestAnimationFrame(frame);
+ renderer.render(game,aim,{menu:mode==='menu',time:game?.time??clock});bossCues();
+ // Inside the rotunda the reverb becomes a stone hall: gunfire and roars ring off the walls.
+ field.space?.(mode==='playing'&&renderer.world.rotunda?.root.visible?'hall':'forest');requestAnimationFrame(frame);
 }
 requestAnimationFrame(frame);
 async function load(){
@@ -257,7 +263,7 @@ async function load(){
   $('start').disabled=false;$('start-label').textContent='START THE RIDE';$('load-status').textContent='';updateBest();void renderer.loadBosses();}
  catch{$('load-status').textContent='The island could not load. Check your connection and reload this page.';$('start-label').textContent='RELOAD TO RETRY';$('start').disabled=false;$('start').onclick=()=>location.reload();}
 }void load();
-window.lostCircuit={get ready(){return ready;},get mode(){return mode;},snapshot:()=>game?.snapshot(),get audioState(){return audio.context?.state||'uninitialized';},get art(){return Object.fromEntries(Object.entries(renderer.images).map(([key,im])=>[key,{width:im.width,height:im.height}]));}};
+window.lostCircuit={get ready(){return ready;},get mode(){return mode;},get room(){return field.room||null;},snapshot:()=>game?.snapshot(),get audioState(){return audio.context?.state||'uninitialized';},get art(){return Object.fromEntries(Object.entries(renderer.images).map(([key,im])=>[key,{width:im.width,height:im.height}]));}};
 // Object.assign would copy a getter's current value; quality is created after loading.
 if(test)Object.defineProperty(window.lostCircuit,'quality',{get:()=>quality});
 if(test)Object.assign(window.lostCircuit,{getGame:()=>game,get renderer(){return renderer;},get ambience(){return ambience;},project:e=>renderer.project(e,innerWidth/innerHeight),bossesReady:()=>renderer.loadBosses().then(()=>renderer.bossRex.ready),diagnostics:()=>({trike:renderer.bossTrike?.diagnostics(),bosses:renderer.bossRex?.diagnostics(),weapon:renderer.weapon.diagnostics(),camera:renderer.world.camera.position.toArray(),actors:renderer.actors.diagnostics(),draws:renderer.world.renderer.info.render.calls,triangles:renderer.world.renderer.info.render.triangles}),freeze:v=>{frozen=v;},step:(seconds,autoplay=false,live=false)=>{
