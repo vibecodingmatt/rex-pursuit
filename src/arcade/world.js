@@ -18,6 +18,7 @@ import {Promenade} from './promenade.js';
 import {Glass} from './glass.js';
 import {createVisitorCenter} from '../chase/visitor-center.js';
 import {Rotunda} from './rotunda.js';
+import {ArcadeRain} from './rain.js';
 // A14: the finale drives to Pursuit's Visitor Center. Its root (Pursuit frame: building toward -z)
 // is turned to face the vehicle at PLAZA; street buildings stop short of it.
 // A14: past the plaza the finale's route runs straight along the Visitor Center's axis, up its steps
@@ -153,7 +154,7 @@ export class CircuitWorld {
   this.materials.porcelain=new T.MeshStandardMaterial({color:0xcdbf9f,roughness:.2});this.materials.voltSign=new T.MeshStandardMaterial({map:voltTexture(),roughness:.55,metalness:.25});this.sparks=new Sparks(this.scene);
   this.fault=new Fault(this.scene,{rock:this.materials.rock,diffuse:gateDiffuse,normal:gateNormal,routeX,routeY,routeHeading,terrain:(off,z)=>terrainY(off,z,'fault',{canyon:true,bridge:z>=288&&z<640})});this.gate=new Gate(this.scene,{stone:this.materials.stone,sign:this.signs.gates,light:this.practicalLights[0],diffuse:gateDiffuse,normal:gateNormal,routeX,routeY,routeHeading,groundAt});
   this.promenade=new Promenade(this.scene,{routeX,routeY,routeHeading});this.glass=new Glass(this.scene);this.glass.floor=(x,z)=>groundAt(x,z,this.id);
-  this.visitorCenter=createVisitorCenter(this.scene);this.rotunda=new Rotunda(this.scene);
+  this.visitorCenter=createVisitorCenter(this.scene);this.rotunda=new Rotunda(this.scene);this.rain=new ArcadeRain(this.scene);
   // Pursuit's own ground, road and court planes would fight the arcade terrain; the building, steps, pond and planting stay.
   for(const o of [...this.visitorCenter.root.children])if(o.isMesh&&o.geometry.type==='PlaneGeometry')o.visible=false;
   this.ready=true;
@@ -263,7 +264,7 @@ export class CircuitWorld {
  }
  disposeChunk(g){this.scene.remove(g);for(const h of g.userData.batched||[])h.dispose();g.userData.batched=[];this.batches.dirty=true;const shared=new Set([...Object.values(this.materials),...Object.values(this.kit.materials)]);g.traverse(o=>{if(o.isInstancedMesh){o.dispose();return;}if(o.isLineSegments){o.geometry.dispose();o.material.dispose();return;}if(o.isMesh&&!Object.values(this.geometry).includes(o.geometry))o.geometry.dispose();if(o.isMesh&&!shared.has(o.material)&&!o.material.userData.shared)o.material.dispose();});}
  setStage(id){if(this.id===id)return;
-  {const r=this.rotunda;r.root.visible=false;r.reset();this.doorBroken=false;if(id==='visitor'){const k=Math.hypot(1,DX0(PLAZA)),zd=PLAZA+DOOR/k;r.place(new T.Vector3(routeX(zd,id),Y0(PLAZA)+STEPS[2],zd),Math.atan(DX0(PLAZA)));}}
+  this.rain.reset();{const r=this.rotunda;r.root.visible=false;r.reset();this.doorBroken=false;if(id==='visitor'){const k=Math.hypot(1,DX0(PLAZA)),zd=PLAZA+DOOR/k;r.place(new T.Vector3(routeX(zd,id),Y0(PLAZA)+STEPS[2],zd),Math.atan(DX0(PLAZA)));}}
   {const v=this.visitorCenter,on=id==='visitor';v.root.visible=on;if(on){const h=routeHeading(PLAZA,id);v.root.position.set(routeX(PLAZA,id),routeY(PLAZA,id),PLAZA);v.root.rotation.set(0,Math.PI+h,0);}}this.spray.reset();for(const g of this.chunks)this.disposeChunk(g);this.chunks=[];this.id=id;const p=palettes[id];this.light.setStage(id);this.air.setStage(id);this.materials.ground.setStage(id);this.rocks.setStage(id);this.materials.leaf.color.set(p.leaf).multiplyScalar(1.45);this.materials.canopy.color.set(p.leaf).multiplyScalar(.77);this.materials.water.color.set(p.water);}
  sync(game,{reduced=false,time=0,shake=0}={}){
   if(!this.ready)return;const id=game?.stage.id||'gates';this.setStage(id);this.distance=game?.travel??time*4;const before=this.time;this.time=game?.time??time;const dt=clamp(this.time-before,0,.1);this.wave.value=this.time;

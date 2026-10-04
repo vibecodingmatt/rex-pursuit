@@ -17,9 +17,10 @@ const STORM={fog:new T.Color(0x4e5851),zenith:new T.Color(0x3a444c),hemiSky:new 
 // sun direction plus a moon rim from behind the Rex. Storm clouds dim both.
 const NIGHT={fog:new T.Color(0x0b1317),fogStorm:new T.Color(0x0e1518),zenith:new T.Color(0x060c18),zenithStorm:new T.Color(0x0b1015),hemiSky:new T.Color(0x6a7fa3),hemiGround:new T.Color(0x16140f),moon:new T.Color(0xa7bde3),
  sun:.17,hemi:.13,rim:1.1,fill:.03,env:.22,density:1.18,exposure:1.3,saturation:.8,contrast:.26,vol:.05,bloom:.2,shadowTint:new T.Color(.7,.9,1.3)};
-const RAIN_BOX=new T.Vector3(26,17,34),RAIN_MAX=14000,SPLASH_MAX=320;
+export const RAIN_BOX=new T.Vector3(26,17,34),RAIN_MAX=14000,SPLASH_MAX=320;
 
-function rainMesh(){
+/** Camera-relative rain streaks (one instanced draw); also driven on its own by the arcade's rain.js. */
+export function rainMesh(){
  const g=new T.InstancedBufferGeometry();
  g.setAttribute('corner',new T.Float32BufferAttribute([-1,0,1,0,-1,1,1,1],2));g.setIndex([0,2,1,1,2,3]);
  const seeds=new Float32Array(RAIN_MAX*4);let s=4242;const r=()=>{s=(1664525*s+1013904223)>>>0;return s/4294967296;};for(let i=0;i<seeds.length;i++)seeds[i]=r();
