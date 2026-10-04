@@ -48,7 +48,7 @@ function skinMaps(){
 // ------------------------------------------------------------------- shader --
 // Rearing pivots in the rest pose (only y and z matter): the hip sockets, the forelegs'
 // swing point just above the belly line, and the wrists. Shared by the shader and the CPU pose.
-const HIP=[0,4.35,-1.6],SHOULDER=[0,3.4,2],WRIST=[0,1.4,1.95];
+const HIP=[0,4.35,-1.6],SHOULDER=[0,3.4,2],WRIST=[0,1.4,1.95],KNEE=[0,2.1,-1.45];
 // Rear-up timeline (seconds) and pose gains. peak is the body pitch in radians (43 degrees);
 // the neck joints counter-pitch by neck[j] x pitch, the tail base by tail x pitch.
 const REAR={peak:.75,flinch:.3,rise:1.7,hold:1.4,fall:.85,neck:[-.7,-.45,-.3,-.1,-.08],tail:-.55,swing:.5,fold:.5};
@@ -68,9 +68,10 @@ const CHAIN=`
  uniform vec4 uNeck[5];uniform vec3 uNeckRot[5];uniform vec4 uTail[4];uniform vec3 uTailRot[4];uniform vec3 uJawHinge;uniform float uJaw,uBreath;
  // Rearing: x body pitch about the hips, y foreleg swing back, z wrist fold.
  uniform vec3 uRear;
- // Walking (only the arcade's river crossing sets it): x gait phase in cycles, y leg swing
- // amplitude (rad), z foot lift (m), w on.
- uniform vec4 uWalk;
+ // Walking (only the arcade's river crossing sets it): w on. uLeg per leg (fore +x, fore -x,
+ // hind +x, hind -x): x hip or shoulder swing (rad, + carries the foot forward), y knee or
+ // wrist flex (rad, folds the foot back), z foot lift (m), w ankle pitch that levels the sole.
+ uniform vec4 uWalk;uniform vec4 uLeg[4];
  // Pitch (x, up positive) then yaw (y).
  mat3 rotPY(vec3 a){float cp=cos(a.x),sp=sin(a.x),cy=cos(a.y),sy=sin(a.y);return mat3(cy,0.,-sy,0.,1.,0.,sy,0.,cy)*mat3(1.,0.,0.,0.,cp,-sp,0.,sp,cp);}
  // Joint chains, distal joint first about rest-pose pivots: each joint's turn blends
@@ -82,16 +83,21 @@ const CHAIN=`
   for(int j=4;j>=0;j--){float w=smoothstep(uNeck[j].w-.45,uNeck[j].w+.45,s);if(w>.001){mat3 R=rotPY(uNeckRot[j]*w);p=uNeck[j].xyz+R*(p-uNeck[j].xyz);n=R*n;}}
   for(int j=3;j>=0;j--){float w=1.-smoothstep(uTail[j].w-.45,uTail[j].w+.45,s);if(w>.001){mat3 R=rotPY(uTailRot[j]*w);p=uTail[j].xyz+R*(p-uTail[j].xyz);n=R*n;}}
   if(uWalk.w>0.){
-   // A lateral-sequence walk (left hind, left fore, right hind, right fore a quarter cycle
-   // apart): each leg swings about its hip or shoulder, the weight fading out toward the
-   // body, and the swinging foot lifts.
-   float wz=.4+1.2*smoothstep(1.8,3.4,rest.y),hind=step(.5,smoothstep(.8+wz,.8-wz,rest.z));
+   // Each leg is a chain posed distal joint first about rest pivots: the ankle levels the
+   // sole, the knee (hind) or wrist (fore) folds the foot back in the swing, the swinging
+   // leg lifts, and the whole leg swings about its hip or shoulder, the weight fading out
+   // toward the body. The gait itself (planted stance, lateral sequence) is brachio-crossing.js.
+   float wz=.4+1.2*smoothstep(1.8,3.4,rest.y);bool hind=smoothstep(.8+wz,.8-wz,rest.z)>.5;
    float leg=max(limb,1.-smoothstep(1.7,2.5,rest.y))*(1.-smoothstep(3.,4.2,rest.y));
    if(leg>.001){
-    float ph=6.2832*(uWalk.x+(rest.x>0.?0.:.5)+(1.-hind)*.25);
-    vec3 pv=hind>.5?${v3(HIP)}:${v3(SHOULDER)};
-    mat3 R=rotPY(vec3(uWalk.y*sin(ph)*leg,0.,0.));p=pv+R*(p-pv);n=R*n;
-    p.y+=uWalk.z*pow(max(0.,cos(ph)),1.5)*(1.-smoothstep(.1,2.4,rest.y))*leg;
+    vec4 L=hind?(rest.x>0.?uLeg[2]:uLeg[3]):(rest.x>0.?uLeg[0]:uLeg[1]);
+    vec3 hp=hind?${v3(HIP)}:${v3(SHOULDER)},kp=hind?${v3(KNEE)}:${v3(WRIST)},ap=vec3(0.,.42,hind?-1.35:2.05);
+    float foot=leg*(1.-smoothstep(ap.y-.12,ap.y+.22,rest.y)),shin=leg*(1.-smoothstep(kp.y-.32,kp.y+.32,rest.y));
+    mat3 R;
+    if(foot>.001){R=rotPY(vec3(L.w*foot,0.,0.));p=ap+R*(p-ap);n=R*n;}
+    if(shin>.001){R=rotPY(vec3(-L.y*shin,0.,0.));p=kp+R*(p-kp);n=R*n;}
+    p.y+=L.z*leg*(1.-smoothstep(1.,3.2,rest.y));
+    R=rotPY(vec3(L.x*leg,0.,0.));p=hp+R*(p-hp);n=R*n;
    }
   }
   if(uRear.x>0.){
@@ -203,7 +209,7 @@ function parse(buffer){
 }
 
 export function createBrachio(scene,{jungle}){
- const uniforms={uNeck:{value:[0,1,2,3,4].map(()=>new T.Vector4())},uNeckRot:{value:[0,1,2,3,4].map(()=>new T.Vector3())},uTail:{value:[0,1,2,3].map(()=>new T.Vector4())},uTailRot:{value:[0,1,2,3].map(()=>new T.Vector3())},uJawHinge:{value:new T.Vector3()},uJaw:{value:0},uBreath:{value:0},uRear:{value:new T.Vector3()},uWalk:{value:new T.Vector4()}};
+ const uniforms={uNeck:{value:[0,1,2,3,4].map(()=>new T.Vector4())},uNeckRot:{value:[0,1,2,3,4].map(()=>new T.Vector3())},uTail:{value:[0,1,2,3].map(()=>new T.Vector4())},uTailRot:{value:[0,1,2,3].map(()=>new T.Vector3())},uJawHinge:{value:new T.Vector3()},uJaw:{value:0},uBreath:{value:0},uRear:{value:new T.Vector3()},uWalk:{value:new T.Vector4()},uLeg:{value:[0,1,2,3].map(()=>new T.Vector4())}};
  uniforms.uFold={value:new T.Vector2()};uniforms.uEye={value:[new T.Vector3(),new T.Vector3()]};uniforms.uEyeR={value:.1};uniforms.uNostril={value:[new T.Vector3(),new T.Vector3()]};uniforms.uNostrilR={value:.07};const {material,depth}=brachioMaterial(uniforms,skinMaps());
  const mesh=new T.Mesh(new T.BufferGeometry(),material);mesh.customDepthMaterial=depth;mesh.receiveShadow=true;mesh.castShadow=true;mesh.visible=false;mesh.name='Brachiosaur';scene.add(mesh);
  let header=null,on=false,travel=0,next=0,clock=0,lift=0,called=false,pending=null,wanted=null,rear=-1,stomped=true,proxies=[],api;
