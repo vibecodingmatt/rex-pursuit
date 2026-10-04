@@ -40,6 +40,7 @@ function processEvents(){for(const event of game.drain()){
  if(event.type==='clear'){if(game.clearHold>3.5)clearCard=2.1;else announce('SECTOR CLEAR','Still in one piece.','INTEGRITY +12 · SECTOR BONUS +1,500',3);}
  if(event.type==='bridge'){announce('HOLD ON','There goes the bridge.','SHOOT THE FALLING DEBRIS',2);radio('Brace! Clear the debris. We are jumping the gap!');}
  if(event.type==='focus')radio('Overdrive online. Five seconds. Make them count.');
+ if(event.type==='power'){announce('EXPLOSIVE ROUNDS','Every round counts double.','8 SECONDS · SHOOT EVERYTHING',1.6);radio('Explosive rounds loaded! Light them up!');}
  if(event.type==='beat'&&event.text)radio(event.text);
  if(event.type==='threat')radio(`Raptors on the ${event.side}! They are keeping pace. Watch for the turn!`);
  if(attract&&(event.type==='loss'||event.type==='win')){nextAttract();continue;}
@@ -116,7 +117,8 @@ function bossCues(){
  }
 }
 function updateHud(){
- if(!game)return;$('score').textContent=String(game.score).padStart(6,'0');$('health').textContent=Math.ceil(game.hp);
+ if(!game)return;$('score').textContent=String(game.score).padStart(6,'0');
+ {const w=document.querySelector('.weapon-label'),on=game.power>0;w.classList.toggle('powered',on);w.querySelector('b').textContent=on?'EXPLOSIVE ROUNDS':'TX–94 AUTOMATIC';w.querySelector('span').innerHTML=on?`EVERY ROUND ×2 · <i>${Math.ceil(game.power)}s</i>`:'TRANQUILIZER SYSTEM <i>∞</i>';}$('health').textContent=Math.ceil(game.hp);
  $('health-bars').replaceChildren(...Array.from({length:10},(_,i)=>{const bar=document.createElement('i');if(i>=Math.ceil(game.hp/10))bar.className='empty';if(game.hp<30&&bar.className!=='empty')bar.style.background='#ef9c6f';return bar;}));
  $('multiplier').textContent=`×${Math.min(5,1+Math.floor(game.combo/5))}`;$('chain-text').textContent=game.combo?`${game.combo} CHAIN`:'MAKE IT COUNT';$('chain-fill').style.width=`${game.chainTime/4.5*100}%`;
  $('focus-fill').style.width=`${game.focusTime>0?game.focusTime/5*100:game.focus}%`;$('focus-value').textContent=game.focusTime>0?'ACTIVE':game.focus>=100?'READY ↗':`${Math.floor(game.focus)}%`;$('focus').classList.toggle('ready',game.focus>=100);$('focus').setAttribute('aria-label',game.focus>=100?'Activate Overdrive':`Overdrive charging ${Math.floor(game.focus)} percent`);

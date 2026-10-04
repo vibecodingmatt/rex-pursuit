@@ -27,3 +27,5 @@
 @keyframes attract-blink{50%{opacity:.15}}
 body[data-attract] #pause,body[data-attract] .focus-button{visibility:hidden}
 body[data-attract] #radio,body[data-attract] #announcement{visibility:hidden}
+/* Explosive rounds: the weapon label burns orange while they last. */
+.weapon-label.powered b,.weapon-label.powered i{color:#ff9a3c;text-shadow:0 0 10px rgba(255,140,40,.7)}.weapon-label.powered span{color:#ffd0a0}

@@ -38,6 +38,8 @@ export class CircuitActors {
  pushers(){const out=[];for(const a of this.actors.values()){const k=a.e.kind;if(a.dead||!a.c||k==='ptero')continue;out.push({x:a.position.x,z:a.position.z,r:k==='trike'?3.6:k==='galli'?1.8:2.3,s:1});}return out;}
  makeShadow(){const c=document.createElement('canvas');c.width=c.height=64;const x=c.getContext('2d'),g=x.createRadialGradient(32,32,4,32,32,32);g.addColorStop(0,'#000b');g.addColorStop(1,'#0000');x.fillStyle=g;x.fillRect(0,0,64,64);return new T.CanvasTexture(c);}
  reset(){for(const [id,w]of this.walls)this.dropWall(id,w);for(const a of this.actors.values())if(a.mesh)disposeProp(a.mesh);this.actors.clear();this.corpses=[];this.critters.reset({empty:true});this.flyers.reset({empty:true});for(const s of this.shadows)s.visible=false;}
+ /** A power crate (explosive rounds) is the supply crate in hazard orange with a glowing band. */
+ paintPower(mesh,e){if(!e.power||!mesh)return mesh;mesh.traverse(o=>{if(o.isMesh){o.material=o.material.clone();o.material.userData.shared=false;o.material.color?.set(0xff8a1e);if(o.material.emissive)o.material.emissive.set(0x5a2000);}});return mesh;}
  makeProp(kind,stage){
   if(kind==='rock'&&stage==='fault'&&this.world.fault){const m=this.world.fault.meteor();this.scene.add(m);return m;}
   if(kind==='ichthy'&&this.ichthy){const mesh=createIchthy(this.ichthy);mesh.scale.setScalar(1.15);this.scene.add(mesh);return mesh;}
@@ -65,7 +67,7 @@ export class CircuitActors {
   let shadow=0;
   for(const e of game.entities){
    if(e.boss||e.age<0){if(e.ambush&&!e.boss&&!e.dead)this.brushWall(e,game);continue;}let a=this.actors.get(e.id);
-   if(!a){const kind=species[e.kind],c=kind?this.critters.huntSpawn(kind,Math.sign(e.lane-.5),30):e.kind==='ptero'?this.flyers.huntSpawn('pteranodon',Math.sign(e.lane-.5)):null;a={e,c,mesh:c?null:this.makeProp(e.kind,game.stage.id),position:new T.Vector3(),head:new T.Vector3(),yaw:0,dead:false,burst:!!e.ambush};this.actors.set(e.id,a);if(c&&kind)c.scale=sizes[e.kind];}
+   if(!a){const kind=species[e.kind],c=kind?this.critters.huntSpawn(kind,Math.sign(e.lane-.5),30):e.kind==='ptero'?this.flyers.huntSpawn('pteranodon',Math.sign(e.lane-.5)):null;a={e,c,mesh:c?null:this.paintPower(this.makeProp(e.kind,game.stage.id),e),position:new T.Vector3(),head:new T.Vector3(),yaw:0,dead:false,burst:!!e.ambush};this.actors.set(e.id,a);if(c&&kind)c.scale=sizes[e.kind];}
    const age=Math.max(0,e.age),life=e.life,side=e.lane<.5?-1:1,id=game.stage.id,cruise=id==='manor'?14:id==='fault'?27:24;
    const animal=!!species[e.kind],windup=e.leaper?e.leapAt-.65:life-.9,charge=clamp((age-windup)/.9,0,1),parallel=40-age*2.5;
    // Crates and barrels stand still beside the track; everything else closes on the vehicle.

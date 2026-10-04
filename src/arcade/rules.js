@@ -31,6 +31,8 @@ export const TYPES = {
  rock:{hp:5,points:100,size:.16},spit:{hp:1,points:75,size:.10},supply:{hp:1,points:0,size:.13},barrel:{hp:2,points:250,size:.16}
 };
 const clamp=(v,a,b)=>Math.max(a,Math.min(b,v));
+/** Seconds of explosive rounds from a power crate. */
+export const POWER=8;
 // A Rex or Triceratops boss is fought in reverse: the vehicle brakes, then backs away
 // while she chases (or charges) it. The clear phase holds longer so her fall can play out.
 export const DRIVE={rex:-9,twins:-8,trike:-6};
@@ -126,14 +128,15 @@ export class Circuit {
   if(!target)return true;
   this.hits++;target.hit=.14;
   if(target.kind==='supply'){
-   target.dead=true;this.hp=Math.min(100,this.hp+22);this.focus=Math.min(100,this.focus+25);this.emit('supply',{x:target.x,y:target.y,id:target.id});return true;
+   // Every other crate is explosive rounds: every round counts double for POWER seconds.
+   target.dead=true;if(target.power){this.power=POWER;this.emit('power',{x:target.x,y:target.y,id:target.id});}else{this.hp=Math.min(100,this.hp+22);this.focus=Math.min(100,this.focus+25);}this.emit('supply',{x:target.x,y:target.y,id:target.id,power:!!target.power});return true;
   }
   if(target.kind==='barrel'){
    target.hp--;if(target.hp<=0){this.kill(target);this.emit('blast',{x:target.x,y:target.y});
     for(const e of list)if(e!==target&&!e.dead){e.hp-=e.boss?14:20;if(e.hp<=0)this.kill(e);}}
    return true;
   }
-  target.hp-=precise?(target.boss&&target.weak?5:3):1;
+  target.hp-=(precise?(target.boss&&target.weak?5:3):1)*(this.power>0?2:1);
   if(target.boss&&precise&&target.weak){target.weakHits++;if(target.weakHits>=9){target.age=Math.floor(target.age/6.4)*6.4+6.4;target.weakHits=0;this.emit('stagger',{id:target.id,x:target.x,y:target.y});}}
   if(target.hp<=0)this.kill(target,precise);
   return true;
@@ -143,6 +146,7 @@ export class Circuit {
  finish(){this.status='won';this.score+=Math.round(this.hp)*50+(this.continues===0?5000:0);this.emit('win');}
  update(dt){
   if(this.status!=='playing')return;
+  this.power=Math.max(0,(this.power||0)-dt);
   dt=clamp(dt,0,.05);this.time+=dt;this.phaseTime+=dt;this.cooldown=Math.max(0,this.cooldown-dt);this.invulnerable=Math.max(0,this.invulnerable-dt);
   const cruise=this.stage.id==='manor'?14:this.stage.id==='fault'?27:24;
   const drive=DRIVE[this.stage.boss],brake=clamp((this.phaseTime-.8)/1.8,0,1);
@@ -162,7 +166,7 @@ export class Circuit {
     if(this.stageTime>15&&this.wave%3===0)this.spawn(roster[0],{delay:.4});
    }
    if(this.hazardTimer<=0){this.spawn(this.stage.id==='manor'?'spit':'rock');this.hazardTimer=5.2;}
-   if(this.supplyTimer<=0){this.spawn(this.wave%2?'supply':'barrel');this.supplyTimer=12;}
+   if(this.supplyTimer<=0){const c=this.spawn(this.wave%2?'supply':'barrel');if(c.kind==='supply'&&(this.crates=(this.crates||0)+1)%2===0)c.power=true;this.supplyTimer=12;}
    if(this.stage.setpiece==='bridge'&&this.stageTime>19&&!this.bridgeBroken){this.bridgeBroken=true;this.bridgeOrigin=this.travel+30;this.emit('bridge');for(let i=0;i<3;i++)this.spawn('rock',{x:.27+i*.23,delay:i*.6});}
    if(this.stageTime>=this.stage.duration){
     this.phase='boss';this.phaseTime=0;
