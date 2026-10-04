@@ -61,6 +61,14 @@ function bossCues(){
  for(const cue of renderer.world.fault?.drain()||[]){if(!field.context||mode!=='playing')continue;if(cue.type==='snap')field.woodBreak(cue.weight*.7);if(cue.type==='bounce'){field.groundImpact(Math.min(1,cue.weight*.8),cue.at);renderer.shake=Math.max(renderer.shake,cue.weight*.3);}if(cue.type==='land'){field.groundImpact(1);field.woodBreak(.5);renderer.shake=Math.max(renderer.shake,.7);const c=renderer.world.camera.position;for(let i=0;i<5;i++)renderer.effects.groundDust(c.clone().set(c.x+(i-2)*1.4,c.y-2.4,c.z+2+i%2),c.clone().set((i-2)*.8,.6,1.5),{life:1.6,size:1.1,opacity:.38,color:0x8a6f5a});}}
  for(const cue of renderer.world.promenade?.drain()||[])if(field.context&&mode==='playing'){field.sample('wind',{volume:.6,rate:1.45,duration:4.2,lowpass:2600,at:cue.at,fade:.8});field.sample('engine-loop',{volume:.32,rate:2.3,duration:3.4,lowpass:1700,at:cue.at,fade:.7});}
  for(const cue of renderer.world.gate?.drain()||[])if(field.context&&mode==='playing'&&cue.type==='slam'){field.woodBreak(.45);field.groundImpact(.7,cue.at);renderer.shake=Math.max(renderer.shake,.25);}
+ // The Mosasaurus (boss-mosa.js): breach, slam, surfacing, bite, pain and her death roll.
+ for(const cue of renderer.bossMosa?.drain()||[]){if(!field.context||mode!=='playing')continue;
+  if(cue.type==='breach'){field.splash('enter',cue.at,1);field.play(field.roles.opening,1,.58,{vocal:false,at:cue.at,wet:.5});renderer.shake=Math.max(renderer.shake,.5);}
+  if(cue.type==='slam'){field.splash('enter',cue.at,1);field.groundImpact(1,cue.at);renderer.shake=Math.max(renderer.shake,1.1);}
+  if(cue.type==='surface'){field.splash('step',cue.at,1);field.play(field.roles.growl,.8,.62,{vocal:false,at:cue.at,wet:.4});}
+  if(cue.type==='bite'){field.bite();field.impact();renderer.shake=Math.max(renderer.shake,1.2);}
+  if(cue.type==='pain')field.play(field.roles.opening,.8,.75,{vocal:false,at:cue.at,wet:.4});
+  if(cue.type==='fall'){field.play(field.roles.opening,1,.5,{vocal:false,at:cue.at,wet:.6});field.splash('enter',cue.at,1);}}
  // The Triceratops' bellows, footfalls, pawing, horn lock and shoves (boss-trike.js).
  const trike=renderer.bossTrike,eye=renderer.world.camera.position;
  for(const cue of trike?.drain()||[]){if(!field.context||mode!=='playing')continue;const near=Math.max(0,1-cue.at.distanceTo(eye)/32);

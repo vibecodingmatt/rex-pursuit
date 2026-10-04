@@ -8,6 +8,7 @@ import {CircuitVehicle} from './vehicle.js';
 import {CircuitImpacts} from './impacts.js';
 import {BossRex} from './boss-rex.js';
 import {BossTrike} from './boss-trike.js';
+import {BossMosa} from './boss-mosa.js';
 import {createEffects} from '../chase/effects.js';
 import {dustTexture} from '../chase/foliage.js';
 // Individual cell padding avoids the generated atlas's occasional boundary overlap.
@@ -18,21 +19,21 @@ const CHAIN=['#f4ecd2','#9ff8c0','#7fe3ff','#ffc46b','#ff6a4d'];
 const hash=n=>{const s=Math.sin(n*127.1+311.7)*43758.5453;return s-Math.floor(s);};
 export class RideRenderer {
  constructor(canvas){this.canvas=canvas;this.ctx=canvas.getContext('2d');this.terrain=document.createElement('canvas');this.terrain.id='terrain';this.terrain.setAttribute('aria-hidden','true');canvas.before(this.terrain);this.world=new CircuitWorld(this.terrain);this.images={};this.particles=[];this.labels=[];this.tracers=[];this.shake=0;this.flash=0;this.recoil=0;this.hitMark=0;this.heat=0;this.lift=new T.Vector3();this.age=0;this.reduced=matchMedia('(prefers-reduced-motion: reduce)').matches;this.resize();}
- async load(onProgress){let n=0;await Promise.all([this.world.load(),...['worlds','predators','wildlife','landmarks'].map(async key=>{const im=new Image();im.src=new URL(`./arcade/${key}.png`,document.baseURI).href;await im.decode();this.images[key]=im;onProgress(++n/6);})]);this.actors=new CircuitActors(this.world);await this.actors.load();this.bossTrike=new BossTrike(this.world,this.actors);this.world.rimCreatures(this.world.scene);onProgress(5/6);this.weapon=new CircuitWeapon(this.world);this.vehicle=this.world.vehicle=new CircuitVehicle(this.world);this.effects=createEffects(this.world.scene,dustTexture());this.vehicle.effects=this.effects;this.impacts=new CircuitImpacts(this,{reducedMotion:this.reduced});this.world.overlay=this.effects.soft.render;this.bossRex=new BossRex(this.world);this.sync(null,{x:.5,y:.5});onProgress(1);}
+ async load(onProgress){let n=0;await Promise.all([this.world.load(),...['worlds','predators','wildlife','landmarks'].map(async key=>{const im=new Image();im.src=new URL(`./arcade/${key}.png`,document.baseURI).href;await im.decode();this.images[key]=im;onProgress(++n/6);})]);this.actors=new CircuitActors(this.world);await this.actors.load();this.bossTrike=new BossTrike(this.world,this.actors);this.world.rimCreatures(this.world.scene);onProgress(5/6);this.weapon=new CircuitWeapon(this.world);this.vehicle=this.world.vehicle=new CircuitVehicle(this.world);this.effects=createEffects(this.world.scene,dustTexture());this.vehicle.effects=this.effects;this.impacts=new CircuitImpacts(this,{reducedMotion:this.reduced});this.world.overlay=this.effects.soft.render;this.bossRex=new BossRex(this.world);this.bossMosa=new BossMosa(this.world);this.bossMosa.load().catch(e=>console.warn('Mosasaurus unavailable; using the 2D boss.',e.message));this.sync(null,{x:.5,y:.5});onProgress(1);}
  /** The hero Rex streams in after the menu is usable; until then the 2D boss stands in. */
  loadBosses(){this.bossLoad??=this.bossRex.load().catch(e=>{console.warn('Hero Rex unavailable; using the 2D boss.',e.message);});return this.bossLoad;}
  resize(){this.w=innerWidth;this.h=innerHeight;const dpr=Math.min(devicePixelRatio||1,1.6);this.canvas.width=Math.round(this.w*dpr);this.canvas.height=Math.round(this.h*dpr);this.ctx.setTransform(dpr,0,0,dpr,0,0);this.world.resize(this.w,this.h);}
- reset(){this.particles=[];this.labels=[];this.tracers=[];this.shake=0;this.flash=0;this.recoil=0;this.hitMark=0;this.heat=0;this.impacts?.reset();this.actors?.reset();this.weapon?.reset();this.bossRex?.reset();this.bossTrike?.reset();this.effects?.reset();}
- sync(game,aim){if(!this.weapon)return;this.game=game;this.world.sync(game,{reduced:this.reduced,shake:this.shake});this.bossTrike?.sync(game);this.actors.sync(game);this.bossRex.sync(game);this.weapon.sync(game,aim);
+ reset(){this.particles=[];this.labels=[];this.tracers=[];this.shake=0;this.flash=0;this.recoil=0;this.hitMark=0;this.heat=0;this.impacts?.reset();this.actors?.reset();this.weapon?.reset();this.bossRex?.reset();this.bossTrike?.reset();this.bossMosa?.reset();this.effects?.reset();}
+ sync(game,aim){if(!this.weapon)return;this.game=game;this.world.sync(game,{reduced:this.reduced,shake:this.shake});this.bossTrike?.sync(game);this.bossMosa?.sync(game);this.actors.sync(game);this.bossRex.sync(game);this.weapon.sync(game,aim);
   // Bosses and running animals push the planting aside on the next frame.
   this.world.pushers=[...this.bossRex.slots.filter(s=>s.id!==null&&s.frame.visible).map(s=>({x:s.frame.position.x,z:s.frame.position.z,r:6,s:1.3})),...[this.bossTrike?.pusher()].filter(Boolean),...this.actors.pushers()].slice(0,6);}
- project(e,aspect=this.w/this.h){return this.bossRex?.project(e,aspect)||this.bossTrike?.project(e,aspect)||this.actors?.project(e,aspect)||project(e,aspect);}
+ project(e,aspect=this.w/this.h){return this.bossRex?.project(e,aspect)||this.bossTrike?.project(e,aspect)||this.bossMosa?.project(e,aspect)||this.actors?.project(e,aspect)||project(e,aspect);}
  burst(x,y,color,count=20,power=1){for(let i=0;i<count;i++){const a=hash(i+this.age*71)*Math.PI*2,v=(50+hash(i*9+this.age)*180)*power;this.particles.push({x:x*this.w,y:y*this.h,vx:Math.cos(a)*v,vy:Math.sin(a)*v,life:.35+hash(i*3)*.6,max:1,color,size:1+hash(i*11)*4});}if(this.particles.length>200)this.particles.splice(0,this.particles.length-200);}
  event(e){
-  this.bossRex?.event(e);this.bossTrike?.event(e);
-  if(e.id){const boss=this.bossRex?.slots.find(s=>s.id===e.id&&s.started),trike=!boss&&this.bossTrike?.slot?.id===e.id&&this.bossTrike.handles(this.bossTrike.slot.entity),actor=this.actors?.actors.get(e.id),p=boss?this.bossRex.project(boss.entity,this.w/this.h):trike?this.bossTrike.project(this.bossTrike.slot.entity,this.w/this.h):actor&&this.project(actor.e);if(p?.visible&&e.type!=='shot')e={...e,x:boss||trike?p.hx:p.x,y:boss||trike?p.hy:p.y};}
+  this.bossRex?.event(e);this.bossTrike?.event(e);this.bossMosa?.event(e);
+  if(e.id){const boss=this.bossRex?.slots.find(s=>s.id===e.id&&s.started),trike=!boss&&this.bossTrike?.slot?.id===e.id&&this.bossTrike.handles(this.bossTrike.slot.entity),mosa=!boss&&!trike&&this.bossMosa?.slot?.id===e.id&&this.bossMosa.handles(this.bossMosa.slot.entity),actor=this.actors?.actors.get(e.id),p=boss?this.bossRex.project(boss.entity,this.w/this.h):trike?this.bossTrike.project(this.bossTrike.slot.entity,this.w/this.h):mosa?this.bossMosa.project(this.bossMosa.slot.entity,this.w/this.h):actor&&this.project(actor.e);if(p?.visible&&e.type!=='shot')e={...e,x:boss||trike||mosa?p.hx:p.x,y:boss||trike||mosa?p.hy:p.y};}
   // Rounds that meet her hide leave a wound and throw flecks and mist back toward the gun.
-  if(e.type==='shot'&&e.hit&&e.id){const wound=this.bossRex?.wound(e)||this.bossTrike?.wound(e);if(wound){this.effects.burst(wound.point,true);this.lastWound=wound;}}
+  if(e.type==='shot'&&e.hit&&e.id){const wound=this.bossRex?.wound(e)||this.bossTrike?.wound(e)||this.bossMosa?.wound(e);if(wound){this.effects.burst(wound.point,true);this.lastWound=wound;}}
   if(e.type==='shot'){this.recoil=1;this.heat=Math.min(1,this.heat+.13);this.weapon?.fire();this.impacts?.shot(e);if(e.hit){this.hitMark=.11;this.confirm={x:e.x,y:e.y,precise:e.precise,life:.22};}}
   if(e.type==='kill'){const a=this.actors?.actors.get(e.id),trike=this.bossTrike?.slot?.id===e.id&&this.bossTrike.slot.c,at=a?a.position.clone():trike?this.bossTrike.head(this.bossTrike.slot):null;if(at)this.impacts?.kill(e,at);else this.burst(e.x,e.y,e.boss?'#f5cf88':'#d4af6f',e.boss?50:20,1);
     const chain=Math.min(5,1+Math.floor((this.game?.combo||0)/5));this.labels.push({x:e.x*this.w,y:e.y*this.h,at:at?.add(this.lift.set(0,e.kind==='trike'?2.6:1.6,0)),text:`+${e.points.toLocaleString()}`,tag:e.precise?'PRECISION':chain>1?`CHAIN ×${chain}`:'',life:1.15,max:1.15,color:CHAIN[chain-1],size:Math.min(34,18+Math.log10(Math.max(10,e.points))*3)});if(e.boss)this.shake=.5;}
@@ -94,7 +95,7 @@ export class RideRenderer {
  entity(e,time,game){
   if(e.age<0)return;const c=this.ctx,w=this.w,h=this.h;
   // A modeled boss is part of the lit 3D scene; only its weak-point mark is drawn here.
-  const hero=this.bossRex?.handles(e)?this.bossRex:this.bossTrike?.handles(e)?this.bossTrike:null;
+  const hero=this.bossRex?.handles(e)?this.bossRex:this.bossTrike?.handles(e)?this.bossTrike:this.bossMosa?.handles(e)?this.bossMosa:null;
   if(hero){const p=hero.project(e,w/h);if(!e.dead&&e.weak&&p.visible)this.weakMark(e,p.hx*w,p.hy*h,Math.max(24,p.hr*h*1.25));return;}
   const p=project(e,w/h),size=p.h*h;
   if(!['ptero','ichthy','mosa','spit'].includes(e.kind)){

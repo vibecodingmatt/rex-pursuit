@@ -48,6 +48,7 @@
                     "test:victory": "node scripts/test-victory.mjs && node scripts/verify-victory.cjs",
                     "art:brachio": "node scripts/build-brachio.mjs",
                     "art:ichthy": "node scripts/build-ichthy.mjs",
+                    "art:mosa": "node scripts/build-mosa.mjs",
                     "art:safari": "node scripts/build-safari.mjs",
                     "test:balance":  "node scripts/simulate-pressure.mjs",
                     "audio:split":  "node scripts/split-audio.cjs",
