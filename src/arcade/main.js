@@ -11,7 +11,7 @@ const test=new URLSearchParams(location.search).get('test')==='1';
 let clearCard=0,game=null,mode='menu',route='extended',ready=false,fire=false,frozen=false,clock=0,accumulator=0,last=performance.now(),announcementTime=0,radioTime=0,saved=false;
 const aim={x:.5,y:.5},keys=new Set();let pointerId=null;
 // A15: the cabinet's ten-second CONTINUE? countdown, and gamepad state (buttons held last frame).
-let continueClock=0,padHeld=[],entering=false,lastMultiplier=1,hiBest=0,lastTally=null,heartbeat=0;
+let continueClock=0,padHeld=[],entering=false,lastMultiplier=1,hiBest=0,lastTally=null,heartbeat=0,thunderIn=6;
 // The clear card's tally (rules tally()): accuracy bonus, NO DAMAGE bonus and the sector bonus.
 const points=n=>n.toLocaleString('en-US'),clearCopy=()=>lastTally?.perfect?'Perfect. Not a scratch.':'Still in one piece.';
 const tallyLine=()=>{const t=lastTally||{accuracy:0,accBonus:0};return[`ACCURACY ${t.accuracy}% +${points(t.accBonus)}`,t.perfect&&`NO DAMAGE +${points(t.perfectBonus)}`,'SECTOR +1,500'].filter(Boolean).join(' · ');};
@@ -304,7 +304,9 @@ function frame(now){const raw=now-last,dt=Math.min(.1,raw/1000);last=now;
    heartbeat-=dt;if(game.hp<=30&&game.status==='playing'&&heartbeat<=0){heartbeat=.84;audio.tone(58,.11,.14,'sine',42);setTimeout(()=>audio.tone(52,.13,.11,'sine',38),170);}}}
  coop(dt);renderer.render(game,aim,{menu:mode==='menu',time:game?.time??clock,aim2:mode==='playing'?p2?.aim:null});bossCues();
  // Inside the rotunda the reverb becomes a stone hall: gunfire and roars ring off the walls.
- field.space?.(mode==='playing'&&renderer.world.rotunda?.root.visible?'hall':'forest');requestAnimationFrame(frame);
+ field.space?.(mode==='playing'&&renderer.world.rotunda?.root.visible?'hall':'forest');
+ // The finale's rain (rain.js): the recorded bed, muffled under the rotunda's roof, and the odd far thunder on the street.
+ {const lvl=mode==='playing'?renderer.world.rain?.level||0:0,inside=renderer.world.rotunda?.root.visible;field.weather?.(lvl*(inside?.3:1));if(lvl>.5&&!inside&&(thunderIn-=dt)<=0){thunderIn=12+Math.random()*10;field.thunder?.(1.2+Math.random()*2,false);}}requestAnimationFrame(frame);
 }
 requestAnimationFrame(frame);
 async function load(){
