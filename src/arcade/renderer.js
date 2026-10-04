@@ -1,5 +1,5 @@
 import * as T from 'three';
-import {TYPES,project} from './rules.js';
+import {TYPES,project,STAGES} from './rules.js';
 import {drawPuppet} from './puppet.js';
 import {CircuitWorld} from './world.js';
 import {CircuitActors} from './actors.js';
@@ -21,7 +21,18 @@ const CHAIN=['#f4ecd2','#9ff8c0','#7fe3ff','#ffc46b','#ff6a4d'];
 const hash=n=>{const s=Math.sin(n*127.1+311.7)*43758.5453;return s-Math.floor(s);};
 export class RideRenderer {
  constructor(canvas){this.canvas=canvas;this.ctx=canvas.getContext('2d');this.terrain=document.createElement('canvas');this.terrain.id='terrain';this.terrain.setAttribute('aria-hidden','true');canvas.before(this.terrain);this.world=new CircuitWorld(this.terrain);this.images={};this.particles=[];this.labels=[];this.tracers=[];this.shake=0;this.flash=0;this.recoil=0;this.hitMark=0;this.heat=0;this.lift=new T.Vector3();this.age=0;this.reduced=matchMedia('(prefers-reduced-motion: reduce)').matches;this.resize();}
- async load(onProgress){let n=0;await Promise.all([this.world.load(),...['worlds','predators','wildlife','landmarks'].map(async key=>{const im=new Image();im.src=new URL(`./arcade/${key}.png`,document.baseURI).href;await im.decode();this.images[key]=im;onProgress(++n/6);})]);this.actors=new CircuitActors(this.world);await this.actors.load();this.bossTrike=new BossTrike(this.world,this.actors);this.bossIndo=new BossIndoraptor(this.world,this.actors);this.world.rimCreatures(this.world.scene);onProgress(5/6);this.weapon=new CircuitWeapon(this.world);this.weapon2=new CircuitWeapon(this.world,{side:-1.35,torch:false});this.vehicle=this.world.vehicle=new CircuitVehicle(this.world);this.effects=createEffects(this.world.scene,dustTexture());this.vehicle.effects=this.effects;this.impacts=new CircuitImpacts(this,{reducedMotion:this.reduced});this.world.overlay=this.effects.soft.render;this.bossRex=new BossRex(this.world);this.bossMosa=new BossMosa(this.world);this.bossMosa.load().catch(e=>console.warn('Mosasaurus unavailable; using the 2D boss.',e.message));this.sync(null,{x:.5,y:.5});onProgress(1);}
+ async load(onProgress){let n=0;await Promise.all([this.world.load(),...['worlds','predators','wildlife','landmarks'].map(async key=>{const im=new Image();im.src=new URL(`./arcade/${key}.png`,document.baseURI).href;await im.decode();this.images[key]=im;onProgress(++n/6);})]);this.actors=new CircuitActors(this.world);await this.actors.load();this.bossTrike=new BossTrike(this.world,this.actors);this.bossIndo=new BossIndoraptor(this.world,this.actors);this.world.rimCreatures(this.world.scene);onProgress(5/6);this.weapon=new CircuitWeapon(this.world);this.weapon2=new CircuitWeapon(this.world,{side:-1.35,torch:false});this.vehicle=this.world.vehicle=new CircuitVehicle(this.world);this.effects=createEffects(this.world.scene,dustTexture());this.vehicle.effects=this.effects;this.impacts=new CircuitImpacts(this,{reducedMotion:this.reduced});this.world.overlay=this.effects.soft.render;this.bossRex=new BossRex(this.world);this.bossMosa=new BossMosa(this.world);this.bossMosa.load().catch(e=>console.warn('Mosasaurus unavailable; using the 2D boss.',e.message));await this.prewarm();this.sync(null,{x:.5,y:.5});onProgress(1);}
+ /** Stage warm-up while loading: visit every stage once (its first chunks, water, set pieces) and compile its
+  * shaders, so no stage stalls on its first frame (the river and fault took 0.8-0.9 s, mostly compiling). */
+ async prewarm(){
+  const w=this.world;
+  for(const stage of STAGES){
+   const g={stage,travel:60,time:0,speed:0,phase:'ride',phaseTime:2,stageTime:2,status:'playing',entities:[],hp:100,focusTime:0,power:0};
+   // A real frame through the post pipeline: compile() alone builds the wrong variants (screen, not the HDR targets).
+   try{w.sync(g,{reduced:true,shake:0});w.render();}catch(e){console.warn('Stage warm-up skipped:',stage.id,e.message);}
+   await new Promise(f=>setTimeout(f,0));
+  }
+ }
  /** The hero Rex streams in after the menu is usable; until then the 2D boss stands in. */
  loadBosses(){this.bossLoad??=this.bossRex.load().catch(e=>{console.warn('Hero Rex unavailable; using the 2D boss.',e.message);});return this.bossLoad;}
  resize(){this.w=innerWidth;this.h=innerHeight;const dpr=Math.min(devicePixelRatio||1,1.6);this.canvas.width=Math.round(this.w*dpr);this.canvas.height=Math.round(this.h*dpr);this.ctx.setTransform(dpr,0,0,dpr,0,0);this.world.resize(this.w,this.h);}
