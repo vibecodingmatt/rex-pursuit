@@ -18,7 +18,7 @@ export class CircuitQuality{
  get tier(){return this.choice==='auto'?this.auto:this.choice;}
  get label(){return this.choice==='auto'?`AUTO · ${TIERS[this.auto].label.toUpperCase()}`:TIERS[this.choice].label.toUpperCase();}
  apply(){
-  const name=this.tier,a=ARCADE[name],t=TIERS[name],r=this.renderer,w=r.world,wide=innerWidth>700;r.tierName=name;
+  const name=this.tier,a=ARCADE[name],t=TIERS[name],r=this.renderer,w=r.world,wide=innerWidth>700;r.tierName=name;w.coverDistance={low:80,medium:120,high:170}[name]??Infinity;
   w.renderer.setPixelRatio(Math.min(devicePixelRatio,a.pixelRatio));this.governor.setRange(a.scale);this.governor.reset();
   // Ambient occlusion only pays for itself on wide screens.
   w.post.configure({scale:this.governor.scale,...a.post,ao:wide?a.post.ao:false});

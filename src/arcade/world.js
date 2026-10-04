@@ -229,6 +229,8 @@ export class CircuitWorld {
   for(const mesh of [this.instances(g,this.geometry.blob,this.rocks.blob,blobs,false),this.instances(g,C.pebbles[Math.abs(index)%3],m.pebble,pebbles)])if(mesh)mesh.userData.noReflect=true;
   for(const [name,items]of Object.entries(stillItems)){const geometry=mergeStill(items);if(!geometry)continue;const mesh=new T.Mesh(geometry,kit.materials[name]);mesh.castShadow=name==='bark';mesh.receiveShadow=true;mesh.userData.noReflect=true;g.add(mesh);}this.instances(g,this.geometry.box,m.wood,wood);this.instances(g,this.geometry.pole,m.metal,posts);this.instances(g,this.geometry.box,m.stone,stone);this.instances(g,this.geometry.box,m.metal,metal);this.instances(g,this.geometry.box,m.lamp,lamps,false);this.instances(g,this.geometry.insulator,m.porcelain,insulators,false);this.instances(g,this.geometry.plate,m.voltSign,plates,false);this.instances(g,this.geometry.box,m.glass,glass,false);this.instances(g,this.geometry.box,m.lava,lava,false);
   this.instances(g,this.geometry.leaf,interior?m.manorFacade:id==='visitor'?m.visitorFacade:m.modernFacade,facades);
+  // Ground cover (grass, ferns, shrubs and their litter) drops out of far chunks on the lower tiers (coverDistance).
+  const small=[kit.materials.grass,kit.materials.fern,kit.materials.shrub];g.userData.cover=g.children.filter(o=>o.isMesh&&small.includes(o.material));
   return g;
  }
  disposeChunk(g){this.scene.remove(g);const shared=new Set([...Object.values(this.materials),...Object.values(this.kit.materials)]);g.traverse(o=>{if(o.isInstancedMesh){o.dispose();return;}if(o.isLineSegments){o.geometry.dispose();o.material.dispose();return;}if(o.isMesh&&!Object.values(this.geometry).includes(o.geometry))o.geometry.dispose();if(o.isMesh&&!shared.has(o.material)&&!o.material.userData.shared)o.material.dispose();});}
@@ -239,7 +241,7 @@ export class CircuitWorld {
   if(!this.ready)return;const id=game?.stage.id||'gates';this.setStage(id);this.distance=game?.travel??time*4;const before=this.time;this.time=game?.time??time;const dt=clamp(this.time-before,0,.1);this.wave.value=this.time;
   const first=Math.floor(this.distance/32)-1;for(const g of this.chunks.filter(g=>g.userData.index<first||g.userData.index>first+8)){this.disposeChunk(g);this.chunks.splice(this.chunks.indexOf(g),1);}for(let i=first;i<=first+8;i++)if(!this.chunks.some(g=>g.userData.index===i))this.chunks.push(this.makeChunk(i));
   // Scanned rocks drop to their far LOD beyond 70 m.
-  for(const chunk of this.chunks){const far=chunk.position.z-this.distance>70;if(chunk.userData.far!==far){chunk.userData.far=far;for(const o of chunk.children)if(o.userData.lod)o.geometry=far?o.userData.lod.far:o.userData.lod.near;}}
+  for(const chunk of this.chunks){const ahead=chunk.position.z-this.distance,cover=ahead<(this.coverDistance??Infinity);if(chunk.userData.coverOn!==cover){chunk.userData.coverOn=cover;for(const o of chunk.userData.cover||[])o.visible=cover;}const far=ahead>70;if(chunk.userData.far!==far){chunk.userData.far=far;for(const o of chunk.children)if(o.userData.lod)o.geometry=far?o.userData.lod.far:o.userData.lod.near;}}
   const z=this.distance,move=reduced?0:1,rough=id==='fault'?1.7:1,roll=Math.sin(z*.071)*.007*move;
   // Anchor the leap to the actual gap, so Overdrive cannot land us in midair.
   const leap=id==='fault'&&game?.bridgeBroken?(z-game.bridgeOrigin+30)/60:-1;
