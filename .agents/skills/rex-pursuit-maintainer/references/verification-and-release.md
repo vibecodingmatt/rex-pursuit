@@ -88,6 +88,8 @@ A reproducible loss can be triggered after starting: transition to `pursuit`, se
 
 Listen for both `pageerror` and browser console errors. Shader compilation failures can appear only in the console and leave a page that still responds to input. Screenshots alone cannot prove successful compilation.
 
+`verify-lost-circuit.cjs`'s "actual pointer input hits" check is intermittent on the touch views: landscape failed once locally (2026-10-03) and compact once against the live site (2026-10-04), each passing on the next run with no change. Rerun before investigating; if it repeats, check whether the tap (target head, 42 px low) lands on the GRENADE or Overdrive buttons.
+
 ## Publishing when authorized
 
 Production is `https://vibecodingmatt.github.io/rex-pursuit/`, from `vibecodingmatt/rex-pursuit` main. Any push to main triggers `.github/workflows/pages.yml`, including documentation-only commits. Follow current user authorization; skill installation and local documentation edits do not themselves require a game release.
