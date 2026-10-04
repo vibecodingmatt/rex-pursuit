@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict';
 import {Circuit,project,recordKey,grade,BEATS,STAGES} from '../src/arcade/rules.js';
-import {readRecord,saveRecord} from '../src/arcade/records.js';
+import {readRecord,saveRecord,readMedals,awardMedal} from '../src/arcade/records.js';
 for(const st of STAGES){assert.equal(BEATS[st.id]?.length,3,`${st.id}: three beat sheets`);for(const sheet of BEATS[st.id])sheet.forEach((b,i)=>assert(i===0||b[0]>sheet[i-1][0],`${st.id}: beats in order`));}
 {const run=seed=>{const g=new Circuit({route:'classic',seed});const beats=[];for(let i=0;i<60*40&&g.stageIndex===0;i++){g.update(1/60);for(const e of g.drain())if(e.type==='beat')beats.push(e.pattern);}return{variant:g.variant,beats};};
  const a=run(94),b=run(94);assert.equal(a.variant,b.variant,'A seed replays the same beat sheet');assert.deepEqual(a.beats,b.beats);assert(a.beats.length>=3,'The gates stage plays its beats');
@@ -61,4 +61,5 @@ console.log('Lost Circuit rules: complete routes, phone targets, frame rates, lo
  assert.equal(g.status,'won','a boss rush can be won');assert(g.time<200,'a boss rush is short');}
 const memory=new Map(),storage=()=>({getItem:key=>memory.get(key),setItem:(key,value)=>memory.set(key,value)}),round={route:'classic',difficulty:'arcade',continues:0,score:98765};
 assert.equal(saveRecord(storage,round).saved,true);assert.equal(readRecord(storage,'classic','arcade'),98765);saveRecord(storage,{...round,score:10});assert.equal(readRecord(storage,'classic','arcade'),98765);saveRecord(storage,{...round,continues:1,score:120000});assert.equal(readRecord(storage,'classic','arcade',true),120000);assert.equal(readRecord(storage,'extended','arcade'),0);
-const denied=()=>{throw Error('Storage denied');};assert.equal(readRecord(denied,'classic','arcade'),0);assert.equal(saveRecord(denied,round).saved,false);memory.set(recordKey('classic','tour'),'Infinity');assert.equal(readRecord(storage,'classic','tour'),0);console.log('Records: persistence, best-only updates, continued/category isolation, corrupt values and storage-denied fallback passed.');
+const denied=()=>{throw Error('Storage denied');};
+{const box=new Map(),st=()=>({getItem:k=>box.get(k),setItem:(k,v)=>box.set(k,v)});assert.equal(awardMedal(st,'golden'),true);assert.equal(awardMedal(st,'golden'),false,'a medal is awarded once');assert.equal(awardMedal(st,'nope'),false);assert.deepEqual(readMedals(st),['golden']);assert.deepEqual(readMedals(denied),[]);assert.equal(awardMedal(denied,'clean'),false);}assert.equal(readRecord(denied,'classic','arcade'),0);assert.equal(saveRecord(denied,round).saved,false);memory.set(recordKey('classic','tour'),'Infinity');assert.equal(readRecord(storage,'classic','tour'),0);console.log('Records: persistence, best-only updates, continued/category isolation, corrupt values and storage-denied fallback passed.');

@@ -1,7 +1,7 @@
 import {Circuit,STAGES,project,grade} from './rules.js';
 import {RideRenderer} from './renderer.js';
 import {RideAudio} from './audio.js';
-import {readRecord,saveRecord,readBoard,boardPlace,addToBoard} from './records.js';
+import {readRecord,saveRecord,readBoard,boardPlace,addToBoard,MEDALS,readMedals,awardMedal} from './records.js';
 import {UPGRADES,OFFER_TIME} from './rules.js';
 import {ChaseAudio} from '../chase/audio.js';import {StageAmbience} from './ambience.js';import {CircuitQuality} from './quality.js';
 // RideAudio keeps the score and UI cues; Pursuit's recorded library supplies the
@@ -26,9 +26,12 @@ let daily=false;const today=()=>{const d=new Date();return `${d.getFullYear()}${
 // Boss rush: every boss back to back (rules rushStart); its own best and top ten. Exclusive with the daily run.
 let rush=false;function setRush(on){rush=on;$('rush').setAttribute('aria-pressed',String(on));if(on&&daily)setDaily(false);document.querySelector('.route-picker').classList.toggle('locked',on||daily);updateBest();}
 $('rush').addEventListener('click',()=>setRush(!rush));
+// Medals (records.js): a toast the first time each is earned; the menu counts them.
+let medalTime=0;function medal(id){if(test&&!new URLSearchParams(location.search).has('medals')||attract||!awardMedal(()=>localStorage,id))return;const [name,how]=MEDALS[id],t=$('medal');t.querySelector('b').textContent=name;t.querySelector('span').textContent=how;t.hidden=false;t.classList.remove('show');void t.offsetWidth;t.classList.add('show');medalTime=3.2;audio.chime(5);updateMedals();}
+function updateMedals(){$('medals-count').textContent=`MEDALS ${readMedals(()=>localStorage).length}/${Object.keys(MEDALS).length}`;}
 function setDaily(on){daily=on;if(on&&rush)setRush(false);$('daily').setAttribute('aria-pressed',String(on));document.querySelector('.route-picker').classList.toggle('locked',on);updateBest();}
 $('daily').addEventListener('click',()=>setDaily(!daily));
-function updateBest(){$('best').textContent=`BEST ${readBest()?fmt(readBest()):'—'}`;}
+function updateBest(){updateMedals();$('best').textContent=`BEST ${readBest()?fmt(readBest()):'—'}`;}
 function persist(){
  if(saved||test)return;saved=true;
  if(!saveRecord(()=>localStorage,game).saved)$('overlay-copy').textContent+=' Browser storage is unavailable; this score could not be saved.';
@@ -51,6 +54,8 @@ function processEvents(){for(const event of game.drain()){
  if(event.type==='clear'){lastTally=event;if(event.perfect)audio.chime(5);if(game.clearHold>3.5)clearCard=game.stage.id==='visitor'?3.9:2.1;else announce('SECTOR CLEAR',clearCopy(),tallyLine(),3);}
  if(event.type==='bridge'){announce('HOLD ON','There goes the bridge.','SHOOT THE FALLING DEBRIS',2);radio('Brace! Clear the debris. We are jumping the gap!');}
  if(event.type==='focus'){radio('Overdrive online. Five seconds. Make them count.');audio.tone(880,.6,.08,'sine',110);audio.hiss(.45,.07,1300);}
+ if(event.type==='clear'&&event.perfect)medal('clean');if(event.type==='kill'&&event.kind==='golden')medal('golden');if(event.type==='grenade'&&event.hits.length>=3)medal('sweep');
+ if(event.type==='win'){if(game.route==='extended')medal('kings');if(!game.continues)medal('credit');if(game.route==='bossrush')medal('rush');if(game.difficulty==='expert')medal('expert');}
  if(event.type==='golden')radio('Golden compy crossing! Five thousand if you can tag it!');
  if(event.type==='kill'&&event.kind==='golden'){announce('GOLDEN COMPY','Lucky shot.','+5,000',1.3);audio.chime(5);}
  if(event.type==='upgrade'){announce('UPGRADE',event.label,'FOR THE REST OF THE RUN',1.4);audio.chime(4);}
@@ -149,7 +154,7 @@ function updateHud(){
  $('health-bars').replaceChildren(...Array.from({length:10},(_,i)=>{const bar=document.createElement('i');if(i>=Math.ceil(game.hp/10))bar.className='empty';if(game.hp<30&&bar.className!=='empty')bar.style.background='#ef9c6f';return bar;}));
  {const mult=Math.min(5,1+Math.floor(game.combo/5)),badge=$('multiplier');badge.textContent=`×${mult}`;
   // Each step up the chain multiplier pops the badge and chimes higher; the top step gets a radio call.
-  if(mult>lastMultiplier&&!attract){badge.classList.remove('bump');void badge.offsetWidth;badge.classList.add('bump');audio.chime(mult);if(mult===5)radio('Five times multiplier! Keep the chain alive!');}lastMultiplier=mult;}$('chain-text').textContent=game.combo?`${game.combo} CHAIN`:'MAKE IT COUNT';$('chain-fill').style.width=`${game.chainTime/4.5*100}%`;
+  if(mult>lastMultiplier&&!attract){badge.classList.remove('bump');void badge.offsetWidth;badge.classList.add('bump');audio.chime(mult);if(mult===5){radio('Five times multiplier! Keep the chain alive!');medal('chain');}}lastMultiplier=mult;}$('chain-text').textContent=game.combo?`${game.combo} CHAIN`:'MAKE IT COUNT';$('chain-fill').style.width=`${game.chainTime/4.5*100}%`;
  $('focus-fill').style.width=`${game.focusTime>0?game.focusTime/5*100:game.focus}%`;$('focus-value').textContent=game.focusTime>0?'ACTIVE':game.focus>=100?'READY ↗':`${Math.floor(game.focus)}%`;$('focus').classList.toggle('ready',game.focus>=100);$('focus').setAttribute('aria-label',game.focus>=100?'Activate Overdrive':`Overdrive charging ${Math.floor(game.focus)} percent`);
  $('credit-label').textContent=game.continues?`CONTINUED RUN · ${game.credits} CREDITS LEFT`:'ONE CREDIT RUN';
  const bosses=game.entities.filter(e=>e.boss&&!e.dead);$('boss-hud').hidden=!bosses.length;
@@ -237,7 +242,7 @@ let p2=null,p1Pad=null;
 function coop(dt){
  const pads=[...(navigator.getGamepads?.()||[])].filter(g=>g&&g.connected),free=pads.find(g=>g.index!==p1Pad&&g.index!==p2?.index);
  $('coop-hint').hidden=!(mode==='playing'&&!p2&&free);
- if(!p2&&free&&mode==='playing'&&(free.buttons[9]?.pressed)){p2={index:free.index,aim:{x:.62,y:.5}};announce('PLAYER 2','Two guns on the Jeep.','SHARED SCORE · SHARED INTEGRITY',1.6);radio('Second gunner on board! Cover the other side!');}
+ if(!p2&&free&&mode==='playing'&&(free.buttons[9]?.pressed)){p2={index:free.index,aim:{x:.62,y:.5}};medal('coop');announce('PLAYER 2','Two guns on the Jeep.','SHARED SCORE · SHARED INTEGRITY',1.6);radio('Second gunner on board! Cover the other side!');}
  if(!p2)return;const g=pads.find(x=>x.index===p2.index);if(!g){p2=null;return;}
  const dz=v=>Math.abs(v)<.16?0:Math.sign(v)*((Math.abs(v)-.16)/.84)**1.6,b=i=>!!g.buttons[i]?.pressed||(g.buttons[i]?.value||0)>.35;
  p2.aim.x=Math.max(.02,Math.min(.98,p2.aim.x+(dz(g.axes[0]||0)+(b(15)?1:0)-(b(14)?1:0))*dt*1.15));p2.aim.y=Math.max(.19,Math.min(.85,p2.aim.y+(dz(g.axes[1]||0)+(b(13)?1:0)-(b(12)?1:0))*dt*1.15));
@@ -283,6 +288,7 @@ function frame(now){const raw=now-last,dt=Math.min(.1,raw/1000);last=now;
  if(!frozen&&mode==='continue'&&continueClock>0){const was=Math.ceil(continueClock);continueClock-=dt;const left=Math.max(0,Math.ceil(continueClock));if(left!==was&&left>0)audio.tone(left<=3?880:620,.08,.1,'square');$('overlay-kicker').textContent=`CONTINUE? ${left}`;if(continueClock<=0){continueClock=0;showResult(false);}}if(quality&&!frozen&&!document.hidden&&quality.sample(raw,mode==='playing'))qualityLabel();
  if(!frozen){if(mode==='menu'&&!document.hidden)clock+=dt;if(mode==='playing'){if(hitStop>0)hitStop-=dt;else{accumulator+=dt*slowScale(dt);while(accumulator>=1/60){step(1/60);accumulator-=1/60;}}hudTick+=dt;if(hudTick>.08){updateHud();hudTick=0;}
    // Low integrity: a heartbeat in time with the pulsing vignette (light.js).
+   if(medalTime>0&&(medalTime-=dt)<=0)$('medal').hidden=true;
    heartbeat-=dt;if(game.hp<=30&&game.status==='playing'&&heartbeat<=0){heartbeat=.84;audio.tone(58,.11,.14,'sine',42);setTimeout(()=>audio.tone(52,.13,.11,'sine',38),170);}}}
  coop(dt);renderer.render(game,aim,{menu:mode==='menu',time:game?.time??clock,aim2:mode==='playing'?p2?.aim:null});bossCues();
  // Inside the rotunda the reverb becomes a stone hall: gunfire and roars ring off the walls.

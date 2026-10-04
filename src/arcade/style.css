@@ -47,3 +47,4 @@ body[data-attract] #radio,body[data-attract] #announcement{visibility:hidden}
 #coop-hint{margin-top:6px;font-size:8px;letter-spacing:2px;color:#7fd6ff;animation:attract-blink 1.2s steps(2) infinite}
 .label #players{color:inherit;font-size:inherit;margin-left:0}
 #rush+#daily{margin-left:0}
+#medal{position:absolute;top:172px;left:50%;transform:translateX(-50%);padding:9px 18px;border:1px solid #f5cf88;background:#0b1715ee;text-align:center;box-shadow:0 0 24px rgba(245,207,136,.35)}#medal.show{animation:medal-in .5s cubic-bezier(.2,.8,.3,1)}#medal i{display:block;font-style:normal;font-size:7px;letter-spacing:3px;color:#f5cf88}#medal b{display:block;font-family:'Arial Narrow',Arial,sans-serif;font-size:18px;letter-spacing:1px;margin:3px 0}#medal span{font-size:8px;letter-spacing:1px;color:#c8cdb8}@keyframes medal-in{from{opacity:0;transform:translateX(-50%) translateY(-10px) scale(.92)}}#medals-count{color:#f5cf88;font-weight:400}
