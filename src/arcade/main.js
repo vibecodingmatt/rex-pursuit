@@ -134,7 +134,7 @@ function updateHud(){
  if(bosses.length){$('boss-name').textContent=names[game.stage.boss];$('boss-fill').style.width=`${100*bosses.reduce((sum,e)=>sum+e.hp,0)/bosses.reduce((sum,e)=>sum+e.maxHp,0)}%`;}
 }
 function overlay(title,copy,kicker){$('overlay-title').textContent=title;$('overlay-copy').textContent=copy;$('overlay-kicker').textContent=kicker;$('resume').hidden=true;$('continue').hidden=true;$('restart').hidden=true;$('result-stats').replaceChildren();$('board').hidden=true;$('board-entry').hidden=true;entering=false;fire=false;keys.clear();audio.pause(true);}
-function pause(){if(mode!=='playing')return;field.pause(true).catch(()=>{});showMode('paused');overlay('Ride paused.','Aim with mouse or arrow keys. Hold mouse or Space to fire. E activates Overdrive.','TAKE A BREATH');$('resume').hidden=false;$('resume').focus();}
+function pause(){if(mode!=='playing')return;field.pause(true).catch(()=>{});showMode('paused');overlay('Ride paused.','Aim with mouse or arrow keys. Hold mouse or Space to fire. Right-click or G lobs a grenade. E activates Overdrive.','TAKE A BREATH');$('resume').hidden=false;$('resume').focus();}
 function resume(){if(mode!=='paused')return;showMode('playing');void audio.unlock();unlockField();canvas.focus({preventScroll:true});}
 function showContinue(){showMode('continue');overlay('Ride interrupted.',game.credits?`Your vehicle took one hit too many. ${game.credits} free continues remain. Your route and score will be preserved.`:'You gave the island a run for its money. Your score is ready.','CONTINUE?');
  if(game.credits){$('continue').hidden=false;$('continue').textContent=`CONTINUE · ${game.credits} CREDITS ↗`;$('continue').focus();continueClock=10;$('overlay-kicker').textContent='CONTINUE? 10';}
