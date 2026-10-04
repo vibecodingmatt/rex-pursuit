@@ -13,12 +13,15 @@ import {createGaze} from './gaze.js';
 import {createRexSkin,finishRexDetails,markGape} from './rex-skin.js';
 const X=new T.Vector3(1,0,0),Y=new T.Vector3(0,1,0),Z=new T.Vector3(0,0,1);
 const menuLike=state=>state.distance===20&&state.phaseTime===0&&state.phase==='pursuit';
-export async function createRex(scene,onProgress){
+export async function createRex(scene,onProgress,{proportions={}}={}){
  const draco=new DRACOLoader().setDecoderPath('./draco/');const loader=new GLTFLoader().setDRACOLoader(draco);
  const gltf=await loader.loadAsync('./models/rex-hero.glb',onProgress);draco.dispose();
  const actor=new T.Group();actor.rotation.y=Math.PI;actor.position.z=24;scene.add(actor);actor.add(gltf.scene);
  const bones=[],meshes=[],rest=new Map(),damage=new ImpactDamage(),hide=createRexSkin();let skin;
  gltf.scene.traverse(o=>{if(o.isBone){bones.push(o);rest.set(o,{p:o.position.clone(),q:o.quaternion.clone(),s:o.scale.clone()});}if(o.isMesh){meshes.push(o);o.castShadow=true;o.receiveShadow=true;o.frustumCulled=false;o.material.envMapIntensity=.45;if(o.name==='Rex_Skin'){skin=o;o.material.roughness=1;o.material.envMapIntensity=.3;damage.install(o.material,hide);}if(o.material.name==='GlassMat'){o.material.transparent=true;o.material.opacity=.26;}}});
+ // Optional re-proportioning (the arcade's Indominus): bone scales by name prefix become part of
+ // the rest pose, so every reset keeps them. Legs stay as built: the gait's IK is measured from them.
+ for(const [prefix,[x,y,z]]of Object.entries(proportions))for(const b of bones)if(b.name.startsWith(prefix)){b.scale.multiply(new T.Vector3(x,y,z));rest.get(b).s.copy(b.scale);}
  meshes.forEach(finishTongue);
  markGape(skin);
  damage.prepareStages(skin);

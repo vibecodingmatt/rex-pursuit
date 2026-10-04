@@ -3,6 +3,7 @@ import {createRex} from '../chase/creature.js';
 import {RULES} from '../chase/combat.js';
 import {routeX,routeY} from './world.js';
 import {LEVEL} from './water.js';
+import {PROPORTIONS,makeIndominus} from './indominus.js';
 
 // Pursuit's hero Rex as the arcade's Rex boss. The shared gait and death fall
 // work in the chase's frame: an identity parent, a floor at y=0 and the road
@@ -20,13 +21,16 @@ export class BossRex {
  constructor(world){this.world=world;this.slots=[];this.ready=false;this.cues=[];this.voice=null;this.stage='';this.lastTime=0;this.ray=new T.Raycaster();this.ndc=new T.Vector2();this.a=new T.Vector3();this.b=new T.Vector3();this.lastHit=null;}
  /** Loads one Rex per finale king, in the background; the 2D boss covers until then. */
  async load(count=2){
-  for(let i=0;i<count;i++){
-   const rex=await createRex(this.world.scene),frame=new T.Group();
-   frame.add(rex.actor);this.world.scene.add(frame);rex.actor.position.set(0,0,0);this.world.rimCreatures(rex.actor);
-   const slot={rex,frame,index:i,id:null};this.release(slot);this.slots.push(slot);
-   this.prewarm(slot);
-  }
+  for(let i=0;i<count;i++)await this.add('rex');
   this.ready=true;
+  // A11: the hybrid stage's Indominus is a third, re-proportioned and reskinned Rex.
+  await this.add('indominus');
+ }
+ async add(kind){
+  const indo=kind==='indominus',rex=await createRex(this.world.scene,null,indo?{proportions:PROPORTIONS}:{}),frame=new T.Group();
+  frame.add(rex.actor);this.world.scene.add(frame);rex.actor.position.set(0,0,0);this.world.rimCreatures(rex.actor);
+  const slot={rex,frame,kind,index:this.slots.length,id:null,indo:indo?makeIndominus(rex):null};this.release(slot);this.slots.push(slot);
+  this.prewarm(slot);
  }
  // Compile her hide, shadow and post variants now, on the hidden scene canvas,
  // so the first boss arrival does not stall on shader compilation.
@@ -36,7 +40,7 @@ export class BossRex {
  }
  release(slot){slot.id=null;slot.entity=null;slot.started=false;slot.dead=false;slot.frame.visible=false;slot.lastX=null;slot.bite=-1;slot.stagger=-1;slot.lunging=false;slot.roared=false;slot.speed=0;slot.fall=0;}
  reset(){for(const s of this.slots){this.release(s);s.rex.reset();}this.stage='';this.lastTime=0;this.cues=[];this.lastHit=null;}
- slotFor(e){return e?.boss&&e.kind==='rex'?this.slots.find(s=>s.id===e.id&&s.started)||null:null;}
+ slotFor(e){return e?.boss&&(e.kind==='rex'||e.kind==='indominus')?this.slots.find(s=>s.id===e.id&&s.started)||null:null;}
  handles(e){return !!this.slotFor(e);}
  drain(){return this.cues.splice(0);}
  /** Rules events carry the boss id: the bite lands, or nine head hits broke the attack. */
@@ -52,7 +56,7 @@ export class BossRex {
   if(!game){this.lastTime=0;return;}
   if(game.time<this.lastTime)this.lastTime=game.time;
   const dt=clamp(game.time-this.lastTime,0,.05);this.lastTime=game.time;
-  for(const e of game.entities)if(e.boss&&e.kind==='rex'&&!e.dead&&!this.slots.some(s=>s.id===e.id)){const s=this.slots.find(s=>s.id===null);if(s){this.release(s);s.id=e.id;s.entity=e;s.rex.reset();}}
+  for(const e of game.entities)if(e.boss&&(e.kind==='rex'||e.kind==='indominus')&&!e.dead&&!this.slots.some(s=>s.id===e.id)){const s=this.slots.find(s=>s.id===null&&s.kind===e.kind);if(s){this.release(s);s.id=e.id;s.entity=e;s.rex.reset();}}
   // Overdrive slows threats: she runs, bites and falls in slow motion too.
   const paced=dt*(game.focusTime>0?.52:1);
   for(const s of this.slots){if(s.id===null)continue;const e=game.entities.find(x=>x.id===s.id);if(e)s.entity=e;this.update(s,paced,game,!e);}
@@ -106,6 +110,8 @@ export class BossRex {
     if(ev.type==='body-impact')this.cues.push({type:'impact',at,strength:ev.strength,water:id==='river',slot:s.index});
    }
    if(id==='river'&&!s.dead)this.wade(s,dt);
+   // The rules hide her through the approach of each cycle; dead, she stays seen.
+   s.indo?.update(dt,!s.dead&&e.alpha<1,game.time);
   }
   if(s.lastX!==null)s.frame.visible=true;
  }
@@ -145,7 +151,7 @@ export class BossRex {
  /** Wounds land where the round met her hide (an exact skinned-mesh ray, only on a confirmed hit). */
  wound(e){
   const h=this.lastHit;if(!h||h.id!==e.id)return null;this.lastHit=null;
-  const s=h.slot;s.rex.hit();this.ray.ray.origin.copy(this.world.camera.position);this.ray.ray.direction.copy(h.point).sub(this.world.camera.position).normalize();this.ray.far=200;
+  const s=h.slot;s.rex.hit();s.indo?.hit();this.ray.ray.origin.copy(this.world.camera.position);this.ray.ray.direction.copy(h.point).sub(this.world.camera.position).normalize();this.ray.far=200;
   const exact=this.ray.intersectObject(s.rex.skin,false)[0];if(exact)s.rex.damage.add(exact,false);
   return{point:exact?.point||h.point,direction:h.direction,slot:s.index};
  }
