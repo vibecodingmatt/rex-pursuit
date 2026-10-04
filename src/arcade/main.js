@@ -65,9 +65,12 @@ function fieldEvent(e){
  if(e.type==='damage')renderer.vehicle?.hit(renderer.actors?.actors.get(e.id)?.position||null,Math.min(1.6,.4+e.amount/14));
  if(!field.context)return;
  // Each beat is announced by its animals, from their side of the track.
- if(e.type==='beat'){const cam=renderer.world.camera.position,at={x:cam.x+e.side*14,y:cam.y,z:cam.z+28},name={raptor:'raptor',dilo:'dilophosaurus',galli:'gallimimus',trike:'triceratops'}[e.kind];if(e.kind==='ptero')field.screech(at);else if(e.pattern==='stampede')field.herd(at);else if(name)field.call(name,at);}
+ if(e.type==='beat'){const cam=renderer.world.camera.position,at={x:cam.x+e.side*14,y:cam.y,z:cam.z+28},name={raptor:'raptor',dilo:'dilophosaurus',galli:'gallimimus',trike:'triceratops',compy:'compy'}[e.kind];if(e.kind==='ptero')field.screech(at);else if(e.pattern==='stampede')field.herd(at);else if(name)field.call(name,at);}
  if(e.type==='shot'){if(!e.pellet)field.gun();if(e.hit){const wound=renderer.lastWound,actor=renderer.actors?.actors.get(e.id),at=wound?.point||actor?.position;if(at)field.hit('flesh',at.distanceTo(renderer.world.camera.position),at);renderer.lastWound=null;}}
  if(e.type==='blast')field.impact(true);
+ // A swarm breaks with a scatter of chirps; each compy squeals as it drops.
+ if(e.type==='beat'&&e.pattern==='swarm'){const cam=renderer.world.camera.position;for(let i=0;i<3;i++)field.chirp({x:cam.x+e.side*(6+i*3),y:cam.y,z:cam.z+20+i*2});}
+ if(e.type==='kill'&&e.kind==='compy'){const a=renderer.actors?.actors.get(e.id);if(a)field.death('compy',a.position);}
  if(e.type==='launch'){audio.tone(120,.16,.16,'sine',48);audio.hiss(.1,.08,900);}
  if(e.type==='grenade'){field.impact(true);field.groundImpact(1);}
  if(e.type==='leap'){const a=renderer.actors?.actors.get(e.id);if(a)field.call('raptor',a.position);}

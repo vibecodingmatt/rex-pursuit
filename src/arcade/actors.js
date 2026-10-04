@@ -8,8 +8,8 @@ import {loadIchthy,createIchthy} from './ichthy.js';
 import {makeProp as buildProp,tickProps} from './props.js';
 import {BrachioCrossing} from './brachio-crossing.js';
 
-const species={raptor:'raptor',dilo:'dilophosaurus',galli:'gallimimus',trike:'triceratops'};
-const sizes={raptor:4.5,dilo:5.8,galli:6.4,trike:8.8};
+const species={raptor:'raptor',dilo:'dilophosaurus',galli:'gallimimus',trike:'triceratops',compy:'compy'};
+const sizes={raptor:4.5,dilo:5.8,galli:6.4,trike:8.8,compy:3};
 const v=new T.Vector3(),head=new T.Vector3(),p=new T.Vector3(),up=new T.Vector3(0,1,0),dummy=new T.Object3D();
 const clamp=T.MathUtils.clamp;
 // How far the Jeep's hood sits below the gunner's eye.
@@ -23,7 +23,7 @@ export class CircuitActors {
  constructor(world){
   this.world=world;this.scene=world.scene;this.actors=new Map();this.lastTime=0;this.stage='';
   const jungle={chunks:[],groundAt:(x,z)=>groundAt(x,z,this.world.id)};
-  this.critters=createCritters(this.scene,{jungle,capacities:{compy:1,lizard:1,galli:26,raptor:10,dilophosaurus:6,triceratops:5,parasaurolophus:1,pachycephalosaurus:1,stegosaurus:1}});
+  this.critters=createCritters(this.scene,{jungle,capacities:{compy:16,lizard:1,galli:26,raptor:10,dilophosaurus:6,triceratops:5,parasaurolophus:1,pachycephalosaurus:1,stegosaurus:1}});
   this.flyers=createFlyers(this.scene,{jungle});this.critters.reset({empty:true});this.flyers.reset({empty:true});
   this.brachio=createBrachio(this.scene,{jungle});this.crossing=new BrachioCrossing(this.brachio,world);
   this.basis=new T.Matrix4();this.roll=new T.Quaternion();this.shadowTexture=this.makeShadow();this.shadows=[];this.corpses=[];this.walls=new Map();
@@ -73,13 +73,13 @@ export class CircuitActors {
    const age=Math.max(0,e.age),life=e.life,side=e.lane<.5?-1:1,id=game.stage.id,cruise=id==='manor'?14:id==='fault'?27:24;
    const animal=!!species[e.kind],windup=e.leaper?e.leapAt-.65:life-.9,charge=clamp((age-windup)/.9,0,1),parallel=40-age*2.5;
    // Crates and barrels stand still beside the track; everything else closes on the vehicle.
-   const fixed=e.kind==='supply'||e.kind==='barrel',relative=animal?T.MathUtils.lerp((e.ambush?17:40)-Math.min(age,windup)*2.5,3,charge):fixed?cruise*(life-age)+5:(cruise+6)*(life-age)+5;
+   const fixed=e.kind==='supply'||e.kind==='barrel',relative=animal?T.MathUtils.lerp((e.ambush?17:e.kind==='compy'?24:40)-Math.min(age,windup)*2.5,3,charge):fixed?cruise*(life-age)+5:(cruise+6)*(life-age)+5;
    const z=e.spawnTravel+cruise*age+relative;
    // Pace the vehicle out of roadside cover, then turn into a short, committed
    // charge. Ground-relative stride uses the derivative of this actual path.
    const enter=T.MathUtils.smoothstep(age,0,windup),cross=e.kind==='galli';
-   const width=(e.ambush?8:id==='manor'?7.5:animal?32:16)*Math.min(1,this.world.camera.aspect*1.25),span=cross?width*1.75:width-1.6;
-   const off=fixed?side*(2.4+e.seed%1*1.8):side*(width-span*enter)+Math.sin(age*2+e.seed)*.28;
+   const width=(e.ambush?8:id==='manor'?7.5:e.kind==='compy'?11:animal?32:16)*Math.min(1,this.world.camera.aspect*1.25),span=cross?width*1.75:width-1.6;
+   const off=fixed?side*(2.4+e.seed%1*1.8):side*(width-span*enter)+Math.sin(age*2+e.seed)*.28+(e.kind==='compy'?(e.lane-.5)*5:0);
    const lateral=-side*span*6*clamp(age/windup,0,1)*(1-clamp(age/windup,0,1))/windup;
    const forward=animal?(age<windup?cruise-2.5:cruise-(40-windup*2.5-3)/.9):-6;
    const x=routeX(z,id)+off,y=groundAt(x,z,id);a.yaw=Math.atan2(lateral,forward)+routeHeading(z,id);

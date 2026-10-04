@@ -12,21 +12,21 @@ export const STAGES = [
 // kind, count]); the roster timer only fills the gaps. Every beat is called on the radio and
 // telegraphed by motion before contact. The broken bridge (fault, 18-23 s) stays air-only.
 export const BEATS={
- gates:[[[5,'flank','raptor',3],[11,'stampede','galli',16],[18,'ambush','raptor'],[24,'pair','dilo',2]],[[4,'ambush','raptor'],[9,'pair','dilo',2],[15,'stampede','galli',18],[22,'flank','raptor',4]],[[6,'stampede','galli',14],[12,'flank','raptor',3],[19,'pair','dilo',2],[25,'ambush','raptor']]],
+ gates:[[[5,'flank','raptor',3],[11,'stampede','galli',16],[18,'ambush','raptor'],[24,'pair','dilo',2],[29,'swarm','compy',8]],[[4,'ambush','raptor'],[9,'pair','dilo',2],[15,'stampede','galli',18],[22,'flank','raptor',4],[28,'swarm','compy',8]],[[6,'stampede','galli',14],[12,'flank','raptor',3],[19,'pair','dilo',2],[25,'ambush','raptor'],[30,'swarm','compy',7]]],
  river:[[[6,'formation','ptero',3],[14,'pair','ichthy',2],[22,'formation','ptero',4]],[[5,'pair','ichthy',2],[12,'formation','ptero',3],[20,'pair','ichthy',2]],[[8,'formation','ptero',4],[16,'pair','ichthy',2],[24,'formation','ptero',3]]],
  fault:[[[5,'flank','raptor',3],[12,'pair','trike',1],[19,'formation','ptero',3],[27,'ambush','raptor']],[[6,'formation','ptero',3],[12,'flank','raptor',2],[20,'formation','ptero',4],[29,'pair','trike',1]],[[4,'pair','trike',1],[10,'ambush','raptor'],[18.5,'formation','ptero',3],[26,'flank','raptor',3]]],
- hybrid:[[[5,'ambush','raptor'],[11,'formation','ptero',3],[18,'flank','raptor',3]],[[6,'flank','raptor',3],[12,'pair','dilo',2],[19,'formation','ptero',3]],[[4,'formation','ptero',3],[10,'ambush','raptor'],[17,'pair','dilo',2]]],
+ hybrid:[[[5,'ambush','raptor'],[11,'formation','ptero',3],[18,'flank','raptor',3],[24,'swarm','compy',7]],[[6,'flank','raptor',3],[12,'pair','dilo',2],[19,'formation','ptero',3],[25,'swarm','compy',7]],[[4,'formation','ptero',3],[10,'ambush','raptor'],[17,'pair','dilo',2],[23,'swarm','compy',8]]],
  lagoon:[[[5,'pair','ichthy',2],[12,'formation','ptero',3],[19,'pair','ichthy',3]],[[6,'formation','ptero',3],[13,'pair','ichthy',2],[20,'formation','ptero',3]],[[4,'pair','ichthy',3],[11,'formation','ptero',4],[18,'pair','ichthy',2]]],
  manor:[[[5,'ambush','raptor'],[11,'pair','dilo',2],[18,'flank','raptor',3]],[[6,'flank','raptor',2],[12,'ambush','raptor'],[19,'pair','dilo',2]],[[4,'pair','dilo',2],[10,'flank','raptor',3],[17,'ambush','raptor']]],
  visitor:[[[5,'flank','raptor',3],[11,'formation','ptero',3],[17,'ambush','raptor'],[31,'flank','raptor',2]],[[4,'ambush','raptor'],[10,'pair','dilo',2],[16,'flank','raptor',4],[31,'flank','raptor',2]],[[6,'formation','ptero',3],[12,'flank','raptor',3],[18,'pair','dilo',2],[31,'flank','raptor',2]]],
 };
-const CALLS={flank:'Pack on both sides! They are flanking us!',stampede:'Stampede crossing {side}! Keep moving!',formation:'Flyers diving in formation, high!',ambush:'Movement in the brush, {side}!',pair:{dilo:'Spitters ahead. Watch the glass!',ichthy:'Something big under the surface!',trike:'Three horns on the road! Stop that charge!'}};
+const CALLS={swarm:'Compys! A whole swarm, {side}! Sweep them!',flank:'Pack on both sides! They are flanking us!',stampede:'Stampede crossing {side}! Keep moving!',formation:'Flyers diving in formation, high!',ambush:'Movement in the brush, {side}!',pair:{dilo:'Spitters ahead. Watch the glass!',ichthy:'Something big under the surface!',trike:'Three horns on the road! Stop that charge!'}};
 export const TYPES = {
  rex:{cell:0,hp:260,points:6000,head:[.26,.24],size:.65},raptor:{cell:1,hp:5,points:200,head:[.54,.22],size:.29},
  dilo:{cell:2,hp:6,points:300,head:[.48,.38],size:.31},ptero:{cell:3,hp:3,points:180,head:[.64,.47],size:.29},
  indominus:{cell:4,hp:340,points:9000,head:[.29,.27],size:.74},indoraptor:{cell:5,hp:240,points:8500,head:[.32,.5],size:.67},
  mosa:{cell:6,hp:300,points:8500,head:[.42,.4],size:.82},trike:{cell:7,hp:13,points:500,head:[.53,.48],size:.39},
- brachio:{cell:0,atlas:'wildlife',hp:1,points:0,head:[.8,.17],size:.8},galli:{cell:1,atlas:'wildlife',hp:3,points:150,head:[.8,.24],size:.31},
+ brachio:{cell:0,atlas:'wildlife',hp:1,points:0,head:[.8,.17],size:.8},galli:{cell:1,atlas:'wildlife',hp:3,points:150,head:[.8,.24],size:.31},compy:{cell:1,hp:1,points:60,head:[.54,.22],size:.13},
  anky:{cell:2,atlas:'wildlife',hp:10,points:350,head:[.74,.66],size:.34},ichthy:{cell:3,atlas:'wildlife',hp:4,points:220,head:[.74,.28],size:.3},
  rock:{hp:5,points:100,size:.16},spit:{hp:1,points:75,size:.10},supply:{hp:1,points:0,size:.13},barrel:{hp:2,points:250,size:.16}
 };
@@ -78,6 +78,8 @@ export class Circuit {
    if(!i&&kind==='raptor'){e.leaper=true;e.leapAt=e.life-.25;e.life+=1.8;}}
   else if(pattern==='stampede')for(let i=0;i<count;i++)this.spawn('galli',{x:.5+side*(.12+this.random()*.32),delay:i*.13});
   else if(pattern==='formation')for(let i=0;i<count;i++)this.spawn('ptero',{x:.5+(i-(count-1)/2)*.13,delay:i*.12});
+  // A swarm: small, fast, one-shot animals pouring in across the track (good work for spread shot and grenades).
+  else if(pattern==='swarm')for(let i=0;i<count;i++)this.spawn(kind,{x:.5+side*.05+(this.random()-.5)*.34,delay:i*.11});
   else if(pattern==='ambush'){const e=this.spawn(kind,{x:.5+side*.3,delay:.9});e.ambush=true;e.life=2.4;}
   else for(let i=0;i<count;i++)this.spawn(kind,{delay:i*.45});
   this.emit('beat',{pattern,kind,side,text:(typeof call==='string'?call:call?.[kind]||'').replace('{side}',named)});
@@ -217,7 +219,7 @@ export class Circuit {
    if(e.age<0)continue;this.pose(e);
    if(e.boss){if(Math.floor(e.age/6.4)>oldCycle){this.damage(e.kind==='mosa'?25:19,e);e.weakHits=0;this.emit('attack',{kind:e.kind,id:e.id});}}
    else if(e.age>=e.life){
-    e.dead=true;e.fade=0;if(e.kind==='spit')this.emit('splat',{id:e.id,x:e.x,y:e.y});if(!['supply','barrel','galli'].includes(e.kind))this.damage(e.kind==='rock'?14:e.leaper?16:9,e);
+    e.dead=true;e.fade=0;if(e.kind==='spit')this.emit('splat',{id:e.id,x:e.x,y:e.y});if(!['supply','barrel','galli'].includes(e.kind))this.damage(e.kind==='rock'?14:e.leaper?16:e.kind==='compy'?4:9,e);
    }
    if(e.leaper&&!e.leapt&&!e.dead&&e.age>=e.leapAt){e.leapt=true;this.emit('leap',{id:e.id});}
    if(e.kind==='dilo'&&!e.boss&&!e.dead&&e.age>3&&!e.spit){e.spit=true;this.spawn('spit',{x:e.x});this.emit('spit',{x:e.x,y:e.y});}
