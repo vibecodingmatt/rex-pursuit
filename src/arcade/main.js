@@ -56,6 +56,7 @@ function processEvents(){for(const event of game.drain()){
 }}
 const BOSS_STAGES=['gates','river','hybrid','visitor'];
 function fieldEvent(e){
+ if(e.type==='damage')rumble(.9,.6,260);if(e.type==='grenade')rumble(.75,.5,230);if(e.type==='blast')rumble(.6,.45,190);if(e.type==='stagger')rumble(.35,.55,130);if(e.type==='shot'&&!e.pellet)rumble(0,.14,40);
  // Bodies and the vehicle react with or without sound; a blow knocks the camera away from its source.
  if(e.type==='shot'&&e.hit)renderer.actors?.hit(e.id,e.precise,e.x);
  // A broken boss attack freezes the action for 50 ms and lands a low thump.
@@ -208,6 +209,12 @@ addEventListener('keydown',e=>{
 });
 addEventListener('keyup',e=>keys.delete(e.key));addEventListener('blur',()=>{fire=false;pointerId=null;keys.clear();pause();});document.addEventListener('visibilitychange',()=>{if(document.hidden)pause();});addEventListener('resize',()=>renderer.resize());
 /** The first connected gamepad: stick (with dead zone), fire, and buttons pressed this frame. */
+// Seat rumble: a gamepad's dual-rumble motors, or a short buzz on a phone for heavy hits; off with reduced motion.
+let touchSeen=false;
+function rumble(strong,weak,ms){if(renderer.reduced||mode!=='playing')return;const p=[...(navigator.getGamepads?.()||[])].find(g=>g&&g.connected);
+ if(p?.vibrationActuator?.playEffect){try{p.vibrationActuator.playEffect('dual-rumble',{duration:ms,strongMagnitude:strong,weakMagnitude:weak}).catch(()=>{});}catch{/* Unsupported effect. */}}
+ else if(touchSeen&&strong>=.5&&navigator.vibrate){try{navigator.vibrate(Math.min(ms,140));}catch{/* Blocked. */}}}
+addEventListener('pointerdown',e=>{if(e.pointerType==='touch')touchSeen=true;},true);
 function gamepad(){
  const pads=navigator.getGamepads?.()||[],p=[...pads].find(g=>g&&g.connected);if(!p){padHeld=[];return null;}
  const dz=v=>Math.abs(v)<.16?0:Math.sign(v)*((Math.abs(v)-.16)/.84)**1.6,b=i=>!!p.buttons[i]?.pressed||(p.buttons[i]?.value||0)>.35;
