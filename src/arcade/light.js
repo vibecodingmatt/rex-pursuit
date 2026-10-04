@@ -225,7 +225,9 @@ export class StageLight {
   // Heat shimmer: strong over the lava in the tube, a haze over the canyon floor.
   w.post.final.heat.value=id==='fault'&&w.post.depthReadable?.6+cave*.6:0;
   // Overdrive: a bullet-time grade (desaturated, harder, vignetted, cool shadows, a touch of lens fringing), eased in and out.
-  if(this.base){const f=w.post.final,b=this.base,od=game?.focusTime>0?Math.min(1,(5-game.focusTime)*3,game.focusTime*2):0;f.saturation.value=b.saturation*(1-.5*od);f.contrast.value=b.contrast+.12*od;f.vignette.value=b.vignette+.32*od;f.aberration.value=.0004+.0024*od;f.shadowTint.value.setRGB(...b.shadow).lerp(this.odTint??=new T.Color(.8,.97,1.08),od*.6);}
+  if(this.base){const f=w.post.final,b=this.base,od=game?.focusTime>0?Math.min(1,(5-game.focusTime)*3,game.focusTime*2):0;f.saturation.value=b.saturation*(1-.5*od);f.contrast.value=b.contrast+.12*od;f.vignette.value=b.vignette+.32*od;
+   // Low integrity: the edges close in and redden with a heartbeat pulse.
+   const hurt=game&&game.hp<=30&&game.status==='playing'?(1-game.hp/30*.6)*(.55+.45*Math.max(0,Math.sin((time||0)*7.5))):0;f.vignette.value+=.28*hurt;f.aberration.value=.0004+.0024*od;f.shadowTint.value.setRGB(...b.shadow).lerp(this.odTint??=new T.Color(.8,.97,1.08),od*.6).lerp(this.hurtTint??=new T.Color(1.25,.72,.68),hurt*.5);}
   if(w.scene.fog){w.scene.fog.color.copy(this.fogColor).multiplyScalar(1-cave*.55);}
   RIM.dir.value.copy(L).transformDirection(camera.matrixWorldInverse);
   this.horizon.position.copy(camera.position);this.horizon.material.uniforms.uTime.value=time%1000;

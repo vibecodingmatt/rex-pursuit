@@ -10,7 +10,7 @@ const test=new URLSearchParams(location.search).get('test')==='1';
 let clearCard=0,game=null,mode='menu',route='extended',ready=false,fire=false,frozen=false,clock=0,accumulator=0,last=performance.now(),announcementTime=0,radioTime=0,saved=false;
 const aim={x:.5,y:.5},keys=new Set();let pointerId=null;
 // A15: the cabinet's ten-second CONTINUE? countdown, and gamepad state (buttons held last frame).
-let continueClock=0,padHeld=[],entering=false,lastMultiplier=1,hiBest=0,lastTally=null;
+let continueClock=0,padHeld=[],entering=false,lastMultiplier=1,hiBest=0,lastTally=null,heartbeat=0;
 // The clear card's tally (rules tally()): accuracy bonus, NO DAMAGE bonus and the sector bonus.
 const points=n=>n.toLocaleString('en-US'),clearCopy=()=>lastTally?.perfect?'Perfect. Not a scratch.':'Still in one piece.';
 const tallyLine=()=>{const t=lastTally||{accuracy:0,accBonus:0};return[`ACCURACY ${t.accuracy}% +${points(t.accBonus)}`,t.perfect&&`NO DAMAGE +${points(t.perfectBonus)}`,'SECTOR +1,500'].filter(Boolean).join(' · ');};
@@ -258,7 +258,9 @@ function frame(now){const raw=now-last,dt=Math.min(.1,raw/1000);last=now;
   if(pad.pressed(0)){if(entering)saveInitials();else if(mode==='menu')$('start').click();else if(mode==='continue'&&!$('continue').hidden)$('continue').click();else if(mode==='result')$('restart').click();}}
  // CONTINUE? 10 … 1: the last three tick higher; at zero the run ends.
  if(!frozen&&mode==='continue'&&continueClock>0){const was=Math.ceil(continueClock);continueClock-=dt;const left=Math.max(0,Math.ceil(continueClock));if(left!==was&&left>0)audio.tone(left<=3?880:620,.08,.1,'square');$('overlay-kicker').textContent=`CONTINUE? ${left}`;if(continueClock<=0){continueClock=0;showResult(false);}}if(quality&&!frozen&&!document.hidden&&quality.sample(raw,mode==='playing'))qualityLabel();
- if(!frozen){if(mode==='menu'&&!document.hidden)clock+=dt;if(mode==='playing'){if(hitStop>0)hitStop-=dt;else{accumulator+=dt*slowScale(dt);while(accumulator>=1/60){step(1/60);accumulator-=1/60;}}hudTick+=dt;if(hudTick>.08){updateHud();hudTick=0;}}}
+ if(!frozen){if(mode==='menu'&&!document.hidden)clock+=dt;if(mode==='playing'){if(hitStop>0)hitStop-=dt;else{accumulator+=dt*slowScale(dt);while(accumulator>=1/60){step(1/60);accumulator-=1/60;}}hudTick+=dt;if(hudTick>.08){updateHud();hudTick=0;}
+   // Low integrity: a heartbeat in time with the pulsing vignette (light.js).
+   heartbeat-=dt;if(game.hp<=30&&game.status==='playing'&&heartbeat<=0){heartbeat=.84;audio.tone(58,.11,.14,'sine',42);setTimeout(()=>audio.tone(52,.13,.11,'sine',38),170);}}}
  renderer.render(game,aim,{menu:mode==='menu',time:game?.time??clock});bossCues();
  // Inside the rotunda the reverb becomes a stone hall: gunfire and roars ring off the walls.
  field.space?.(mode==='playing'&&renderer.world.rotunda?.root.visible?'hall':'forest');requestAnimationFrame(frame);
