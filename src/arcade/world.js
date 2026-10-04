@@ -16,6 +16,10 @@ import {BOW} from './boat.js';
 import {Fault} from './fault.js';
 import {Promenade} from './promenade.js';
 import {Glass} from './glass.js';
+import {createVisitorCenter} from '../chase/visitor-center.js';
+// A14: the finale drives to Pursuit's Visitor Center. Its root (Pursuit frame: building toward -z)
+// is turned to face the vehicle at PLAZA; street buildings stop short of it.
+export const PLAZA=730;
 
 const TAU=Math.PI*2,clamp=T.MathUtils.clamp,smooth=(a,b,x)=>{const t=clamp((x-a)/(b-a),0,1);return t*t*(3-2*t);};
 export const noise=n=>{const v=Math.sin(n*127.1+311.7)*43758.5453;return v-Math.floor(v);};
@@ -113,6 +117,9 @@ export class CircuitWorld {
   this.materials.porcelain=new T.MeshStandardMaterial({color:0xcdbf9f,roughness:.2});this.materials.voltSign=new T.MeshStandardMaterial({map:voltTexture(),roughness:.55,metalness:.25});this.sparks=new Sparks(this.scene);
   this.fault=new Fault(this.scene,{rock:this.materials.rock,diffuse:gateDiffuse,normal:gateNormal,routeX,routeY,routeHeading,terrain:(off,z)=>terrainY(off,z,'fault',{canyon:true,bridge:z>=288&&z<640})});this.gate=new Gate(this.scene,{stone:this.materials.stone,sign:this.signs.gates,light:this.practicalLights[0],diffuse:gateDiffuse,normal:gateNormal,routeX,routeY,routeHeading,groundAt});
   this.promenade=new Promenade(this.scene,{routeX,routeY,routeHeading});this.glass=new Glass(this.scene);this.glass.floor=(x,z)=>groundAt(x,z,this.id);
+  this.visitorCenter=createVisitorCenter(this.scene);
+  // Pursuit's own ground, road and court planes would fight the arcade terrain; the building, steps, pond and planting stay.
+  for(const o of [...this.visitorCenter.root.children])if(o.isMesh&&o.geometry.type==='PlaneGeometry')o.visible=false;
   this.ready=true;
  }
  instances(parent,geo,mat,items,shadow=true){
@@ -164,7 +171,7 @@ export class CircuitWorld {
    g.userData.wet=[];scatter(index,id,flags,{height:hAt,put,still,rocks:this.rocks.kinds,wet:(off,z,r)=>g.userData.wet.push([routeX(z,id)+off,z,r])});
    if(canyon)for(const side of [-1,1])for(let i=0;i<3;i++){const z=start+i*12,scale=2.1+noise(index*3+i)*.3;add(outcrops,side*19,-2,z,scale,scale*1.3,scale,0,-side*Math.PI/2);}
   }
-  if(interior||urban||id==='lagoon'){
+  if((interior||urban||id==='lagoon')&&!(id==='visitor'&&start>=PLAZA-16)){
    for(const side of [-1,1])for(let z=start;z<start+32;z+=8){
     const bank=id==='lagoon'?30:interior?9:12;
     add(stone,side*bank,2.7,z,.8,5.4,.8);add(stone,side*bank,.35,z,1.4,.7,1.4);add(stone,side*bank,5.45,z,1.3,.3,1.3);
@@ -221,7 +228,8 @@ export class CircuitWorld {
   return g;
  }
  disposeChunk(g){this.scene.remove(g);const shared=new Set([...Object.values(this.materials),...Object.values(this.kit.materials)]);g.traverse(o=>{if(o.isInstancedMesh){o.dispose();return;}if(o.isLineSegments){o.geometry.dispose();o.material.dispose();return;}if(o.isMesh&&!Object.values(this.geometry).includes(o.geometry))o.geometry.dispose();if(o.isMesh&&!shared.has(o.material)&&!o.material.userData.shared)o.material.dispose();});}
- setStage(id){if(this.id===id)return;this.spray.reset();for(const g of this.chunks)this.disposeChunk(g);this.chunks=[];this.id=id;const p=palettes[id];this.light.setStage(id);this.air.setStage(id);this.materials.ground.setStage(id);this.rocks.setStage(id);this.materials.leaf.color.set(p.leaf).multiplyScalar(1.45);this.materials.canopy.color.set(p.leaf).multiplyScalar(.77);this.materials.water.color.set(p.water);}
+ setStage(id){if(this.id===id)return;
+  {const v=this.visitorCenter,on=id==='visitor';v.root.visible=on;if(on){const h=routeHeading(PLAZA,id);v.root.position.set(routeX(PLAZA,id),routeY(PLAZA,id),PLAZA);v.root.rotation.set(0,Math.PI+h,0);}}this.spray.reset();for(const g of this.chunks)this.disposeChunk(g);this.chunks=[];this.id=id;const p=palettes[id];this.light.setStage(id);this.air.setStage(id);this.materials.ground.setStage(id);this.rocks.setStage(id);this.materials.leaf.color.set(p.leaf).multiplyScalar(1.45);this.materials.canopy.color.set(p.leaf).multiplyScalar(.77);this.materials.water.color.set(p.water);}
  sync(game,{reduced=false,time=0,shake=0}={}){
   if(!this.ready)return;const id=game?.stage.id||'gates';this.setStage(id);this.distance=game?.travel??time*4;const before=this.time;this.time=game?.time??time;const dt=clamp(this.time-before,0,.1);this.wave.value=this.time;
   const first=Math.floor(this.distance/32)-1;for(const g of this.chunks.filter(g=>g.userData.index<first||g.userData.index>first+8)){this.disposeChunk(g);this.chunks.splice(this.chunks.indexOf(g),1);}for(let i=first;i<=first+8;i++)if(!this.chunks.some(g=>g.userData.index===i))this.chunks.push(this.makeChunk(i));
@@ -255,7 +263,7 @@ export class CircuitWorld {
   this.spray.update(dt,{dir:this.light.key,sun:this.sunLit,fill:this.fill},this.camVel);
   if(id==='fault'){this.fault.haze=this.scene.fog?.color;this.fault.reduced=reduced;this.fault.update(game,this.chunks,{camera:this.camera,time:this.time,dt,effects:this.vehicle?.effects});}else if(this.fault.plume.visible){this.fault.plume.visible=false;for(const b of this.fault.bombs){b.live=false;b.mesh.visible=b.flame.visible=false;}}
   if(id==='hybrid')this.promenade.update(game,this.camera);else this.promenade.hide();
-  this.glass.update(dt);
+  this.glass.update(dt);if(this.visitorCenter.root.visible)this.visitorCenter.update(this.time);
   WIND.value=this.time;this.sky.update(this.camera,this.time);this.post.settings.motionBlur=reduced?0:.65;
  }
  // Creatures (and only creatures) take a rim of the stage's key light.
