@@ -214,7 +214,8 @@ $('medals-open').addEventListener('click',()=>{const have=readMedals(()=>localSt
 $('medals-close').addEventListener('click',()=>$('medals').close());
 // Practice: any stage up to the furthest reached plays alone (route practice-N, its own best).
 $('practice-open').addEventListener('click',()=>{const top=reached();$('practice-list').replaceChildren(...STAGES.map((s,i)=>{const li=document.createElement('li'),b=document.createElement('button');b.disabled=i>top;b.innerHTML=`<b>${String(i+1).padStart(2,'0')} · ${s.name}</b><span>${i>top?'Reach it in a run to unlock':s.location}</span>`;b.addEventListener('click',()=>{$('practice').close();start(`practice-${i}`);});li.append(b);return li;}));$('practice').showModal();});
-$('practice-close').addEventListener('click',()=>$('practice').close());$('about-close').addEventListener('click',()=>$('about').close());
+$('practice-close').addEventListener('click',()=>$('practice').close());
+$('howto-open').addEventListener('click',()=>$('howto').showModal());$('howto-close').addEventListener('click',()=>$('howto').close());$('about-close').addEventListener('click',()=>$('about').close());
 function pointer(e){aim.x=Math.max(.02,Math.min(.98,e.clientX/innerWidth));aim.y=Math.max(.19,Math.min(.85,(e.clientY-(e.pointerType==='touch'?42:0))/innerHeight));}
 canvas.addEventListener('pointerdown',e=>{if(mode!=='playing'||(e.pointerType==='mouse'&&e.button!==0)||pointerId!==null)return;pointerId=e.pointerId;canvas.setPointerCapture(e.pointerId);pointer(e);fire=true;void audio.unlock();e.preventDefault();});
 canvas.addEventListener('pointermove',e=>{if(pointerId===null||e.pointerId===pointerId)pointer(e);});
@@ -285,7 +286,7 @@ let hudTick=0;
 function frame(now){const raw=now-last,dt=Math.min(.1,raw/1000);last=now;
  pad=gamepad();
  // The attract mode: idle on the menu starts it; any input (here, a gamepad button) ends it.
- if(mode==='menu'&&ready&&!test&&!document.hidden&&!$('about').open&&!$('medals').open&&!$('practice').open){idle+=Math.min(2,raw/1000);if(idle>ATTRACT_IDLE){idle=0;startAttract();}}else if(mode!=='playing')idle=0;
+ if(mode==='menu'&&ready&&!test&&!document.hidden&&!$('about').open&&!$('medals').open&&!$('practice').open&&!$('howto').open){idle+=Math.min(2,raw/1000);if(idle>ATTRACT_IDLE){idle=0;startAttract();}}else if(mode!=='playing')idle=0;
  if(attract&&pad&&padHeld.some(Boolean)){stopAttract();padHeld=padHeld.map(()=>true);}
  // Gamepad on the screens: A starts, continues or restarts; Start pauses and resumes.
  if(pad){if(pad.pressed(9)){if(mode==='playing')pause();else if(mode==='paused')resume();}
