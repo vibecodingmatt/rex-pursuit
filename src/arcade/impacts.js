@@ -35,7 +35,7 @@ export class CircuitImpacts{
   const at=r.at(end>0?end:90,hit).clone();
   // Power rounds burn their crate's colour: blue for spread shot, red-orange for explosive.
   // Co-op: player 2 fires from the Jeep's other side.
-  const from=shot&&e.player===2?(this.left??=new T.Vector3()).set(-1.15,-.1,.35).applyQuaternion(this.r.world.camera.quaternion).add(shot.origin):shot?.origin;
+  const from=shot&&e.player===2?this.r.weapon2?.shot?.origin||(this.left??=new T.Vector3()).set(-1.15,-.1,.35).applyQuaternion(this.r.world.camera.quaternion).add(shot.origin):shot?.origin;
   if(shot)fx.trace(from,at,e.pellet||game.scatter>0?SPREAD_TRACE:game.power>0?EXPLOSIVE_TRACE:null);
   if(end<0)return;
   // Explosive rounds (the power crate): every round that lands bursts in orange sparks and a puff of smoke.
