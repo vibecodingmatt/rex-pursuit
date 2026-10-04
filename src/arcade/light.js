@@ -23,7 +23,7 @@ const LOOKS={
   ridges:[[.03,.06,2.6,9.1,0x9db0a8,.68],[.016,.04,4.2,3.3,0x7c917e,.5]],peaks:[[-55,.13,.28,0,0,0]],clouds:[.025,.09,.7,5.5,0xe8eee0]},
  // Ember light in the canyon: a red sun low through ash, warm dust, the cave lit by lava.
  fault:{key:[8,13,0xff7a3c,3.2],fill:[0x9a6a52,0x3a2419,1.85],env:[0x3f2c29,0xa55e3c,0x2a1a12,1,.45],
-  fog:[0x6a4236,.0106,.06,.6,0xff7a3c,.8],sky:[0x1c1517,0x83492f,6,.85,0],air:[.015,0xffa063,.9],
+  fog:[0x5a3830,.0106,.06,.6,0xff6a30,.5],sky:[0x161113,0x6a3a2a,3,.85,0],air:[.015,0xff9a5a,.72],
   grade:[1.14,.16,1.06,.008,[1.03,.95,.95],[1.1,.95,.82],.22,.1],rim:[0xff8b4c,1.35],lamps:[0xff6327,95],
   ridges:[[.04,.09,2.1,6.6,0x4a3430,.55],[.024,.06,3.6,2.4,0x352624,.36],[.012,.035,6.2,8.8,0x241a19,.2]],peaks:[[-34,.11,.3,0,1,1],[40,.07,.22,1,0,0]],clouds:[.05,.08,.6,1.1,0x6f4a3e]},
  // Innovation Valley: a clear tropical afternoon, the sun behind-right, crisp and saturated.

@@ -54,18 +54,19 @@ float n(vec2 p){vec2 i=floor(p),f=fract(p);f=f*f*(3.-2.*f);return mix(mix(h(i),h
 float fbm(vec2 p){float v=0.,a=.5;for(int i=0;i<5;i++){v+=a*n(p);p=p*2.03+vec2(1.7,9.2);a*=.5;}return v;}
 void main(){
  float y=vUv.y,t=uTime;vec2 q=vec2((vUv.x-.5)*2.,y);
- // Billows rise and roll outward; the column leans downwind and spreads into an anvil.
- float lean=y*y*.35,w=mix(.1,.24,smoothstep(0.,.7,y))+smoothstep(.6,.95,y)*.32;
- vec2 p=vec2((q.x-lean)/w*.9,y*3.2-t*.045);float b=fbm(p*1.6+vec2(0.,fbm(p*.8+t*.02)*1.4));
- float edge=1.-smoothstep(.55,1.05,abs(q.x-lean)/w+(.5-b)*.7);
- float a=edge*smoothstep(0.,.06,y)*(1.-smoothstep(.8,1.,y+(.5-b)*.25))*smoothstep(.25,.6,b+.2);
- // Lit from below by the vent: a hot core at the foot fading up the column; ash above.
- float vent=exp(-y*7.)*(1.-smoothstep(0.,.5,abs(q.x)/max(w,.01)));
- vec3 ash=mix(vec3(.07,.06,.055),vec3(.24,.19,.16),b)*(.8+.4*smoothstep(.3,.9,y));
- vec3 col=ash+vec3(1.6,.42,.08)*vent*(1.5+b)+vec3(.9,.25,.06)*exp(-y*3.)*.35*b;
+ // Billows boil up a leaning column, then flatten under a lumpy shelf into an umbrella that drifts downwind.
+ float b0=n(vec2(q.x*5.,t*.03)),um=smoothstep(.5,.64,y+(b0-.5)*.1),lean=y*y*.16;
+ float w=mix(.075,.16,smoothstep(0.,.5,y))+um*mix(.5,.66,smoothstep(.64,.9,y)),x=q.x-lean-um*um*.14;
+ vec2 p=vec2(x/w*(.9+um*1.7),y*3.4-t*.045*(1.-um*.75));float b=fbm(p*1.5+vec2(0.,fbm(p*.7+t*.02)*1.5));
+ float edge=1.-smoothstep(.5,1.,abs(x)/w+(.5-b)*.6);
+ float a=edge*smoothstep(0.,.05,y)*(1.-smoothstep(.84,.98,y+(.5-b)*.2))*smoothstep(.2,.55,b+.25);
+ // Lit from inside by the vent: a hot core at the foot fading up the column; dark ash above, its crown catching the sky.
+ float vent=exp(-y*6.)*(1.-smoothstep(0.,.6,abs(x)/max(w,.01)));
+ vec3 ash=mix(vec3(.05,.045,.042),vec3(.2,.16,.14),b)*(.85+.35*smoothstep(.3,.9,y));
+ vec3 col=ash+vec3(1.7,.45,.08)*vent*(1.4+b)+vec3(.8,.22,.05)*exp(-y*3.2)*.45*b+vec3(.22,.11,.06)*um*smoothstep(.55,.9,b)*smoothstep(.7,.9,y);
  // Lightning inside the ash.
- col+=vec3(.75,.8,1.)*uFlash*smoothstep(.55,.95,b)*smoothstep(.25,.5,y)*(1.-smoothstep(.7,.9,y))*1.6;
- col=mix(col,uHaze*.6,.16*(1.-vent));a=min(1.,a*1.25);
+ col+=vec3(.75,.8,1.)*uFlash*smoothstep(.55,.95,b)*smoothstep(.2,.45,y)*(1.-smoothstep(.75,.92,y))*1.6;
+ col=mix(col,uHaze*.6,(.14+.3*(1.-smoothstep(0.,.35,y)))*(1.-vent));a=min(1.,a*1.5);
  gl_FragColor=vec4(col*a*uFade,a*uFade);
 }`;
 // A volcanic bomb: a lumpy basalt ball whose crust cracks glow (the lava shader, mostly crust).
@@ -185,7 +186,7 @@ export class Fault {
   this.u.uLavaFlow.value=(time*.55)%256;
   // The eruption stands down the canyon, a little left of the road; it shows once the tube opens out.
   const pu=this.plume.material.uniforms,z=camera.position.z,dist=262,az=Math.atan2(this.routeX(z+dist,'fault')-camera.position.x,dist)+.09;this.plume.visible=true;pu.uFade.value=clamp((z-262)/40,0,1);pu.uTime.value=time%600;
-  this.plume.position.set(camera.position.x+Math.sin(az)*dist,camera.position.y-6,z+Math.cos(az)*dist);this.plume.rotation.set(0,az+Math.PI,0);this.plume.scale.set(320,250,1);
+  this.plume.position.set(camera.position.x+Math.sin(az)*dist,camera.position.y-10,z+Math.cos(az)*dist);this.plume.rotation.set(0,az+Math.PI,0);this.plume.scale.set(430,150,1);
   this.nextFlash-=dt;if(this.nextFlash<=0){this.flash=1;this.nextFlash=1.2+Math.random()*3.5;}this.flash=Math.max(0,this.flash-dt*(this.flash>.5?3:7));pu.uFlash.value=this.flash>.5||Math.sin(time*60)>0?this.flash:this.flash*.3;
   if(this.haze)pu.uHaze.value.copy(this.haze);
   this.throwBombs(game,camera,dt,time,effects);this.u.uLavaPhase.value=(time*.35)%TAU;this.flameTime.value=time%600;
