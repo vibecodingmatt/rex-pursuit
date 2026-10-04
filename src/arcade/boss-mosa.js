@@ -60,7 +60,8 @@ export class BossMosa {
  }
  update(s,dt,game){
   const e=s.entity,age=Math.max(0,e.age),c=s.dead?s.frozen??(s.frozen=age%CYCLE):age%CYCLE,round=Math.floor(age/CYCLE),side=(e.lane<.5?1:-1)*(round%2?-1:1),P=key(c,s.pose);
-  let [,ahead,lat,height,pitch,roll,jaw,arch,amp]=P;lat*=side;roll*=side;
+  // A narrow (portrait) screen sees less to the side: she keeps closer to the bow's line there.
+  let [,ahead,lat,height,pitch,roll,jaw,arch,amp]=P;lat*=side*clamp(this.world.camera.aspect*.85,.38,1);roll*=side;
   // The first round starts from far ahead, under the surface.
   if(round===0&&c<1){const u=smooth(c,0,1);ahead=lerp(80,ahead,u);lat=lerp(side*16,lat,u);height=lerp(-1.6,height,Math.max(u,.7));pitch=0;jaw=0;}
   // Stagger: nine head hits knock her back under for a moment.
