@@ -83,7 +83,7 @@ function bossCues(){
   if(cue.type==='step'||cue.type==='impact'){
    const near=Math.max(0,1-cue.at.distanceTo(cam)/32),heavy=cue.type==='impact';
    renderer.shake=Math.max(renderer.shake,(heavy?.9:.32)*near);
-   if(cue.water){field.splash('step',cue.at,heavy?1:.75);renderer.effects.spume(cue.at.clone().setY(-.3),cue.at.clone().set(0,2.2,0),{size:.9,opacity:.2});}
+   if(cue.water){field.splash('step',cue.at,heavy?1:.75);renderer.effects.spume(cue.at.clone().setY(-.3),cue.at.clone().set(0,2.2,0),{size:.9,opacity:.2});renderer.world.spray.burst(cue.at,heavy?1.3:.7);renderer.world.river.ring(cue.at.x,cue.at.z,heavy?1.4:.8);}
    else if(heavy){field.groundImpact(cue.strength,cue.at);renderer.effects.bodyImpact(cue.at,cue.strength);}
    else{field.footstep(.55,cue.at);renderer.effects.footstep(cue.at,cue.speed);}
   }
@@ -153,7 +153,7 @@ async function load(){
   // A leaping ichthyosaur throws a ring of spray where it breaks the surface.
   // Tests pin High (or ?quality=) so captures and timings stay comparable.
   quality=new CircuitQuality(renderer,{fixed:test?new URLSearchParams(location.search).get('quality')||'high':null});quality.apply();qualityLabel();
-  ambience.world=renderer.world;renderer.actors.effects=renderer.effects;renderer.actors.onSplash=(at,strength)=>{field.splash('step',at,strength);for(let i=0;i<8;i++){const r=i/8*Math.PI*2;renderer.effects.spume(at.clone().setY(at.y-.2),at.clone().set(Math.cos(r)*2.4*strength,3.4*strength+Math.random(),Math.sin(r)*2.4*strength),{size:1.1,opacity:.24,life:1.5});}};
+  ambience.world=renderer.world;renderer.actors.effects=renderer.effects;renderer.actors.onSplash=(at,strength)=>{field.splash('step',at,strength);renderer.world.spray.burst(at,strength);renderer.world.river.ring(at.x,at.z,strength);for(let i=0;i<8;i++){const r=i/8*Math.PI*2;renderer.effects.spume(at.clone().setY(at.y-.2),at.clone().set(Math.cos(r)*2.4*strength,3.4*strength+Math.random(),Math.sin(r)*2.4*strength),{size:1.1,opacity:.24,life:1.5});}};
   $('start').disabled=false;$('start-label').textContent='START THE RIDE';$('load-status').textContent='';updateBest();void renderer.loadBosses();}
  catch{$('load-status').textContent='The island could not load. Check your connection and reload this page.';$('start-label').textContent='RELOAD TO RETRY';$('start').disabled=false;$('start').onclick=()=>location.reload();}
 }void load();

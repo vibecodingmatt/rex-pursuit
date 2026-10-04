@@ -203,6 +203,8 @@ export class CircuitActors {
   a.mesh.userData.swim(a.swimPhase,.13-.06*air+.16*a.flinch,a.stroke);a.mesh.position.copy(a.position);
   a.mesh.rotation.set(-Math.atan2(rise,6),a.yaw+(a.side||1)*.4*a.flinch,.22*Math.sin(age*1.7+e.seed)*air);
   if(a.lastLift!==undefined&&(a.lastLift<0)!==(h<0))this.onSplash?.(v.set(a.position.x,water,a.position.z),Math.min(1.3,.5+Math.abs(rise)*.12));a.lastLift=h;
+  // A9: swimming just under the surface, it pushes a wake through the river (water.js).
+  if(dt>0&&a.wakeAt){const vx=(a.position.x-a.wakeAt.x)/dt,vz=(a.position.z-a.wakeAt.z)/dt;if(h>-.9&&h<.2)this.world.river?.mover(a.position.x,a.position.z,.55,vx,vz,.9);}(a.wakeAt??=new T.Vector3()).copy(a.position);
  }
  prop(a,e,age,dt,ground){
   const m=a.mesh,k=e.kind;a.flinch=Math.max(0,(a.flinch||0)-dt*3);m.position.copy(a.position);

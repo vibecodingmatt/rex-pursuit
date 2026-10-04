@@ -2,6 +2,7 @@ import * as T from 'three';
 import {createRex} from '../chase/creature.js';
 import {RULES} from '../chase/combat.js';
 import {routeX,routeY} from './world.js';
+import {LEVEL} from './water.js';
 
 // Pursuit's hero Rex as the arcade's Rex boss. The shared gait and death fall
 // work in the chase's frame: an identity parent, a floor at y=0 and the road
@@ -104,8 +105,25 @@ export class BossRex {
     if(ev.type==='footstep')this.cues.push({type:'step',at,speed:ev.speed,water:id==='river',slot:s.index});
     if(ev.type==='body-impact')this.cues.push({type:'impact',at,strength:ev.strength,water:id==='river',slot:s.index});
    }
+   if(id==='river'&&!s.dead)this.wade(s,dt);
   }
   if(s.lastX!==null)s.frame.visible=true;
+ }
+ /**
+  * A9: her legs plough the river. Where each shin cuts the surface the water piles into a
+  * collar and trails away behind (water.js), and a sheet of spray flies ahead and out of it
+  * (spray.js), harder the faster the leg moves.
+  */
+ wade(s,dt){
+  const w=this.world;if(!w.river||dt<=0)return;
+  // She walks on her toes: the water line crosses the foot between the ankle and the middle toe.
+  s.wade??=['L','R'].map(k=>({shin:s.rex.bones.find(b=>b.name.startsWith(`foot_02_01_${k}_`)),foot:s.rex.bones.find(b=>b.name.startsWith(`foot_02_03_${k}_`)),a:new T.Vector3(),b:new T.Vector3(),p:new T.Vector3(),last:null}));
+  for(const leg of s.wade){if(!leg.shin||!leg.foot)continue;leg.shin.getWorldPosition(leg.a);leg.foot.getWorldPosition(leg.b);
+   if(leg.b.y>LEVEL+.05){leg.last=null;continue;}
+   const t=leg.a.y>LEVEL?(leg.a.y-LEVEL)/Math.max(1e-3,leg.a.y-leg.b.y):0;leg.p.lerpVectors(leg.a,leg.b,t);
+   if(leg.last){const vx=(leg.p.x-leg.last.x)/dt,vz=(leg.p.z-leg.last.z)/dt,speed=Math.hypot(vx,vz);w.river.mover(leg.p.x,leg.p.z,.6,vx,vz,1);
+    if(speed>1.5){const k=1/speed,out={x:vx*.45+vz*k*1.6*(leg===s.wade[0]?1:-1),z:vz*.45-vx*k*1.6*(leg===s.wade[0]?1:-1)};w.spray.sheet(leg.p,vx,vz,out,2.6+Math.min(5,speed*.32),Math.min(320,speed*26),dt,.15);}}
+   (leg.last??=new T.Vector3()).copy(leg.p);}
  }
  /** Screen-space placement of her real body and head, plus a ray test against her rig. */
  project(e,aspect){
