@@ -4,6 +4,7 @@
 // drains the sound cues. Everything is a function of route z and the rules' clock, so seeking and
 // Overdrive stay in step.
 import * as T from 'three';
+import {FLAME_VS,FLAME_FS} from './gate.js';
 
 const TAU=Math.PI*2,clamp=T.MathUtils.clamp,hash=n=>{const v=Math.sin(n*127.1+311.7)*43758.5453;return v-Math.floor(v);};
 // The bridge spans the gorge chunks world.js flags (start 288 to 640); towers carry the main cables.
@@ -67,10 +68,14 @@ void main(){
  col=mix(col,uHaze*.6,.16*(1.-vent));a=min(1.,a*1.25);
  gl_FragColor=vec4(col*a*uFade,a*uFade);
 }`;
+// A volcanic bomb: a lumpy basalt ball whose crust cracks glow (the lava shader, mostly crust).
+function bombGeometry(){const g=new T.IcosahedronGeometry(1,3),p=g.attributes.position,lava=[];
+ for(let i=0;i<p.count;i++){const x=p.getX(i),y=p.getY(i),z=p.getZ(i),k=1+.16*Math.sin(x*4.1+y*2.3)+.1*Math.sin(y*6.7-z*3.9)+.06*Math.sin(z*11+x*7);p.setXYZ(i,x*k,y*k*.88,z*k);lava.push(x*2.6+20,y*2.6+z*1.7+40,.42);}
+ g.setAttribute('lava',new T.Float32BufferAttribute(lava,3));g.computeVertexNormals();return g;}
 export class Fault {
- constructor(scene,{rock,diffuse,normal,routeX,routeY,routeHeading,quality}){
-  Object.assign(this,{scene,routeX,routeY,routeHeading,quality});this.cues=[];this.dummy=new T.Object3D();this.v=[new T.Vector3(),new T.Vector3(),new T.Vector3()];this.up=new T.Vector3(0,1,0);this.q=new T.Quaternion();this.off=[[0,0],[0,0]];this.snapWait=0;
-  this.u={uLavaFlow:{value:0},uLavaPhase:{value:0}};this.lava=lavaMaterial(this.u);
+ constructor(scene,{rock,diffuse,normal,routeX,routeY,routeHeading,terrain}){
+  Object.assign(this,{scene,routeX,routeY,routeHeading,terrain});this.cues=[];this.dummy=new T.Object3D();this.v=[new T.Vector3(),new T.Vector3(),new T.Vector3()];this.up=new T.Vector3(0,1,0);this.q=new T.Quaternion();this.off=[[0,0],[0,0]];this.snapWait=0;
+  this.u={uLavaFlow:{value:0},uLavaPhase:{value:0}};this.flameTime={value:0};this.lava=lavaMaterial(this.u);
   this.vault=rock.clone();this.vault.color.set(0x5e5247);this.vault.side=T.DoubleSide;this.vault.userData.shared=true;
   this.drip=rock.clone();this.drip.color.set(0x52463c);this.drip.roughness=.62;this.drip.userData.shared=true;
   this.geometry={drip:dripGeometry(),mite:dripGeometry(true),plank:plankGeometry(),board:new T.BoxGeometry(.38,.06,1),log:new T.CylinderGeometry(1,1,1,9),rope:new T.CylinderGeometry(1,1,1,5,1,true)};
@@ -81,7 +86,32 @@ export class Fault {
   this.log=new T.MeshStandardMaterial({map:tex(diffuse),normalMap:tex(normal),color:0x8a7560,roughness:.95});this.log.userData.shared=true;
   this.rope=new T.MeshStandardMaterial({color:0x7a6548,roughness:1});this.rope.userData.shared=true;
   this.plume=new T.Mesh(new T.PlaneGeometry(1,1).translate(0,.5,0),new T.ShaderMaterial({uniforms:{uTime:{value:0},uFade:{value:0},uFlash:{value:0},uHaze:{value:new T.Color()}},vertexShader:PLUME_VS,fragmentShader:PLUME_FS,transparent:true,depthWrite:false,blending:T.CustomBlending,blendSrc:T.OneFactor,blendDst:T.OneMinusSrcAlphaFactor}));
+  // Flaming boulders thrown off the canyon rim; they bounce down the slopes with real physics.
+  this.bombs=[];const bombMat=lavaMaterial(this.u,{glow:2.2,flow:0}),bombGeo=bombGeometry(),flameGeo=new T.PlaneGeometry(1,1).translate(0,.5,0);this.bombWait=1.2;
+  for(let i=0;i<6;i++){const mesh=new T.Mesh(bombGeo,bombMat);mesh.castShadow=true;mesh.visible=false;mesh.userData.noReflect=true;scene.add(mesh);
+   const flame=new T.Mesh(flameGeo,new T.ShaderMaterial({uniforms:{uTime:this.flameTime,uSeed:{value:i*1.91},uPower:{value:.95}},vertexShader:FLAME_VS,fragmentShader:FLAME_FS,transparent:true,depthWrite:false,blending:T.AdditiveBlending}));flame.frustumCulled=false;flame.renderOrder=60;flame.visible=false;flame.userData.noReflect=true;scene.add(flame);
+   this.bombs.push({mesh,flame,p:new T.Vector3(),v:new T.Vector3(),spin:new T.Vector3(),r:1,live:false,bounces:0,trail:0});}
   this.plume.frustumCulled=false;this.plume.renderOrder=-1;this.plume.visible=false;this.plume.userData.noReflect=true;scene.add(this.plume);this.flash=0;this.nextFlash=2;
+ }
+ // Bombs launch from the rim ahead, arc into the canyon and bounce on the terrain or the deck.
+ throwBombs(game,camera,dt,time,effects){
+  const z=camera.position.z,on=game&&game.phase!=='clear'&&z>300&&!this.reduced,id='fault';
+  if(on&&(this.bombWait-=dt)<=0){const b=this.bombs.find(b=>!b.live);this.bombWait=1.5+Math.random()*1.9;
+   if(b){const side=Math.random()<.5?-1:1,bz=z+70+Math.random()*60;b.r=.7+Math.random()*.8;b.p.set(this.routeX(bz,id)+side*(24+Math.random()*16),this.routeY(bz,id)+30+Math.random()*14,bz);
+    b.v.set(-side*(7+Math.random()*7),3+Math.random()*5,-(3+Math.random()*7));b.spin.set(Math.random()*6-3,Math.random()*4-2,Math.random()*6-3);b.live=true;b.bounces=0;b.trail=0;b.mesh.scale.setScalar(b.r);}}
+  const [g]=this.v;
+  for(const b of this.bombs){if(!b.live){b.mesh.visible=b.flame.visible=false;continue;}
+   b.v.y-=17*dt;b.p.addScaledVector(b.v,dt);b.mesh.rotation.x+=b.spin.x*dt;b.mesh.rotation.y+=b.spin.y*dt;b.mesh.rotation.z+=b.spin.z*dt;
+   const off=b.p.x-this.routeX(b.p.z,id),deck=b.p.z>=BRIDGE.start&&b.p.z<BRIDGE.end&&Math.abs(off)<BRIDGE.width/2+.5&&!(game?.bridgeBroken&&Math.abs(b.p.z-game.bridgeOrigin)<18);
+   let ground=deck?this.routeY(b.p.z,id):this.terrain(off,b.p.z);if(deck&&b.p.y<ground-1.5)ground=this.terrain(off,b.p.z);
+   if(b.p.y-b.r<ground&&b.v.y<0){b.p.y=ground+b.r;const hard=Math.min(1,-b.v.y/18);b.v.y=-b.v.y*.42;b.v.x*=.72;b.v.z*=.72;b.spin.multiplyScalar(.8).add(g.set(b.v.z*.5,0,-b.v.x*.5));b.bounces++;
+    // Each landing throws dust and sparks; close ones are heard.
+    if(effects){effects.groundDust(g.set(b.p.x,ground+.2,b.p.z),this.v[1].set(0,1.2,0),{life:1.8,size:b.r*1.6,growth:3,opacity:.45,color:0x5a4438});for(let k=0;k<5;k++)effects.speck(g.set(b.p.x,ground+.3,b.p.z),this.v[1].set(Math.random()*6-3,3+Math.random()*4,Math.random()*6-3),0xff7a2a,.09,1.1);}
+    const d=b.p.distanceTo(camera.position);if(d<75)this.cue({type:'bounce',weight:hard*(1-d/75)*b.r,at:b.p.clone()});}
+   if(b.bounces>4||b.p.z<z-12||b.p.y<this.routeY(b.p.z,id)-34){b.live=false;continue;}
+   b.mesh.visible=b.flame.visible=true;b.mesh.position.copy(b.p);const sp=b.v.length()||1;b.flame.position.copy(b.p).addScaledVector(b.v,-b.r*.5/sp);b.flame.position.y+=b.r*.15;b.flame.scale.set(b.r*2.6,b.r*(2.3+Math.min(1.4,sp*.06)),1);
+   // A trail of embers and dark smoke.
+   if(effects&&(b.trail-=dt)<=0){b.trail=.045;effects.haze(g.copy(b.p),this.v[1].set(0,.8,0),{life:1.7,size:b.r*1.2,growth:3.2,opacity:.5,color:0x241d1a,drag:1.2,rise:.5});effects.speck(g.copy(b.p),this.v[1].copy(b.v).multiplyScalar(.2).add(this.v[2].set(Math.random()-.5,1+Math.random(),Math.random()-.5)),0xff8a30,.07,.8);}}
  }
  drain(){const c=this.cues;this.cues=[];return c;}
  cue(c){this.cues.push(c);}
@@ -157,7 +187,8 @@ export class Fault {
   const pu=this.plume.material.uniforms,z=camera.position.z,dist=262,az=Math.atan2(this.routeX(z+dist,'fault')-camera.position.x,dist)+.09;this.plume.visible=true;pu.uFade.value=clamp((z-262)/40,0,1);pu.uTime.value=time%600;
   this.plume.position.set(camera.position.x+Math.sin(az)*dist,camera.position.y-6,z+Math.cos(az)*dist);this.plume.rotation.set(0,az+Math.PI,0);this.plume.scale.set(320,250,1);
   this.nextFlash-=dt;if(this.nextFlash<=0){this.flash=1;this.nextFlash=1.2+Math.random()*3.5;}this.flash=Math.max(0,this.flash-dt*(this.flash>.5?3:7));pu.uFlash.value=this.flash>.5||Math.sin(time*60)>0?this.flash:this.flash*.3;
-  if(this.haze)pu.uHaze.value.copy(this.haze);this.u.uLavaPhase.value=(time*.35)%TAU;
+  if(this.haze)pu.uHaze.value.copy(this.haze);
+  this.throwBombs(game,camera,dt,time,effects);this.u.uLavaPhase.value=(time*.35)%TAU;this.flameTime.value=time%600;
   const origin=game?.bridgeBroken?game.bridgeOrigin:null,st=game?.stageTime??0,camZ=camera.position.z;let snaps=0;
   for(const chunk of chunks){const b=chunk.userData.bridge;if(!b)continue;const cz=chunk.position.z,live=Math.abs(camZ-cz)<22||(origin!=null&&Math.abs(origin-cz)<42);
    if(!live&&!b.dirty)continue;b.dirty=live;snaps+=this.pose(b,origin,st,live?camZ:Infinity,effects);}

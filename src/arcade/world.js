@@ -109,7 +109,7 @@ export class CircuitWorld {
   this.spray=new Spray(this.scene);this.sunLit=new T.Color();
   this.signs={gates:labelTexture('JURASSIC PARK','ISLA NUBLAR • NORTH GATE'),river:labelTexture('RIVER OF GIANTS'),fault:labelTexture('SERVICE CROSSING','UNSTABLE GROUND • DO NOT STOP'),hybrid:labelTexture('INNOVATION VALLEY'),lagoon:labelTexture('LAGOON OBSERVATORY'),manor:labelTexture('THE CONSERVATORY'),visitor:labelTexture('VISITOR CENTER','WHEN GIANTS RULED THE EARTH')};
   this.materials.porcelain=new T.MeshStandardMaterial({color:0xcdbf9f,roughness:.2});this.materials.voltSign=new T.MeshStandardMaterial({map:voltTexture(),roughness:.55,metalness:.25});this.sparks=new Sparks(this.scene);
-  this.fault=new Fault(this.scene,{rock:this.materials.rock,diffuse:gateDiffuse,normal:gateNormal,routeX,routeY,routeHeading});this.gate=new Gate(this.scene,{stone:this.materials.stone,sign:this.signs.gates,light:this.practicalLights[0],diffuse:gateDiffuse,normal:gateNormal,routeX,routeY,routeHeading,groundAt});
+  this.fault=new Fault(this.scene,{rock:this.materials.rock,diffuse:gateDiffuse,normal:gateNormal,routeX,routeY,routeHeading,terrain:(off,z)=>terrainY(off,z,'fault',{canyon:true,bridge:z>=288&&z<640})});this.gate=new Gate(this.scene,{stone:this.materials.stone,sign:this.signs.gates,light:this.practicalLights[0],diffuse:gateDiffuse,normal:gateNormal,routeX,routeY,routeHeading,groundAt});
   this.ready=true;
  }
  instances(parent,geo,mat,items,shadow=true){
@@ -250,7 +250,7 @@ export class CircuitWorld {
   if(this.water.visible&&this.vehicle)this.spray.bow(dt,this.vehicle.boat.root,game?.speed??0,this.vehicle.slap,this.vehicle.effects);
   this.fill.copy(this.hemi.color).lerp(this.hemi.groundColor,.35).multiplyScalar(this.hemi.intensity*.16);this.sunLit.copy(this.sun.color).multiplyScalar(this.sun.intensity/Math.PI);if(dt>0){this.camVel??=new T.Vector3();if(this.lastCam)this.camVel.subVectors(this.camera.position,this.lastCam).divideScalar(dt);(this.lastCam??=new T.Vector3()).copy(this.camera.position);}
   this.spray.update(dt,{dir:this.light.key,sun:this.sunLit,fill:this.fill},this.camVel);
-  if(id==='fault'){this.fault.haze=this.scene.fog?.color;this.fault.update(game,this.chunks,{camera:this.camera,time:this.time,dt,effects:this.vehicle?.effects});}else this.fault.plume.visible=false;
+  if(id==='fault'){this.fault.haze=this.scene.fog?.color;this.fault.reduced=reduced;this.fault.update(game,this.chunks,{camera:this.camera,time:this.time,dt,effects:this.vehicle?.effects});}else if(this.fault.plume.visible){this.fault.plume.visible=false;for(const b of this.fault.bombs){b.live=false;b.mesh.visible=b.flame.visible=false;}}
   WIND.value=this.time;this.sky.update(this.camera,this.time);this.post.settings.motionBlur=reduced?0:.65;
  }
  // Creatures (and only creatures) take a rim of the stage's key light.

@@ -58,7 +58,7 @@ function fieldEvent(e){
 // Her calls, bite, pain and footfalls come from the modeled Rex's own timing.
 function bossCues(){
  // The gate's doors hit their stops: timber on timber.
- for(const cue of renderer.world.fault?.drain()||[]){if(!field.context||mode!=='playing')continue;if(cue.type==='snap')field.woodBreak(cue.weight*.7);if(cue.type==='land'){field.groundImpact(1);field.woodBreak(.5);renderer.shake=Math.max(renderer.shake,.7);const c=renderer.world.camera.position;for(let i=0;i<5;i++)renderer.effects.groundDust(c.clone().set(c.x+(i-2)*1.4,c.y-2.4,c.z+2+i%2),c.clone().set((i-2)*.8,.6,1.5),{life:1.6,size:1.1,opacity:.38,color:0x8a6f5a});}}
+ for(const cue of renderer.world.fault?.drain()||[]){if(!field.context||mode!=='playing')continue;if(cue.type==='snap')field.woodBreak(cue.weight*.7);if(cue.type==='bounce'){field.groundImpact(Math.min(1,cue.weight*.8),cue.at);renderer.shake=Math.max(renderer.shake,cue.weight*.3);}if(cue.type==='land'){field.groundImpact(1);field.woodBreak(.5);renderer.shake=Math.max(renderer.shake,.7);const c=renderer.world.camera.position;for(let i=0;i<5;i++)renderer.effects.groundDust(c.clone().set(c.x+(i-2)*1.4,c.y-2.4,c.z+2+i%2),c.clone().set((i-2)*.8,.6,1.5),{life:1.6,size:1.1,opacity:.38,color:0x8a6f5a});}}
  for(const cue of renderer.world.gate?.drain()||[])if(field.context&&mode==='playing'&&cue.type==='slam'){field.woodBreak(.45);field.groundImpact(.7,cue.at);renderer.shake=Math.max(renderer.shake,.25);}
  // The Triceratops' bellows, footfalls, pawing, horn lock and shoves (boss-trike.js).
  const trike=renderer.bossTrike,eye=renderer.world.camera.position;

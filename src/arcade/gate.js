@@ -26,7 +26,7 @@ function timber(w,h,d,{at=[0,0,0],rot=[0,0,0],vertical=false,seed=0}={}){
 function part(geometry,at=[0,0,0],rot=[0,0,0]){geometry.rotateX(rot[0]);geometry.rotateY(rot[1]);geometry.rotateZ(rot[2]);geometry.translate(...at);return geometry;}
 function merged(list){const g=mergeGeometries(list);for(const x of list)x.dispose();return g;}
 
-const FLAME_VS=`
+export const FLAME_VS=`
 varying vec2 vUv;
 void main(){
  vUv=uv;
@@ -35,7 +35,7 @@ void main(){
  vec3 world=centre+right*position.x*length(modelMatrix[0].xyz)+vec3(0.,position.y*length(modelMatrix[1].xyz),0.);
  gl_Position=projectionMatrix*viewMatrix*vec4(world,1.);
 }`;
-const FLAME_FS=`
+export const FLAME_FS=`
 uniform float uTime,uSeed,uPower;varying vec2 vUv;
 float h(vec2 p){return fract(sin(dot(p,vec2(127.1,311.7)))*43758.5453);}
 float n(vec2 p){vec2 i=floor(p),f=fract(p);f=f*f*(3.-2.*f);return mix(mix(h(i),h(i+vec2(1,0)),f.x),mix(h(i+vec2(0,1)),h(i+1.),f.x),f.y);}
