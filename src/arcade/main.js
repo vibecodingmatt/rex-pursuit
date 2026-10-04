@@ -10,7 +10,7 @@ const test=new URLSearchParams(location.search).get('test')==='1';
 let clearCard=0,game=null,mode='menu',route='extended',ready=false,fire=false,frozen=false,clock=0,accumulator=0,last=performance.now(),announcementTime=0,radioTime=0,saved=false;
 const aim={x:.5,y:.5},keys=new Set();let pointerId=null;
 // A15: the cabinet's ten-second CONTINUE? countdown, and gamepad state (buttons held last frame).
-let continueClock=0,padHeld=[],entering=false;
+let continueClock=0,padHeld=[],entering=false,lastMultiplier=1;
 // A15 attract mode: after ATTRACT_IDLE seconds on the menu a demo plays live gameplay, a stage per segment.
 const ATTRACT_IDLE=25,ATTRACT_SEGMENT=18,ATTRACT_STAGES=['gates','river','fault','hybrid','lagoon','manor','visitor'];let idle=0,attract=null;
 canvas.tabIndex=0;
@@ -121,7 +121,9 @@ function updateHud(){
  if(!game)return;$('score').textContent=String(game.score).padStart(6,'0');
  {const w=document.querySelector('.weapon-label'),pw=game.power>0,sp=game.scatter>0,on=pw||sp;w.classList.toggle('powered',pw);w.classList.toggle('spread',sp&&!pw);w.querySelector('b').textContent=pw&&sp?'EXPLOSIVE SPREAD':sp?'SPREAD SHOT':pw?'EXPLOSIVE ROUNDS':'TX–94 AUTOMATIC';w.querySelector('span').innerHTML=on?`${[sp&&'THREE TARGETS',pw&&'EVERY ROUND ×2'].filter(Boolean).join(' · ')} · <i>${Math.ceil(Math.max(game.power,game.scatter))}s</i>`:'TRANQUILIZER SYSTEM <i>∞</i>';}$('health').textContent=Math.ceil(game.hp);
  $('health-bars').replaceChildren(...Array.from({length:10},(_,i)=>{const bar=document.createElement('i');if(i>=Math.ceil(game.hp/10))bar.className='empty';if(game.hp<30&&bar.className!=='empty')bar.style.background='#ef9c6f';return bar;}));
- $('multiplier').textContent=`×${Math.min(5,1+Math.floor(game.combo/5))}`;$('chain-text').textContent=game.combo?`${game.combo} CHAIN`:'MAKE IT COUNT';$('chain-fill').style.width=`${game.chainTime/4.5*100}%`;
+ {const mult=Math.min(5,1+Math.floor(game.combo/5)),badge=$('multiplier');badge.textContent=`×${mult}`;
+  // Each step up the chain multiplier pops the badge and chimes higher; the top step gets a radio call.
+  if(mult>lastMultiplier&&!attract){badge.classList.remove('bump');void badge.offsetWidth;badge.classList.add('bump');audio.chime(mult);if(mult===5)radio('Five times multiplier! Keep the chain alive!');}lastMultiplier=mult;}$('chain-text').textContent=game.combo?`${game.combo} CHAIN`:'MAKE IT COUNT';$('chain-fill').style.width=`${game.chainTime/4.5*100}%`;
  $('focus-fill').style.width=`${game.focusTime>0?game.focusTime/5*100:game.focus}%`;$('focus-value').textContent=game.focusTime>0?'ACTIVE':game.focus>=100?'READY ↗':`${Math.floor(game.focus)}%`;$('focus').classList.toggle('ready',game.focus>=100);$('focus').setAttribute('aria-label',game.focus>=100?'Activate Overdrive':`Overdrive charging ${Math.floor(game.focus)} percent`);
  $('credit-label').textContent=game.continues?`CONTINUED RUN · ${game.credits} CREDITS LEFT`:'ONE CREDIT RUN';
  const bosses=game.entities.filter(e=>e.boss&&!e.dead);$('boss-hud').hidden=!bosses.length;

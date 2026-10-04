@@ -19,6 +19,8 @@ export class RideAudio {
  tone(freq,duration,volume=.1,type='sine',end=freq){
   if(!this.context||this.paused||this.voices.size>40)return;const c=this.context,t=c.currentTime,o=c.createOscillator(),g=c.createGain();o.type=type;o.frequency.setValueAtTime(freq,t);o.frequency.exponentialRampToValueAtTime(Math.max(20,end),t+duration);g.gain.setValueAtTime(volume,t);g.gain.exponentialRampToValueAtTime(.0001,t+duration);o.connect(g);g.connect(this.master);o.start();o.stop(t+duration);this.track(o,g);
  }
+ /** The chain multiplier steps up: two rising notes, a minor third higher per step. */
+ chime(step){const f=620*2**((step-2)*3/12);this.tone(f,.08,.06,'triangle');setTimeout(()=>this.tone(f*1.5,.16,.07,'triangle'),70);if(step>=5)setTimeout(()=>this.tone(f*2,.24,.06,'triangle'),140);}
  hiss(duration=.1,volume=.13,frequency=1800){
   if(!this.context||this.paused||this.voices.size>40)return;const c=this.context,t=c.currentTime,s=c.createBufferSource(),f=c.createBiquadFilter(),g=c.createGain();s.buffer=this.noise;f.type='lowpass';f.frequency.value=frequency;g.gain.setValueAtTime(volume,t);g.gain.exponentialRampToValueAtTime(.0001,t+duration);s.connect(f);f.connect(g);g.connect(this.master);s.start(0,Math.random()*.3,duration);this.track(s,g,f);
  }
