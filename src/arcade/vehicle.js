@@ -89,6 +89,8 @@ export class CircuitVehicle{
  }
  /** Sideways shove target in metres (+ is the camera's right); a pusher sets it every frame it pushes. */
  shove(x){this.push=x;}
+ // A hard landing: the body slams down nose first and rebounds on the springs.
+ land(s=1){const m=this.move??1;this.heave.v-=3.4*s*m;this.pitch.v-=1.3*s*m;this.roll.v+=(Math.random()-.5)*.6*s*m;}
  reset(){for(const s of [this.pitch,this.roll,this.heave,this.yaw,this.slide])s.reset();this.push=0;this.swell=0;this.rig.slide=0;this.lastSpeed=this.lastHeading=null;}
  /**
   * Place the Jeep under the eye and step the rig. `eye` is the route camera point (no

@@ -13,6 +13,7 @@ import {Sparks} from './sparks.js';
 import {RiverSurface,LEVEL} from './water.js';
 import {Spray} from './spray.js';
 import {BOW} from './boat.js';
+import {Fault} from './fault.js';
 
 const TAU=Math.PI*2,clamp=T.MathUtils.clamp,smooth=(a,b,x)=>{const t=clamp((x-a)/(b-a),0,1);return t*t*(3-2*t);};
 export const noise=n=>{const v=Math.sin(n*127.1+311.7)*43758.5453;return v-Math.floor(v);};
@@ -108,7 +109,7 @@ export class CircuitWorld {
   this.spray=new Spray(this.scene);this.sunLit=new T.Color();
   this.signs={gates:labelTexture('JURASSIC PARK','ISLA NUBLAR • NORTH GATE'),river:labelTexture('RIVER OF GIANTS'),fault:labelTexture('SERVICE CROSSING','UNSTABLE GROUND • DO NOT STOP'),hybrid:labelTexture('INNOVATION VALLEY'),lagoon:labelTexture('LAGOON OBSERVATORY'),manor:labelTexture('THE CONSERVATORY'),visitor:labelTexture('VISITOR CENTER','WHEN GIANTS RULED THE EARTH')};
   this.materials.porcelain=new T.MeshStandardMaterial({color:0xcdbf9f,roughness:.2});this.materials.voltSign=new T.MeshStandardMaterial({map:voltTexture(),roughness:.55,metalness:.25});this.sparks=new Sparks(this.scene);
-  this.gate=new Gate(this.scene,{stone:this.materials.stone,sign:this.signs.gates,light:this.practicalLights[0],diffuse:gateDiffuse,normal:gateNormal,routeX,routeY,routeHeading,groundAt});
+  this.fault=new Fault(this.scene,{rock:this.materials.rock,diffuse:gateDiffuse,normal:gateNormal,routeX,routeY,routeHeading});this.gate=new Gate(this.scene,{stone:this.materials.stone,sign:this.signs.gates,light:this.practicalLights[0],diffuse:gateDiffuse,normal:gateNormal,routeX,routeY,routeHeading,groundAt});
   this.ready=true;
  }
  instances(parent,geo,mat,items,shadow=true){
@@ -135,12 +136,9 @@ export class CircuitWorld {
   const trunks=[],leaves=[],wood=[],posts=[],stone=[],metal=[],lamps=[],insulators=[],plates=[],glass=[],palms=[],ferns=[],bushes=[],grass=[],outcrops=[],treeFerns=[],lava=[],facades=[];
   const add=(arr,off,y,z,sx,sy,sz,rx=0,ry=0,rz=0,tint)=>arr.push([routeX(z,id)+off,routeY(z,id)+y,z-mid,sx,sy,sz,rx,ry,rz,tint]);
   if(bridge){const points=[],faces=[];for(let j=0;j<=16;j++)for(let i=0;i<=24;i++){const z=start+j*2;points.push(routeX(z,id)+(i/24-.5)*50,routeY(z,id)-10,z-mid);if(j<16&&i<24){const k=j*25+i;faces.push(k,k+25,k+1,k+1,k+25,k+26);}}const waterGeometry=new T.BufferGeometry();waterGeometry.setAttribute('position',new T.Float32BufferAttribute(points,3));waterGeometry.setIndex(faces);waterGeometry.computeVertexNormals();g.add(new T.Mesh(waterGeometry,m.water));}
-  if(cave){
-   const points=[],uvs=[],faces=[];for(let j=0;j<=8;j++)for(let i=0;i<=24;i++){const z=start+j*4,a=i/24*Math.PI,x=Math.cos(a)*14,y=Math.sin(a)*10+3+Math.sin(z*.08+a*4)*.4;points.push(routeX(z,id)+x,routeY(z,id)+y,z-mid);uvs.push(a*4,z*.18);if(i<24&&j<8){const k=j*25+i;faces.push(k,k+1,k+25,k+1,k+26,k+25);}}
-   const vault=new T.BufferGeometry();vault.setAttribute('position',new T.Float32BufferAttribute(points,3));vault.setAttribute('uv',new T.Float32BufferAttribute(uvs,2));vault.setIndex(faces);vault.computeVertexNormals();const mat=m.rock.clone();mat.color.set(0x64584b);mat.side=T.DoubleSide;const ceiling=new T.Mesh(vault,mat);ceiling.castShadow=ceiling.receiveShadow=true;g.add(ceiling);
-   for(const side of [-1,1])for(let z=start;z<start+32;z+=2)add(lava,side*(8.3+Math.sin(z*.23)),.05,z,1.2+noise(z)*1.5,.03,2.2,0,routeHeading(z,id));
-  }
-  if(bridge){for(let z=start;z<start+32;z+=.72)add(wood,0,-.12,z,10.6,.25,.64,0,routeHeading(z,id));for(const side of [-1,1])for(let z=start;z<start+32;z+=4){add(posts,side*5.35,1.05,z,.8,2.5,.8);add(metal,side*5.35,1.8,z,.07,.07,4.1,0,routeHeading(z,id));}}
+  // The lava tube and the rope bridge (fault.js).
+  if(cave)this.fault.cave(g,start,mid,id,hAt);
+  if(bridge)this.fault.bridge(g,start,mid,id);
   // Rocks, clumped planting and track clutter (ground.js); rock buckets are keyed by their scan.
   const rockBuckets=new Map(),blobs=[],pebbles=[],stillItems={bark:[],shrub:[],palm:[],fern:[]},kit=this.kit,C=kit.clutter,matrix=new T.Matrix4(),q=new T.Quaternion(),e=new T.Euler(),sv=new T.Vector3(),pv=new T.Vector3();
   const buckets={grass,fern:ferns,bush:bushes,treeFern:treeFerns,blob:blobs,pebble:pebbles};
@@ -215,7 +213,7 @@ export class CircuitWorld {
   this.instances(g,this.geometry.leaf,m.leaf,leaves,false);
   for(const [kind,items]of rockBuckets){const mesh=this.instances(g,kind.near,kind.material,items);mesh.userData.lod=kind;}
   for(const mesh of [this.instances(g,this.geometry.blob,this.rocks.blob,blobs,false),this.instances(g,C.pebbles[Math.abs(index)%3],m.pebble,pebbles)])if(mesh)mesh.userData.noReflect=true;
-  for(const [name,items]of Object.entries(stillItems)){const geometry=mergeStill(items);if(!geometry)continue;const mesh=new T.Mesh(geometry,kit.materials[name]);mesh.castShadow=name==='bark';mesh.receiveShadow=true;mesh.userData.noReflect=true;g.add(mesh);}const deck=this.instances(g,this.geometry.box,m.wood,wood);if(bridge){g.userData.deck=deck;g.userData.planks=wood;}this.instances(g,this.geometry.pole,m.metal,posts);this.instances(g,this.geometry.box,m.stone,stone);this.instances(g,this.geometry.box,m.metal,metal);this.instances(g,this.geometry.box,m.lamp,lamps,false);this.instances(g,this.geometry.insulator,m.porcelain,insulators,false);this.instances(g,this.geometry.plate,m.voltSign,plates,false);this.instances(g,this.geometry.box,m.glass,glass,false);this.instances(g,this.geometry.box,m.lava,lava,false);
+  for(const [name,items]of Object.entries(stillItems)){const geometry=mergeStill(items);if(!geometry)continue;const mesh=new T.Mesh(geometry,kit.materials[name]);mesh.castShadow=name==='bark';mesh.receiveShadow=true;mesh.userData.noReflect=true;g.add(mesh);}this.instances(g,this.geometry.box,m.wood,wood);this.instances(g,this.geometry.pole,m.metal,posts);this.instances(g,this.geometry.box,m.stone,stone);this.instances(g,this.geometry.box,m.metal,metal);this.instances(g,this.geometry.box,m.lamp,lamps,false);this.instances(g,this.geometry.insulator,m.porcelain,insulators,false);this.instances(g,this.geometry.plate,m.voltSign,plates,false);this.instances(g,this.geometry.box,m.glass,glass,false);this.instances(g,this.geometry.box,m.lava,lava,false);
   this.instances(g,this.geometry.leaf,interior?m.manorFacade:id==='visitor'?m.visitorFacade:m.modernFacade,facades);
   return g;
  }
@@ -229,13 +227,14 @@ export class CircuitWorld {
   const z=this.distance,move=reduced?0:1,rough=id==='fault'?1.7:1,roll=Math.sin(z*.071)*.007*move;
   // Anchor the leap to the actual gap, so Overdrive cannot land us in midair.
   const leap=id==='fault'&&game?.bridgeBroken?(z-game.bridgeOrigin+30)/60:-1;
-  const drop=leap>0&&leap<1?-Math.sin(leap*Math.PI)*2.3*move:0;
+  const drop=leap>0&&leap<1?-Math.sin(leap*Math.PI)*2.3*move:0,nose=leap>0&&leap<1?Math.cos(leap*Math.PI)*1.5*move:0;
+  if(leap>=1&&this.leapWas>0&&this.leapWas<1&&game.phase!=='clear'){this.vehicle?.land(1);this.fault.cue({type:'land'});}this.leapWas=leap;
   // After a Rex goes down the camera cranes up off the vehicle, so her fall reads
   // from above instead of foreshortened behind her own head.
   const crane=game?.phase==='clear'&&DRIVE[game.stage.boss]?T.MathUtils.smootherstep(game.phaseTime,.2,2.6)*move:0;
   // The vehicle (vehicle.js) rides under the route eye point; its spring rig tilts the camera with it.
   const eye=(this.eye??=new T.Vector3()).set(routeX(z,id)+Math.sin(z*.11)*.10*move,routeY(z,id)+2.65-drop,z);
-  this.look.set(routeX(z+24,id),routeY(z+24,id)+2.25-drop-crane*3.3,z+24);const rig=game&&this.vehicle?this.vehicle.ride(dt,eye,this.look,{id,rough,move,hp:game.hp}):null;
+  this.look.set(routeX(z+24,id),routeY(z+24,id)+2.25-drop+nose-crane*3.3,z+24);const rig=game&&this.vehicle?this.vehicle.ride(dt,eye,this.look,{id,rough,move,hp:game.hp}):null;
   this.camera.position.copy(eye);this.camera.position.y+=crane*3.6+Math.sin(this.time*64)*shake*.12*move+(rig?rig.heave:Math.sin(z*1.2)*.025*rough*move);
   this.camera.lookAt(this.look);this.camera.rotateZ(roll);if(rig){this.camera.rotateY(rig.yaw);this.camera.rotateX(rig.pitch);this.camera.rotateZ(rig.roll);}this.camera.updateMatrixWorld();
   this.lit=this.light.update(game,{z,camera:this.camera,time:this.time});this.gate.update(id,this.camera,this.time,{height:this.renderer.domElement.height});
@@ -251,7 +250,7 @@ export class CircuitWorld {
   if(this.water.visible&&this.vehicle)this.spray.bow(dt,this.vehicle.boat.root,game?.speed??0,this.vehicle.slap,this.vehicle.effects);
   this.fill.copy(this.hemi.color).lerp(this.hemi.groundColor,.35).multiplyScalar(this.hemi.intensity*.16);this.sunLit.copy(this.sun.color).multiplyScalar(this.sun.intensity/Math.PI);if(dt>0){this.camVel??=new T.Vector3();if(this.lastCam)this.camVel.subVectors(this.camera.position,this.lastCam).divideScalar(dt);(this.lastCam??=new T.Vector3()).copy(this.camera.position);}
   this.spray.update(dt,{dir:this.light.key,sun:this.sunLit,fill:this.fill},this.camVel);
-  if(id==='fault')for(const chunk of this.chunks){const {deck,planks}=chunk.userData;if(!deck)continue;planks.forEach((a,i)=>{const worldZ=chunk.position.z+a[2],origin=game.bridgeOrigin??Infinity,elapsed=(game.stageTime-19)-(worldZ-origin)/32,fall=worldZ>origin-18&&worldZ<origin+18?clamp(elapsed,0,2):0;this.dummy.position.set(a[0],a[1]-fall*fall*4,a[2]);this.dummy.rotation.set(fall*.4,a[7]||0,Math.sin(i*3)*fall*.6);this.dummy.scale.set(a[3],a[4],a[5]);this.dummy.updateMatrix();deck.setMatrixAt(i,this.dummy.matrix);});deck.instanceMatrix.needsUpdate=true;deck.computeBoundingSphere();}
+  if(id==='fault')this.fault.update(game,this.chunks,{camera:this.camera,time:this.time,dt,effects:this.vehicle?.effects});
   WIND.value=this.time;this.sky.update(this.camera,this.time);this.post.settings.motionBlur=reduced?0:.65;
  }
  // Creatures (and only creatures) take a rim of the stage's key light.

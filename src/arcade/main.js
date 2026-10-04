@@ -58,6 +58,7 @@ function fieldEvent(e){
 // Her calls, bite, pain and footfalls come from the modeled Rex's own timing.
 function bossCues(){
  // The gate's doors hit their stops: timber on timber.
+ for(const cue of renderer.world.fault?.drain()||[]){if(!field.context||mode!=='playing')continue;if(cue.type==='snap')field.woodBreak(cue.weight*.7);if(cue.type==='land'){field.groundImpact(1);field.woodBreak(.5);renderer.shake=Math.max(renderer.shake,.7);const c=renderer.world.camera.position;for(let i=0;i<5;i++)renderer.effects.groundDust(c.clone().set(c.x+(i-2)*1.4,c.y-2.4,c.z+2+i%2),c.clone().set((i-2)*.8,.6,1.5),{life:1.6,size:1.1,opacity:.38,color:0x8a6f5a});}}
  for(const cue of renderer.world.gate?.drain()||[])if(field.context&&mode==='playing'&&cue.type==='slam'){field.woodBreak(.45);field.groundImpact(.7,cue.at);renderer.shake=Math.max(renderer.shake,.25);}
  // The Triceratops' bellows, footfalls, pawing, horn lock and shoves (boss-trike.js).
  const trike=renderer.bossTrike,eye=renderer.world.camera.position;
@@ -114,7 +115,12 @@ $('start').addEventListener('click',start);$('restart').addEventListener('click'
 $('continue').addEventListener('click',()=>{if(game?.continueRun()){showMode('playing');void audio.unlock();unlockField();canvas.focus({preventScroll:true});processEvents();updateHud();}});
 $('focus').addEventListener('click',()=>{if(mode==='playing'){game.activateFocus();processEvents();canvas.focus({preventScroll:true});}});
 $('sound').addEventListener('click',()=>{audio.mute(!audio.muted);if(field.muted!==audio.muted)field.mute();$('sound').textContent=audio.muted?'SOUND OFF':'SOUND ON';$('sound').setAttribute('aria-pressed',String(audio.muted));$('sound').setAttribute('aria-label',audio.muted?'Enable sound':'Mute sound');if(mode==='playing')void audio.unlock();});
-let quality=null,hitStop=0;function qualityLabel(){$('quality').textContent=`QUALITY ${quality?.label||'AUTO'}`;}$('quality').onclick=()=>{quality?.cycle();qualityLabel();};
+let quality=null,hitStop=0,slow=0,slowDone=false;
+// The leap over the broken bridge plays 0.6 s of slow motion at the top of the arc (presentation
+// only: the rules still step in fixed 1/60 s ticks, just fewer of them per real second).
+function slowScale(dt){if(!game||game.stage.id!=='fault'||!game.bridgeBroken){slowDone=false;slow=0;return 1;}
+ if(!slowDone&&(game.travel-game.bridgeOrigin+30)/60>.3&&!renderer.reduced){slowDone=true;slow=.6;}
+ if(slow<=0)return 1;slow=Math.max(0,slow-dt);return 1-.74*Math.min(1,(.6-slow)/.08,slow/.14);}function qualityLabel(){$('quality').textContent=`QUALITY ${quality?.label||'AUTO'}`;}$('quality').onclick=()=>{quality?.cycle();qualityLabel();};
 function motionLabel(){$('motion').textContent=renderer.reduced?'MOTION LOW':'MOTION FULL';$('motion').setAttribute('aria-pressed',String(renderer.reduced));}motionLabel();
 $('motion').addEventListener('click',()=>{renderer.reduced=!renderer.reduced;motionLabel();});
 $('difficulty').addEventListener('change',updateBest);
@@ -144,7 +150,7 @@ function step(dt){
 }
 let hudTick=0;
 function frame(now){const raw=now-last,dt=Math.min(.1,raw/1000);last=now;if(quality&&!frozen&&!document.hidden&&quality.sample(raw,mode==='playing'))qualityLabel();
- if(!frozen){if(mode==='menu'&&!document.hidden)clock+=dt;if(mode==='playing'){if(hitStop>0)hitStop-=dt;else{accumulator+=dt;while(accumulator>=1/60){step(1/60);accumulator-=1/60;}}hudTick+=dt;if(hudTick>.08){updateHud();hudTick=0;}}}
+ if(!frozen){if(mode==='menu'&&!document.hidden)clock+=dt;if(mode==='playing'){if(hitStop>0)hitStop-=dt;else{accumulator+=dt*slowScale(dt);while(accumulator>=1/60){step(1/60);accumulator-=1/60;}}hudTick+=dt;if(hudTick>.08){updateHud();hudTick=0;}}}
  renderer.render(game,aim,{menu:mode==='menu',time:game?.time??clock});bossCues();requestAnimationFrame(frame);
 }
 requestAnimationFrame(frame);
