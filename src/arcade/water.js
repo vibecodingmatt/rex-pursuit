@@ -38,7 +38,7 @@ void main(){
 const fragmentShader=`
 uniform sampler2D mirrorSampler;uniform float alpha;uniform float time;uniform float distortionScale;uniform sampler2D normalSampler;
 uniform vec3 sunColor;uniform vec3 sunDirection;uniform vec3 eye;uniform vec3 waterColor;
-uniform float uRoute[${ROUTE}];uniform vec3 uPhase;uniform vec4 uFlow;uniform float uLevel;uniform vec3 uShallow;uniform vec3 uFill;
+uniform float uRoute[${ROUTE}];uniform vec3 uPhase;uniform vec4 uFlow;uniform vec2 uFord;uniform float uLevel;uniform vec3 uShallow;uniform vec3 uFill;
 uniform vec4 uObst[${OBST}];uniform vec4 uObstDir[${OBST}];uniform vec4 uRing[${RINGS}];uniform vec4 uBow;uniform vec2 uBowDir;
 varying vec4 mirrorCoord;varying vec4 worldPosition;varying vec2 vLocal;
 #include <common>
@@ -54,7 +54,7 @@ float routeAt(float zl){float f=clamp(zl/${STEP}.,0.,${ROUTE-1}.-.001);int i=int
 float bedAt(vec2 p){
  float off=p.x-routeAt(p.y),ax=abs(off),edge=max(0.,ax-6.);
  float y=edge*.07+sin(p.y*.12+uPhase.x+off*.16)*min(3.,edge*.05)+sin(p.y*.53+uPhase.y+off*.71)*sin(p.y*.31+uPhase.z-off*.47)*.24*clamp((ax-5.5)/4.,0.,1.);
- return y-3.*(1.-smoothstep(23.,30.,ax));
+ return y-(3.-uFord.y*(1.-smoothstep(22.,40.,abs(p.y-uFord.x))))*(1.-smoothstep(23.,30.,ax));
 }
 float h21(vec2 p){p=fract(p*vec2(123.34,456.21));p+=dot(p,p+45.32);return fract(p.x*p.y);}
 float vnoise(vec2 p){vec2 i=floor(p),f=fract(p);f=f*f*(3.-2.*f);return mix(mix(h21(i),h21(i+vec2(1,0)),f.x),mix(h21(i+vec2(0,1)),h21(i+vec2(1,1)),f.x),f.y);}
@@ -77,6 +77,8 @@ void main(){
  float lap=1.-smoothstep(0.,1.1+.45*sin(uFlow.w*1.3+p.y*.4+p.x*.3),shore);
  float line=exp(-pow((shore-2.4-streak*1.8)/.8,2.))*smoothstep(.3,.65,streak);
  foam+=lap*smoothstep(.2,.55,fine)*.95+line*.6;
+ // Riffles: the current breaks white over the shallows of the ford.
+ foam+=smoothstep(.9,.35,depth)*smoothstep(.5,.8,streak+fine*.3)*.6*run;
  // Drifting flecks mid-river.
  foam+=smoothstep(.72,.9,foamTex(fp*vec2(.5,.16)+31.))*smoothstep(.45,.75,fine)*.35*run;
  // Rocks and wading legs: a collar where the current piles against them, a trail downstream.
@@ -158,7 +160,7 @@ export function rippleNormals(S=256){
 export class RiverSurface{
  constructor(water,{routeX}){
   this.water=water;this.routeX=routeX;const m=water.material,u=m.uniforms;
-  Object.assign(u,{uZ0:{value:0},uRoute:{value:new Float32Array(ROUTE)},uPhase:{value:new T.Vector3()},uFlow:{value:new T.Vector4()},uLevel:{value:LEVEL},
+  Object.assign(u,{uZ0:{value:0},uFord:{value:new T.Vector2()},uRoute:{value:new Float32Array(ROUTE)},uPhase:{value:new T.Vector3()},uFlow:{value:new T.Vector4()},uLevel:{value:LEVEL},
    uShallow:{value:new T.Color(0x8a7a52)},uFill:{value:new T.Color(.32,.36,.34)},
    uObst:{value:Array.from({length:OBST},()=>new T.Vector4())},uObstDir:{value:Array.from({length:OBST},()=>new T.Vector4())},
    uRing:{value:Array.from({length:RINGS},()=>new T.Vector4())},uBow:{value:new T.Vector4()},uBowDir:{value:new T.Vector2(0,1)}});
@@ -177,10 +179,10 @@ export class RiverSurface{
   * camera: the world camera; id: stage; dt: simulation step; time: simulation clock.
   * bow: {x, z, dirX, dirZ, speed} or null; rocks: [[x, z, r], ...] in world space.
   */
- update({camera,id,dt,time,bow,rocks=[],fill}){
+ update({camera,id,dt,time,bow,rocks=[],fill,ford=null}){
   const u=this.water.material.uniforms,cz=camera.position.z,z0=Math.floor((cz-20)/64)*64,TAU=Math.PI*2;this.time=time;
   if(this.stage!==id){this.stage=id;this.reset();}
-  u.uZ0.value=z0;for(let i=0;i<ROUTE;i++)u.uRoute.value[i]=this.routeX(z0+i*STEP,id);
+  u.uZ0.value=z0;if(ford)u.uFord.value.set(ford[0]-z0,ford[1]);else u.uFord.value.set(0,0);for(let i=0;i<ROUTE;i++)u.uRoute.value[i]=this.routeX(z0+i*STEP,id);
   u.uPhase.value.set((z0*.12)%TAU,(z0*.53)%TAU,(z0*.31)%TAU);
   const speed=FLOW[id]??0;this.flow[0]=(this.flow[0]+dt*speed)%32;this.flow[1]=(this.flow[1]+dt*speed*.6)%32;
   u.uFlow.value.set(this.flow[0],this.flow[1],speed?1:0,time%600);

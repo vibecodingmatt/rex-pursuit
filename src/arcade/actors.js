@@ -6,6 +6,7 @@ import {routeX,routeY,groundAt,routeHeading,noise} from './world.js';
 import {project as bossProject,TYPES} from './rules.js';
 import {loadIchthy,createIchthy} from './ichthy.js';
 import {makeProp as buildProp,tickProps} from './props.js';
+import {BrachioCrossing} from './brachio-crossing.js';
 
 const species={raptor:'raptor',dilo:'dilophosaurus',galli:'gallimimus',trike:'triceratops'};
 const sizes={raptor:4.5,dilo:5.8,galli:6.4,trike:8.8};
@@ -24,7 +25,7 @@ export class CircuitActors {
   const jungle={chunks:[],groundAt:(x,z)=>groundAt(x,z,this.world.id)};
   this.critters=createCritters(this.scene,{jungle,capacities:{compy:1,lizard:1,galli:26,raptor:10,dilophosaurus:6,triceratops:5,parasaurolophus:1,pachycephalosaurus:1,stegosaurus:1}});
   this.flyers=createFlyers(this.scene,{jungle});this.critters.reset({empty:true});this.flyers.reset({empty:true});
-  this.brachio=createBrachio(this.scene,{jungle});
+  this.brachio=createBrachio(this.scene,{jungle});this.crossing=new BrachioCrossing(this.brachio,world);
   this.basis=new T.Matrix4();this.roll=new T.Quaternion();this.shadowTexture=this.makeShadow();this.shadows=[];this.corpses=[];this.walls=new Map();
   // Soft contact shade under grounded animals; the sun's shadow map casts the real shadow.
   const mat=new T.MeshBasicMaterial({map:this.shadowTexture,transparent:true,opacity:.34,depthWrite:false,polygonOffset:true,polygonOffsetFactor:-2});
@@ -106,7 +107,8 @@ export class CircuitActors {
    if(lift<1.5&&e.kind!=='ichthy'&&!a.onHood){const s=this.shadows[shadow++];if(s){s.visible=true;s.position.set(x,y+.11,z);s.rotation.y=a.yaw;s.scale.set(e.kind==='trike'?4.2:2.8,1,e.kind==='trike'?6.2:4.2);}}
   }
   this.tickWalls(dt,live);this.critters.updateDirected(dt,{cull:false});this.flyers.updateDirected();for(let i=shadow;i<this.shadows.length;i++)this.shadows[i].visible=false;
-  if(game.stage.id==='river'&&game.stageTime>5&&game.stageTime<28){const z=500;this.brachio.show(routeX(z,'river')-10,z,Math.PI/2);this.brachio.mesh.position.y=routeY(z,'river')-1.3;this.brachio.mesh.scale.setScalar(1.45);this.brachio.rearAt(Math.max(0,game.stageTime-19));this.brachio.mesh.visible=true;}else this.brachio.mesh.visible=false;
+  // A9: the river's brachiosaur wades across the ford and the launch passes under her.
+  this.crossing.update(game,dt);
   for(const a of this.actors.values()){
    if(a.c?.rig){a.head.copy(a.c.rig.head);a.position.copy(a.c.rig.body);}
    else if(a.c&&species[a.e.kind]){const c=a.c,spheres=c.kind.spheres;head.copy(spheres?.[1]?.p||v.set(0,c.kind.centre+.1,.3)).multiplyScalar(c.scale).applyAxisAngle(up,c.yaw).add(c.p);a.head.copy(head);a.position.copy(c.p).add(v.set(0,c.kind.centre*c.scale,0));}

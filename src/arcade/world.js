@@ -4,7 +4,7 @@ import {Water} from 'three/addons/objects/Water.js';
 import {createFoliageKit,WIND,dustTexture} from '../chase/foliage.js';
 import {createSky,createCanopy} from '../chase/atmosphere.js';
 import {createPost} from '../chase/post.js';
-import {DRIVE} from './rules.js';
+import {DRIVE,BRACHIO} from './rules.js';
 import {terrainGeometry,groundMaterial,loadRocks,rootGeometry,mergeStill,scatter} from './ground.js';
 import {StageLight,RouteCanopy,installArcadeFog,addRim} from './light.js';
 import {CircuitAir,PUSH,GUST,PLANT_PUSH} from './air.js';
@@ -36,7 +36,10 @@ export function landY(off,z,id){const ax=Math.abs(off),edge=Math.max(0,ax-6),y=r
 // Swimmers and flyers on the water stages keep their original reference height.
 export function groundAt(x,z,id){const off=x-routeX(z,id);return ['river','lagoon'].includes(id)?routeY(z,id)+Math.max(0,Math.abs(off)-6)*.06:landY(off,z,id);}
 // The terrain itself: land cut by the river channel and the bridge gorge, and raised into the canyon walls.
-export function terrainY(off,z,id,{river,bridge,canyon}={}){const ax=Math.abs(off);let y=landY(off,z,id);if(river)y-=3*(1-smooth(23,30,ax));if(bridge)y-=14*(1-smooth(17.5,22,ax));if(canyon)y+=clamp((ax-12)/18,0,1)*(27+Math.sin(z*.07)*3)+Math.sin(z*.41+ax*.3)*.8*clamp((ax-12)/6,0,1);return y;}
+// A9: where the brachiosaur crosses, the river runs over a gravel ford about half a metre deep.
+export const FORD=2.1;
+export function fordAt(z,id){return id==='river'?1-smooth(22,40,Math.abs(z-BRACHIO.z)):0;}
+export function terrainY(off,z,id,{river,bridge,canyon}={}){const ax=Math.abs(off);let y=landY(off,z,id);if(river)y-=(3-FORD*fordAt(z,id))*(1-smooth(23,30,ax));if(bridge)y-=14*(1-smooth(17.5,22,ax));if(canyon)y+=clamp((ax-12)/18,0,1)*(27+Math.sin(z*.07)*3)+Math.sin(z*.41+ax*.3)*.8*clamp((ax-12)/6,0,1);return y;}
 
 function labelTexture(text,sub='ISLAND TRANSIT AUTHORITY'){
  const c=document.createElement('canvas');c.width=1024;c.height=256;const x=c.getContext('2d');x.fillStyle='#132d29';x.fillRect(0,0,1024,256);x.strokeStyle='#bcb078';x.lineWidth=10;x.strokeRect(15,15,994,226);x.textAlign='center';x.fillStyle='#eee1b7';x.font='bold 76px Georgia';x.fillText(text,512,121);x.font='20px Arial';x.fillText(sub,512,191);return new T.CanvasTexture(c);
@@ -243,7 +246,7 @@ export class CircuitWorld {
   this.water.visible=['river','lagoon'].includes(id);if(this.water.visible){this.water.position.set(routeX(z,id),LEVEL,z+80);this.water.material.uniforms.time.value=this.time;
    // The bow wave rides the launch's stem; rocks that break the surface come from the chunks.
    const boat=this.vehicle?.boat.root,speed=game?.speed??0;let bow=null;if(boat?.visible){boat.localToWorld(this.bowAt.set(0,0,BOW));const h=Math.atan2(this.look.x-this.eye.x,this.look.z-this.eye.z);bow={x:this.bowAt.x,z:this.bowAt.z,dirX:Math.sin(h),dirZ:Math.cos(h),speed};}
-   this.river.update({camera:this.camera,id,dt,time:this.time,bow,rocks:this.chunks.flatMap(c=>c.userData.wet||[]),fill:this.fill});this.water.material.uniforms.waterColor.value.set(palettes[id].water).multiplyScalar(.48);}
+   this.river.update({camera:this.camera,id,dt,time:this.time,bow,ford:id==='river'?[BRACHIO.z,FORD]:null,rocks:this.chunks.flatMap(c=>c.userData.wet||[]),fill:this.fill});this.water.material.uniforms.waterColor.value.set(palettes[id].water).multiplyScalar(.48);}
   // Thrown water: the bow sheets on the water stages, splashes anywhere (spray.js).
   if(this.water.visible&&this.vehicle)this.spray.bow(dt,this.vehicle.boat.root,game?.speed??0,this.vehicle.slap,this.vehicle.effects);
   this.fill.copy(this.hemi.color).lerp(this.hemi.groundColor,.35).multiplyScalar(this.hemi.intensity*.16);this.sunLit.copy(this.sun.color).multiplyScalar(this.sun.intensity/Math.PI);if(dt>0){this.camVel??=new T.Vector3();if(this.lastCam)this.camVel.subVectors(this.camera.position,this.lastCam).divideScalar(dt);(this.lastCam??=new T.Vector3()).copy(this.camera.position);}

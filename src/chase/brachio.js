@@ -68,6 +68,9 @@ const CHAIN=`
  uniform vec4 uNeck[5];uniform vec3 uNeckRot[5];uniform vec4 uTail[4];uniform vec3 uTailRot[4];uniform vec3 uJawHinge;uniform float uJaw,uBreath;
  // Rearing: x body pitch about the hips, y foreleg swing back, z wrist fold.
  uniform vec3 uRear;
+ // Walking (only the arcade's river crossing sets it): x gait phase in cycles, y leg swing
+ // amplitude (rad), z foot lift (m), w on.
+ uniform vec4 uWalk;
  // Pitch (x, up positive) then yaw (y).
  mat3 rotPY(vec3 a){float cp=cos(a.x),sp=sin(a.x),cy=cos(a.y),sy=sin(a.y);return mat3(cy,0.,-sy,0.,1.,0.,sy,0.,cy)*mat3(1.,0.,0.,0.,cp,-sp,0.,sp,cp);}
  // Joint chains, distal joint first about rest-pose pivots: each joint's turn blends
@@ -78,6 +81,19 @@ const CHAIN=`
   if(region<.5){p.x*=1.+uBreath*.012;p.y=4.3+(p.y-4.3)*(1.+uBreath*.006);}
   for(int j=4;j>=0;j--){float w=smoothstep(uNeck[j].w-.45,uNeck[j].w+.45,s);if(w>.001){mat3 R=rotPY(uNeckRot[j]*w);p=uNeck[j].xyz+R*(p-uNeck[j].xyz);n=R*n;}}
   for(int j=3;j>=0;j--){float w=1.-smoothstep(uTail[j].w-.45,uTail[j].w+.45,s);if(w>.001){mat3 R=rotPY(uTailRot[j]*w);p=uTail[j].xyz+R*(p-uTail[j].xyz);n=R*n;}}
+  if(uWalk.w>0.){
+   // A lateral-sequence walk (left hind, left fore, right hind, right fore a quarter cycle
+   // apart): each leg swings about its hip or shoulder, the weight fading out toward the
+   // body, and the swinging foot lifts.
+   float wz=.4+1.2*smoothstep(1.8,3.4,rest.y),hind=step(.5,smoothstep(.8+wz,.8-wz,rest.z));
+   float leg=max(limb,1.-smoothstep(1.7,2.5,rest.y))*(1.-smoothstep(3.,4.2,rest.y));
+   if(leg>.001){
+    float ph=6.2832*(uWalk.x+(rest.x>0.?0.:.5)+(1.-hind)*.25);
+    vec3 pv=hind>.5?${v3(HIP)}:${v3(SHOULDER)};
+    mat3 R=rotPY(vec3(uWalk.y*sin(ph)*leg,0.,0.));p=pv+R*(p-pv);n=R*n;
+    p.y+=uWalk.z*pow(max(0.,cos(ph)),1.5)*(1.-smoothstep(.1,2.4,rest.y))*leg;
+   }
+  }
   if(uRear.x>0.){
    // Hind legs stay planted. The weight fades out up the thighs and into the belly, and
    // widens front to back with height, so the groin bends over metres rather than
@@ -187,7 +203,7 @@ function parse(buffer){
 }
 
 export function createBrachio(scene,{jungle}){
- const uniforms={uNeck:{value:[0,1,2,3,4].map(()=>new T.Vector4())},uNeckRot:{value:[0,1,2,3,4].map(()=>new T.Vector3())},uTail:{value:[0,1,2,3].map(()=>new T.Vector4())},uTailRot:{value:[0,1,2,3].map(()=>new T.Vector3())},uJawHinge:{value:new T.Vector3()},uJaw:{value:0},uBreath:{value:0},uRear:{value:new T.Vector3()}};
+ const uniforms={uNeck:{value:[0,1,2,3,4].map(()=>new T.Vector4())},uNeckRot:{value:[0,1,2,3,4].map(()=>new T.Vector3())},uTail:{value:[0,1,2,3].map(()=>new T.Vector4())},uTailRot:{value:[0,1,2,3].map(()=>new T.Vector3())},uJawHinge:{value:new T.Vector3()},uJaw:{value:0},uBreath:{value:0},uRear:{value:new T.Vector3()},uWalk:{value:new T.Vector4()}};
  uniforms.uFold={value:new T.Vector2()};uniforms.uEye={value:[new T.Vector3(),new T.Vector3()]};uniforms.uEyeR={value:.1};uniforms.uNostril={value:[new T.Vector3(),new T.Vector3()]};uniforms.uNostrilR={value:.07};const {material,depth}=brachioMaterial(uniforms,skinMaps());
  const mesh=new T.Mesh(new T.BufferGeometry(),material);mesh.customDepthMaterial=depth;mesh.receiveShadow=true;mesh.castShadow=true;mesh.visible=false;mesh.name='Brachiosaur';scene.add(mesh);
  let header=null,on=false,travel=0,next=0,clock=0,lift=0,called=false,pending=null,wanted=null,rear=-1,stomped=true,proxies=[],api;
@@ -277,6 +293,10 @@ export function createBrachio(scene,{jungle}){
   get rearing(){return rear>=0;},
   /** Shot: she trumpets and rears up, unless she is already up. Returns whether she started. */
   startle(){if(!on||!header||rear>=0)return false;rear=0;stomped=false;called=true;lift=1;api.onCall?.(api.headPosition());return true;},
+  /** Advance her browse and call pose without Pursuit's frame (the arcade places her itself). */
+  animate(dt){clock+=dt;mesh.visible=on;lift=Math.max(0,lift-dt*.3);if(!api.hold)pose();},
+  /** She lifts her head and calls (the arcade's river crossing), without rearing. */
+  call(){if(!on||!header||rear>=0)return;called=true;lift=1;api.onCall?.(api.headPosition());},
   /** Review stills: hold the rear at time t (seconds since the shot). */
   rearAt(t){rear=t;stomped=true;pose();},
   /** The nearest point where a world-space ray strikes her, or null. */

@@ -34,6 +34,10 @@ const clamp=(v,a,b)=>Math.max(a,Math.min(b,v));
 // A Rex or Triceratops boss is fought in reverse: the vehicle brakes, then backs away
 // while she chases (or charges) it. The clear phase holds longer so her fall can play out.
 export const DRIVE={rex:-9,twins:-8,trike:-6};
+// A9: the river's brachiosaur straddles the channel at this travel (m); the launch eases off
+// to half speed from 130 m out, passes under her and opens up again past her.
+export const BRACHIO={z:480,slow:.5};
+export function fordSlow(travel){const s=x=>{x=clamp(x,0,1);return x*x*(3-2*x);};return 1-BRACHIO.slow*(s((travel-(BRACHIO.z-130))/70)-s((travel-(BRACHIO.z+15))/35));}
 export function project(e,aspect){
  const size=e.size*Math.min(1,aspect*1.2),w=size/aspect;
  const x=clamp(e.x,w*.38,1-w*.38),y=e.y;
@@ -142,7 +146,7 @@ export class Circuit {
   dt=clamp(dt,0,.05);this.time+=dt;this.phaseTime+=dt;this.cooldown=Math.max(0,this.cooldown-dt);this.invulnerable=Math.max(0,this.invulnerable-dt);
   const cruise=this.stage.id==='manor'?14:this.stage.id==='fault'?27:24;
   const drive=DRIVE[this.stage.boss],brake=clamp((this.phaseTime-.8)/1.8,0,1);
-  this.speed=this.phase==='ride'?cruise:this.phase==='intro'?8+16*clamp(this.phaseTime/3,0,1):drive&&this.phase==='boss'?5+(drive-5)*brake*brake*(3-2*brake):drive&&this.phase==='clear'?drive*(1-clamp((this.phaseTime-.4)/2.6,0,1)):7;
+  this.speed=this.phase==='ride'?cruise*(this.stage.setpiece==='brachio'?fordSlow(this.travel):1):this.phase==='intro'?8+16*clamp(this.phaseTime/3,0,1):drive&&this.phase==='boss'?5+(drive-5)*brake*brake*(3-2*brake):drive&&this.phase==='clear'?drive*(1-clamp((this.phaseTime-.4)/2.6,0,1)):7;
   if(this.focusTime>0)this.speed*=.52;
   this.travel+=dt*this.speed;
   this.focusTime=Math.max(0,this.focusTime-dt);this.chainTime=Math.max(0,this.chainTime-dt);if(!this.chainTime)this.combo=0;
