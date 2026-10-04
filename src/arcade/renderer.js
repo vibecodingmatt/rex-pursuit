@@ -12,6 +12,7 @@ import {BossMosa} from './boss-mosa.js';
 import {BossIndoraptor} from './boss-indoraptor.js';
 import {createEffects} from '../chase/effects.js';
 import {dustTexture} from '../chase/foliage.js';
+import {Title} from './title.js';
 // Individual cell padding avoids the generated atlas's occasional boundary overlap.
 const CUTS=[[0,0,.247,.471],[.249,0,.249,.482],[.507,0,.233,.48],[.738,0,.262,.445],[0,.489,.25,.511],[.252,.493,.249,.507],[.498,.478,.26,.522],[.754,.485,.246,.515]];
 const clamp=(v,a,b)=>Math.max(a,Math.min(b,v));
@@ -114,14 +115,31 @@ export class RideRenderer {
   c.save();c.strokeStyle=danger?'#ff895e':'#ffd68b';c.lineWidth=2;c.shadowColor=c.strokeStyle;c.shadowBlur=9;c.setLineDash([6,5]);c.beginPath();c.arc(x,y,r,0,7);c.stroke();c.setLineDash([]);c.shadowBlur=0;
   c.lineWidth=4;c.beginPath();c.arc(x,y,r+6,-Math.PI/2,-Math.PI/2+Math.PI*2*(1-e.attack));c.stroke();c.fillStyle='#fff1d1';c.font='bold 8px Arial';c.textAlign='center';c.fillText(danger?'STOP THE ATTACK':'WEAK POINT',x,y-r-14);c.restore();
  }
+ /** The 3D title: the stand-in game drives the finale's set and the hero Rex; the gun and Jeep stay out of shot. */
+ titleFrame(time){
+  const aspect=this.w/this.h,t=this.title??=new Title(),g=t.frame(time,aspect);this.game=null;
+  this.world.sync(g,{reduced:this.reduced,shake:0});
+  const slot=this.bossRex.slots.find(s=>s.id===g.entities[0].id);if(slot&&t.again())slot.roared=false;
+  // The gun is parked out of view rather than hidden: its torch must stay in the light count, or every
+  // material would recompile when the ride starts.
+  this.bossRex.sync(g);this.weapon?.sync(null);if(this.weapon){this.weapon.body.visible=true;this.weapon.body.position.set(0,-500,0);}if(this.world.vehicle){this.world.vehicle.jeep.root.visible=false;this.world.vehicle.boat.root.visible=false;}
+  // A longer lens than the ride's for the title; the ride's own is restored when it starts.
+  const cam=this.world.camera,fov=aspect<1?66:46;if(cam.fov!==fov){cam.fov=fov;cam.updateProjectionMatrix();}this.titleLens=true;
+  if(slot?.started){const head=slot.rex.headPosition();t.camera(this.world.camera,head,time,aspect);t.light(this.world.practicalLights,head,time);}
+  this.world.render();
+ }
  render(game,aim,{menu=false,time=0}={}){
   const c=this.ctx,w=this.w,h=this.h;let index=menu?0:game?.stage.bg||0;c.clearRect(0,0,w,h);
   if(game?.stage.id==='fault'&&game.stageTime<10)index=5;
   if(game?.stage.id==='hybrid'&&game.stageTime<12)index=7;
-  this.terrain.style.visibility=menu?'hidden':'visible';
-  if(menu)this.background(index,time,aim,null);
-  else{this.sync(game,aim);this.world.render();}
-  if(menu){const portrait=w<h;this.sprite('rex',w*(portrait?.72:.73),h*(portrait?.29:.47),Math.min(h*.89,w*(portrait?1:.72)),{age:time*.3,menu:true});}
+  // A15: once the world and the hero Rex are in, the menu shows the 3D title (title.js) and the 2D key art fades off it.
+  // Real time: after a run the menu is handed the finished game's frozen clock.
+  const title=menu&&this.world?.ready&&this.bossRex?.ready,now=performance.now()/1000;if(title&&this.titleStart==null)this.titleStart=now;
+  const art=menu?title?1-clamp((now-this.titleStart)/1.2,0,1):1:0;
+  this.terrain.style.visibility=menu&&!title?'hidden':'visible';
+  if(!title&&this.titleLens){this.titleLens=false;this.world.resize(this.w,this.h);}
+  if(title)this.titleFrame(now);else if(!menu){this.sync(game,aim);this.world.render();}
+  if(menu){if(art>0){c.globalAlpha=art;this.background(index,time,aim,null);const portrait=w<h;this.sprite('rex',w*(portrait?.72:.73),h*(portrait?.29:.47),Math.min(h*.89,w*(portrait?1:.72)),{age:time*.3,menu:true});c.globalAlpha=1;}}
   else{
    for(const e of game.entities.filter(e=>e.boss).sort((a,b)=>a.size-b.size))this.entity(e,time,game);
    for(const e of game.entities.filter(e=>!e.boss&&!e.dead&&e.age/e.life>.62)){

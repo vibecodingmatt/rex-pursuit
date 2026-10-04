@@ -4,7 +4,8 @@
 // Like screen-blood.js, simulation dt drives the fade, so Pause freezes it.
 export function createSpitSmear({reducedMotion=false}={}){
  const canvas=document.createElement('canvas');canvas.id='spit-smear';canvas.setAttribute('aria-hidden','true');
- const veil=document.createElement('div');veil.id='spit-veil';veil.setAttribute('aria-hidden','true');document.body.append(veil,canvas);
+ // Hidden until a glob lands: shown, the veil's backdrop blur covers everything beneath it (the menu too).
+ const veil=document.createElement('div');veil.id='spit-veil';veil.setAttribute('aria-hidden','true');veil.hidden=true;canvas.hidden=true;document.body.append(veil,canvas);
  // The mask is redrawn small and only when a glob lands; the veil's opacity does the fade.
  const mask=document.createElement('canvas');mask.width=192;mask.height=108;
  const ctx=canvas.getContext('2d'),mctx=mask.getContext('2d'),globs=[],stats={splats:0};let dirty=false,budget=1;
