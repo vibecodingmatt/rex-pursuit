@@ -10,7 +10,10 @@ const test=new URLSearchParams(location.search).get('test')==='1';
 let clearCard=0,game=null,mode='menu',route='extended',ready=false,fire=false,frozen=false,clock=0,accumulator=0,last=performance.now(),announcementTime=0,radioTime=0,saved=false;
 const aim={x:.5,y:.5},keys=new Set();let pointerId=null;
 // A15: the cabinet's ten-second CONTINUE? countdown, and gamepad state (buttons held last frame).
-let continueClock=0,padHeld=[],entering=false,lastMultiplier=1,hiBest=0;
+let continueClock=0,padHeld=[],entering=false,lastMultiplier=1,hiBest=0,lastTally=null;
+// The clear card's tally (rules tally()): accuracy bonus, NO DAMAGE bonus and the sector bonus.
+const points=n=>n.toLocaleString('en-US'),clearCopy=()=>lastTally?.perfect?'Perfect. Not a scratch.':'Still in one piece.';
+const tallyLine=()=>{const t=lastTally||{accuracy:0,accBonus:0};return[`ACCURACY ${t.accuracy}% +${points(t.accBonus)}`,t.perfect&&`NO DAMAGE +${points(t.perfectBonus)}`,'SECTOR +1,500'].filter(Boolean).join(' · ');};
 // A15 attract mode: after ATTRACT_IDLE seconds on the menu a demo plays live gameplay, a stage per segment.
 const ATTRACT_IDLE=25,ATTRACT_SEGMENT=18,ATTRACT_STAGES=['gates','river','fault','hybrid','lagoon','manor','visitor'];let idle=0,attract=null;
 canvas.tabIndex=0;
@@ -37,7 +40,7 @@ function processEvents(){for(const event of game.drain()){
  if(event.type==='stage')stageChanged();
  if(event.type==='boss'){announce('APEX ENCOUNTER',names[event.kind],'KEEP FIRING AT THE AMBER WEAK POINT',2.4,true);radio(event.kind==='mosa'?'It is coming up! Break the attack before it reaches us.':'Amber marks stop the charge. Keep your aim on the head.');}
  // After a Rex, let her fall read before the card arrives.
- if(event.type==='clear'){if(game.clearHold>3.5)clearCard=game.stage.id==='visitor'?3.9:2.1;else announce('SECTOR CLEAR','Still in one piece.','INTEGRITY +12 · SECTOR BONUS +1,500',3);}
+ if(event.type==='clear'){lastTally=event;if(event.perfect)audio.chime(5);if(game.clearHold>3.5)clearCard=game.stage.id==='visitor'?3.9:2.1;else announce('SECTOR CLEAR',clearCopy(),tallyLine(),3);}
  if(event.type==='bridge'){announce('HOLD ON','There goes the bridge.','SHOOT THE FALLING DEBRIS',2);radio('Brace! Clear the debris. We are jumping the gap!');}
  if(event.type==='focus')radio('Overdrive online. Five seconds. Make them count.');
  if(event.type==='power'){if(event.kind==='spread'){announce('SPREAD SHOT','Every round finds two more.','8 SECONDS · SWEEP THE PACK',1.6);radio('Spread rounds loaded! Sweep them!');}else{announce('EXPLOSIVE ROUNDS','Every round counts double.','8 SECONDS · SHOOT EVERYTHING',1.6);radio('Explosive rounds loaded! Light them up!');}}
@@ -222,7 +225,7 @@ function step(dt){
  game.update(dt);if(fire||keys.has(' ')||pad?.fire){renderer.sync(game,aim);game.shoot(aim.x,aim.y,innerWidth/innerHeight);}processEvents();renderer.update(dt);audio.update(game);
  if(field.context&&renderer.bossRex){renderer.bossRex.voice=field.vocalPose(dt);field.listen(renderer.world.camera,renderer.bossRex.headOf(renderer.bossRex.voiceSlot??0));field.update(Math.min(16,Math.abs(game.speed)),dt,true,BOSS_STAGES.includes(game.stage.id));}
  if(field.context)ambience.update(true);
- if(clearCard>0&&(clearCard-=dt)<=0){if(game?.stage.id==='visitor')announce('THE KINGS HAVE FALLEN','The park is yours.','FINAL SECTOR CLEAR · SECTOR BONUS +1,500',2.6,true);else announce('SECTOR CLEAR','Still in one piece.','INTEGRITY +12 · SECTOR BONUS +1,500',2.6,true);}
+ if(clearCard>0&&(clearCard-=dt)<=0){if(game?.stage.id==='visitor')announce('THE KINGS HAVE FALLEN','The park is yours.',tallyLine(),2.6,true);else announce('SECTOR CLEAR',clearCopy(),tallyLine(),2.6,true);}
  announcementTime=Math.max(0,announcementTime-dt);radioTime=Math.max(0,radioTime-dt);$('announcement').style.opacity=String(Math.min(1,announcementTime*2));$('radio').style.opacity=String(Math.min(1,radioTime));
 }
 let hudTick=0;

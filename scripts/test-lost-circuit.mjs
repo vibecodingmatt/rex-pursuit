@@ -48,6 +48,10 @@ console.log('Lost Circuit rules: complete routes, phone targets, frame rates, lo
  assert.deepEqual(es.map(e=>e.dead),[true,true,false],'the burst catches the two in reach');assert(g.drain().some(e=>e.type==='grenade'&&e.hits.length===2));
  const crate=g.spawn('supply');crate.age=1;g.cooldown=0;g.shoot(.2,.2,16/9);assert.equal(g.grenades,3,'a repair crate adds a grenade');
  g.grenades=0;g.lobCooldown=0;assert.equal(g.launch(.5,.5),false,'none left');}
+// The clear tally: 50 points per percent of accuracy this stage, 5,000 for no damage, on top of the sector bonus.
+{const g=new Circuit();g.phase='boss';g.phaseTime=2;g.entities=[];g.shots=10;g.hits=8;g.drain();const s0=g.score;g.update(1/60);const c=g.drain().find(e=>e.type==='clear');
+ assert.deepEqual([c.accuracy,c.accBonus,c.perfect,c.perfectBonus],[80,4000,true,5000]);assert.equal(g.score-s0,10500);
+ const h=new Circuit();h.phase='boss';h.phaseTime=2;h.entities=[];h.damage(5);h.invulnerable=0;h.drain();h.update(1/60);assert.equal(h.drain().find(e=>e.type==='clear').perfect,false,'a hit costs the perfect bonus');}
 const memory=new Map(),storage=()=>({getItem:key=>memory.get(key),setItem:(key,value)=>memory.set(key,value)}),round={route:'classic',difficulty:'arcade',continues:0,score:98765};
 assert.equal(saveRecord(storage,round).saved,true);assert.equal(readRecord(storage,'classic','arcade'),98765);saveRecord(storage,{...round,score:10});assert.equal(readRecord(storage,'classic','arcade'),98765);saveRecord(storage,{...round,continues:1,score:120000});assert.equal(readRecord(storage,'classic','arcade',true),120000);assert.equal(readRecord(storage,'extended','arcade'),0);
 const denied=()=>{throw Error('Storage denied');};assert.equal(readRecord(denied,'classic','arcade'),0);assert.equal(saveRecord(denied,round).saved,false);memory.set(recordKey('classic','tour'),'Infinity');assert.equal(readRecord(storage,'classic','tour'),0);console.log('Records: persistence, best-only updates, continued/category isolation, corrupt values and storage-denied fallback passed.');
