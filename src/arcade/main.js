@@ -205,7 +205,10 @@ function motionLabel(){$('motion').textContent=renderer.reduced?'MOTION LOW':'MO
 $('motion').addEventListener('click',()=>{renderer.reduced=!renderer.reduced;motionLabel();});
 $('difficulty').addEventListener('change',updateBest);
 document.querySelectorAll('[data-route]').forEach(button=>button.addEventListener('click',()=>{route=button.dataset.route;setDaily(false);setRush(false);document.querySelectorAll('[data-route]').forEach(b=>b.setAttribute('aria-pressed',String(b===button)));updateBest();}));
-$('about-open').addEventListener('click',()=>$('about').showModal());$('about-close').addEventListener('click',()=>$('about').close());
+$('about-open').addEventListener('click',()=>$('about').showModal());
+// The medal list: earned in gold, the rest greyed with how to earn them.
+$('medals-open').addEventListener('click',()=>{const have=readMedals(()=>localStorage);$('medal-list').replaceChildren(...Object.entries(MEDALS).map(([id,[name,how]])=>{const li=document.createElement('li');li.className=have.includes(id)?'earned':'';li.innerHTML=`<b>${have.includes(id)?'★':'☆'} ${name}</b><span>${how}</span>`;return li;}));$('medals').showModal();});
+$('medals-close').addEventListener('click',()=>$('medals').close());$('about-close').addEventListener('click',()=>$('about').close());
 function pointer(e){aim.x=Math.max(.02,Math.min(.98,e.clientX/innerWidth));aim.y=Math.max(.19,Math.min(.85,(e.clientY-(e.pointerType==='touch'?42:0))/innerHeight));}
 canvas.addEventListener('pointerdown',e=>{if(mode!=='playing'||(e.pointerType==='mouse'&&e.button!==0)||pointerId!==null)return;pointerId=e.pointerId;canvas.setPointerCapture(e.pointerId);pointer(e);fire=true;void audio.unlock();e.preventDefault();});
 canvas.addEventListener('pointermove',e=>{if(pointerId===null||e.pointerId===pointerId)pointer(e);});
@@ -276,7 +279,7 @@ let hudTick=0;
 function frame(now){const raw=now-last,dt=Math.min(.1,raw/1000);last=now;
  pad=gamepad();
  // The attract mode: idle on the menu starts it; any input (here, a gamepad button) ends it.
- if(mode==='menu'&&ready&&!test&&!document.hidden&&!$('about').open){idle+=Math.min(2,raw/1000);if(idle>ATTRACT_IDLE){idle=0;startAttract();}}else if(mode!=='playing')idle=0;
+ if(mode==='menu'&&ready&&!test&&!document.hidden&&!$('about').open&&!$('medals').open){idle+=Math.min(2,raw/1000);if(idle>ATTRACT_IDLE){idle=0;startAttract();}}else if(mode!=='playing')idle=0;
  if(attract&&pad&&padHeld.some(Boolean)){stopAttract();padHeld=padHeld.map(()=>true);}
  // Gamepad on the screens: A starts, continues or restarts; Start pauses and resumes.
  if(pad){if(pad.pressed(9)){if(mode==='playing')pause();else if(mode==='paused')resume();}
