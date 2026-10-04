@@ -63,7 +63,8 @@ export function project(e,aspect){
 }
 export class Circuit {
  constructor({route='extended',difficulty='arcade',seed=94}={}) {
-  this.route=route;this.rush=route==='bossrush';this.difficulty=difficulty;this.rng=seed;this.path=route==='classic'?[0,1,2,6]:[0,1,2,3,4,5,6];
+  this.route=route;this.rush=route==='bossrush';this.difficulty=difficulty;this.rng=seed;// practice-N plays stage N alone (from the menu's practice list).
+  this.path=route==='classic'?[0,1,2,6]:/^practice-[0-6]$/.test(route)?[+route.slice(9)]:[0,1,2,3,4,5,6];
   this.status='playing';this.stageIndex=0;this.stageTime=0;this.time=0;this.phase='intro';this.phaseTime=0;this.hp=100;this.score=0;
   this.combo=0;this.maxCombo=0;this.chainTime=0;this.shots=0;this.hits=0;this.power=0;this.scatter=0;this.grenades=GRENADES;this.lobs=[];this.lobCooldown=0;this.tallyFrom=[0,0];this.stageHurt=false;this.perfects=[];this.offer=null;this.offerTime=0;this.upgrades=[];this.fireRate=1;this.armor=1;this.charge=1;this.grenadeCap=GRENADE_MAX;this.kills=0;this.bosses=0;this.credits=2;this.continues=0;
   this.entities=[];this.events=[];this.serial=0;this.spawnTimer=2.5;this.beats=null;this.hazardTimer=6;this.supplyTimer=11;this.travel=0;this.speed=0;

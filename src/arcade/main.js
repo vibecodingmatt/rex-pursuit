@@ -39,13 +39,15 @@ function persist(){
 function showMode(value){mode=value;document.body.dataset.screen=value;$('menu').hidden=value!=='menu';$('hud').hidden=value==='menu';$('pause').hidden=value==='menu';$('overlay').hidden=!['paused','result','continue'].includes(value);}
 function announce(top,title,bottom='',seconds=3,over=false){const el=$('announcement');el.classList.toggle('over',over);el.children[0].textContent=top;el.children[1].textContent=title;el.children[2].textContent=bottom;announcementTime=seconds;el.style.opacity='1';}
 function radio(copy){$('radio').querySelector('span').textContent=copy;radioTime=7;$('radio').style.opacity='1';}
-function stageChanged(){
+// Practice unlocks: the furthest stage reached in a full run (local storage).
+const REACHED='rex-lost-circuit-v1:reached',reached=()=>{try{return Math.max(0,+localStorage.getItem(REACHED)||0);}catch{return 0;}};
+function stageChanged(){if(!attract&&game&&!game.route.startsWith('practice-')&&game.route!=='bossrush'){const i=game.path[game.stageIndex];if(i>reached())try{localStorage.setItem(REACHED,String(i));}catch{/* Storage denied. */}}
  const stage=game.stage;ambience.setStage(stage.id);$('location').textContent=stage.location;$('stage-name').textContent=stage.name;
  $('route-dots').replaceChildren(...game.path.map((_,i)=>{const dot=document.createElement('i');dot.className=i<game.stageIndex?game.perfects?.includes(i)?'done perfect':'done':i===game.stageIndex?'current':'';return dot;}));
  announce(`${String(game.stageIndex+1).padStart(2,'0')} / ${String(game.path.length).padStart(2,'0')} — ${stage.era}`,stage.name,'HOLD TO FIRE · SHOOT DEBRIS · KEEP MOVING');radio(stage.radio);
 }
 function unlockField(){fieldInit??=field.init().then(()=>{audio.worldSounds=false;if(field.muted!==audio.muted)field.mute();if(mode!=='playing')return field.pause(true);}).catch(e=>{console.warn('Recorded audio unavailable:',e.message);});if(field.context)field.pause(false).catch(()=>{});}
-function start(){if(!ready)return;clearCard=0;p2=null;runMedals=[];hiBest=readBest()||0;audio.reset();field.stopCalls();void audio.unlock();unlockField();game=new Circuit({route:rush?'bossrush':daily?'extended':route,difficulty:$('difficulty').value,seed:daily?Number(today()):94});if(daily)game.route=dailyRoute();game.projector=(e,aspect)=>renderer.project(e,aspect);saved=false;fire=false;keys.clear();renderer.reset();clock=0;accumulator=0;showMode('playing');canvas.focus({preventScroll:true});processEvents();updateHud();}
+function start(override){if(!ready)return;clearCard=0;p2=null;runMedals=[];hiBest=readBest()||0;audio.reset();field.stopCalls();void audio.unlock();unlockField();const practice=typeof override==='string'?override:null;game=new Circuit({route:practice||(rush?'bossrush':daily?'extended':route),difficulty:$('difficulty').value,seed:daily&&!practice?Number(today()):94});if(daily&&!practice)game.route=dailyRoute();game.projector=(e,aspect)=>renderer.project(e,aspect);saved=false;fire=false;keys.clear();renderer.reset();clock=0;accumulator=0;showMode('playing');canvas.focus({preventScroll:true});processEvents();updateHud();}
 function processEvents(){for(const event of game.drain()){
  renderer.event(event);audio.event(event);fieldEvent(event);
  if(event.type==='stage')stageChanged();
@@ -167,7 +169,7 @@ function showContinue(){showMode('continue');overlay('Ride interrupted.',game.cr
  if(game.credits){$('continue').hidden=false;$('continue').textContent=`CONTINUE · ${game.credits} CREDITS ↗`;$('continue').focus();continueClock=10;$('overlay-kicker').textContent='CONTINUE? 10';}
  else showResult(false);
 }
-function showResult(won){showMode('result');overlay(won?'You made it out.':'The island wins.',won?`${game.route==='classic'?'The ’94 Circuit':game.route.startsWith('daily-')?'Today’s daily run':game.route==='bossrush'?'The boss rush':'The Extended Cut'} complete. ${game.continues?'Continued-run record.':'One credit. A whole lot of dinosaurs.'}`:`Reached ${game.stage.name}. Ride again for a cleaner run.`,won?'EXPEDITION COMPLETE':'GAME OVER');if(runMedals.length)$('overlay-copy').textContent+=` Medals earned: ${runMedals.join(', ')}.`;
+function showResult(won){showMode('result');overlay(won?'You made it out.':'The island wins.',won?`${game.route==='classic'?'The ’94 Circuit':game.route.startsWith('daily-')?'Today’s daily run':game.route==='bossrush'?'The boss rush':game.route.startsWith('practice-')?`Practice: ${game.stage.name}`:'The Extended Cut'} complete. ${game.continues?'Continued-run record.':'One credit. A whole lot of dinosaurs.'}`:`Reached ${game.stage.name}. Ride again for a cleaner run.`,won?'EXPEDITION COMPLETE':'GAME OVER');if(runMedals.length)$('overlay-copy').textContent+=` Medals earned: ${runMedals.join(', ')}.`;
  const stats=[[fmt(game.score),'FINAL SCORE'],[grade(game),'RANK'],[`${Math.round(game.hits/Math.max(1,game.shots)*100)}%`,'ACCURACY'],[String(game.maxCombo),'BEST CHAIN'],[`${game.perfects?.length||0}/${game.path.length}`,'PERFECT STAGES'],game.p2?[`${Math.round(game.p2.hits/Math.max(1,game.p2.shots)*100)}%`,'P2 ACCURACY']:[String(game.continues),'CONTINUES']];
  $('result-stats').replaceChildren(...stats.map(([v,l])=>{const el=document.createElement('div'),b=document.createElement('b'),small=document.createElement('small');if(l==='RANK')el.className='flourish';b.textContent=v;small.textContent=l;el.append(b,small);return el;}));$('restart').hidden=false;$('restart').focus();persist();showBoard();
 }
@@ -208,7 +210,10 @@ document.querySelectorAll('[data-route]').forEach(button=>button.addEventListene
 $('about-open').addEventListener('click',()=>$('about').showModal());
 // The medal list: earned in gold, the rest greyed with how to earn them.
 $('medals-open').addEventListener('click',()=>{const have=readMedals(()=>localStorage);$('medal-list').replaceChildren(...Object.entries(MEDALS).map(([id,[name,how]])=>{const li=document.createElement('li');li.className=have.includes(id)?'earned':'';li.innerHTML=`<b>${have.includes(id)?'★':'☆'} ${name}</b><span>${how}</span>`;return li;}));$('medals').showModal();});
-$('medals-close').addEventListener('click',()=>$('medals').close());$('about-close').addEventListener('click',()=>$('about').close());
+$('medals-close').addEventListener('click',()=>$('medals').close());
+// Practice: any stage up to the furthest reached plays alone (route practice-N, its own best).
+$('practice-open').addEventListener('click',()=>{const top=reached();$('practice-list').replaceChildren(...STAGES.map((s,i)=>{const li=document.createElement('li'),b=document.createElement('button');b.disabled=i>top;b.innerHTML=`<b>${String(i+1).padStart(2,'0')} · ${s.name}</b><span>${i>top?'Reach it in a run to unlock':s.location}</span>`;b.addEventListener('click',()=>{$('practice').close();start(`practice-${i}`);});li.append(b);return li;}));$('practice').showModal();});
+$('practice-close').addEventListener('click',()=>$('practice').close());$('about-close').addEventListener('click',()=>$('about').close());
 function pointer(e){aim.x=Math.max(.02,Math.min(.98,e.clientX/innerWidth));aim.y=Math.max(.19,Math.min(.85,(e.clientY-(e.pointerType==='touch'?42:0))/innerHeight));}
 canvas.addEventListener('pointerdown',e=>{if(mode!=='playing'||(e.pointerType==='mouse'&&e.button!==0)||pointerId!==null)return;pointerId=e.pointerId;canvas.setPointerCapture(e.pointerId);pointer(e);fire=true;void audio.unlock();e.preventDefault();});
 canvas.addEventListener('pointermove',e=>{if(pointerId===null||e.pointerId===pointerId)pointer(e);});
@@ -279,7 +284,7 @@ let hudTick=0;
 function frame(now){const raw=now-last,dt=Math.min(.1,raw/1000);last=now;
  pad=gamepad();
  // The attract mode: idle on the menu starts it; any input (here, a gamepad button) ends it.
- if(mode==='menu'&&ready&&!test&&!document.hidden&&!$('about').open&&!$('medals').open){idle+=Math.min(2,raw/1000);if(idle>ATTRACT_IDLE){idle=0;startAttract();}}else if(mode!=='playing')idle=0;
+ if(mode==='menu'&&ready&&!test&&!document.hidden&&!$('about').open&&!$('medals').open&&!$('practice').open){idle+=Math.min(2,raw/1000);if(idle>ATTRACT_IDLE){idle=0;startAttract();}}else if(mode!=='playing')idle=0;
  if(attract&&pad&&padHeld.some(Boolean)){stopAttract();padHeld=padHeld.map(()=>true);}
  // Gamepad on the screens: A starts, continues or restarts; Start pauses and resumes.
  if(pad){if(pad.pressed(9)){if(mode==='playing')pause();else if(mode==='paused')resume();}
