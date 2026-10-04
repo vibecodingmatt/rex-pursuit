@@ -14,6 +14,7 @@ import {RiverSurface,LEVEL} from './water.js';
 import {Spray} from './spray.js';
 import {BOW} from './boat.js';
 import {Fault} from './fault.js';
+import {Promenade} from './promenade.js';
 
 const TAU=Math.PI*2,clamp=T.MathUtils.clamp,smooth=(a,b,x)=>{const t=clamp((x-a)/(b-a),0,1);return t*t*(3-2*t);};
 export const noise=n=>{const v=Math.sin(n*127.1+311.7)*43758.5453;return v-Math.floor(v);};
@@ -110,6 +111,7 @@ export class CircuitWorld {
   this.signs={gates:labelTexture('JURASSIC PARK','ISLA NUBLAR • NORTH GATE'),river:labelTexture('RIVER OF GIANTS'),fault:labelTexture('SERVICE CROSSING','UNSTABLE GROUND • DO NOT STOP'),hybrid:labelTexture('INNOVATION VALLEY'),lagoon:labelTexture('LAGOON OBSERVATORY'),manor:labelTexture('THE CONSERVATORY'),visitor:labelTexture('VISITOR CENTER','WHEN GIANTS RULED THE EARTH')};
   this.materials.porcelain=new T.MeshStandardMaterial({color:0xcdbf9f,roughness:.2});this.materials.voltSign=new T.MeshStandardMaterial({map:voltTexture(),roughness:.55,metalness:.25});this.sparks=new Sparks(this.scene);
   this.fault=new Fault(this.scene,{rock:this.materials.rock,diffuse:gateDiffuse,normal:gateNormal,routeX,routeY,routeHeading,terrain:(off,z)=>terrainY(off,z,'fault',{canyon:true,bridge:z>=288&&z<640})});this.gate=new Gate(this.scene,{stone:this.materials.stone,sign:this.signs.gates,light:this.practicalLights[0],diffuse:gateDiffuse,normal:gateNormal,routeX,routeY,routeHeading,groundAt});
+  this.promenade=new Promenade(this.scene,{routeX,routeY,routeHeading});
   this.ready=true;
  }
  instances(parent,geo,mat,items,shadow=true){
@@ -139,6 +141,7 @@ export class CircuitWorld {
   // The lava tube and the rope bridge (fault.js).
   if(cave)this.fault.cave(g,start,mid,id,hAt);
   if(bridge)this.fault.bridge(g,start,mid,id);
+  if(id==='hybrid')this.promenade.chunk(g,start,mid,id,index);
   // Rocks, clumped planting and track clutter (ground.js); rock buckets are keyed by their scan.
   const rockBuckets=new Map(),blobs=[],pebbles=[],stillItems={bark:[],shrub:[],palm:[],fern:[]},kit=this.kit,C=kit.clutter,matrix=new T.Matrix4(),q=new T.Quaternion(),e=new T.Euler(),sv=new T.Vector3(),pv=new T.Vector3();
   const buckets={grass,fern:ferns,bush:bushes,treeFern:treeFerns,blob:blobs,pebble:pebbles};
@@ -197,7 +200,6 @@ export class CircuitWorld {
    g.userData.sparks=sparks;
   }
   if((id==='lagoon'||id==='hybrid')&&index===5){const z=mid;for(const side of [-1,1])add(stone,side*31,6.5,z,1.4,13,3);add(metal,0,13,z,65,.75,2);add(stone,-6,15,z,13,2.5,3);add(glass,-6,15.3,z-1.55,11,1.1,.04);add(lamps,-6,13.8,z-1.6,13,.09,.09);}
-  if(id==='hybrid'&&index===10){const domeGeo=new T.SphereGeometry(38,32,14,0,Math.PI*2,0,Math.PI/2),dome=new T.Mesh(domeGeo,m.glass);dome.scale.y=.72;dome.position.set(routeX(mid,id),routeY(mid,id),0);g.add(dome);const ribs=new T.LineSegments(new T.WireframeGeometry(domeGeo),new T.LineBasicMaterial({color:0x466c70,transparent:true,opacity:.65}));ribs.position.copy(dome.position);ribs.scale.copy(dome.scale);g.add(ribs);}
   if(id==='visitor'&&index===25){
    const root=new T.Group();root.position.set(routeX(mid,id),routeY(mid,id),0);g.add(root);
    for(let tier=0;tier<3;tier++){const roof=new T.Mesh(new T.CylinderGeometry(8-tier*3,29-tier*7,5.5,64,1,true),m.thatch);roof.position.y=13+tier*4;roof.castShadow=roof.receiveShadow=true;root.add(roof);}
@@ -251,6 +253,7 @@ export class CircuitWorld {
   this.fill.copy(this.hemi.color).lerp(this.hemi.groundColor,.35).multiplyScalar(this.hemi.intensity*.16);this.sunLit.copy(this.sun.color).multiplyScalar(this.sun.intensity/Math.PI);if(dt>0){this.camVel??=new T.Vector3();if(this.lastCam)this.camVel.subVectors(this.camera.position,this.lastCam).divideScalar(dt);(this.lastCam??=new T.Vector3()).copy(this.camera.position);}
   this.spray.update(dt,{dir:this.light.key,sun:this.sunLit,fill:this.fill},this.camVel);
   if(id==='fault'){this.fault.haze=this.scene.fog?.color;this.fault.reduced=reduced;this.fault.update(game,this.chunks,{camera:this.camera,time:this.time,dt,effects:this.vehicle?.effects});}else if(this.fault.plume.visible){this.fault.plume.visible=false;for(const b of this.fault.bombs){b.live=false;b.mesh.visible=b.flame.visible=false;}}
+  if(id==='hybrid')this.promenade.update(game,this.camera);else this.promenade.hide();
   WIND.value=this.time;this.sky.update(this.camera,this.time);this.post.settings.motionBlur=reduced?0:.65;
  }
  // Creatures (and only creatures) take a rim of the stage's key light.
