@@ -44,6 +44,29 @@ function plankGeometry(){const g=new T.BoxGeometry(BRIDGE.width,.09,.28),p=g.att
 function dripGeometry(up=false){const g=new T.ConeGeometry(1,1,7,5,false);g.rotateX(up?0:Math.PI);g.translate(0,up?.5:-.5,0);const p=g.attributes.position;
  for(let i=0;i<p.count;i++){const x=p.getX(i),y=p.getY(i),z=p.getZ(i),a=Math.atan2(z,x),k=1+.22*Math.sin(a*3+y*9)+.12*Math.sin(a*5-y*17);p.setXYZ(i,x*k,y,z*k);}g.computeVertexNormals();return g;}
 
+// The eruption: a billowing ash column on the horizon, lit from below by the vent, with lightning
+// in the ash. It is a camera-anchored billboard just beyond the horizon ring, so the ridges hide its foot.
+const PLUME_VS=`varying vec2 vUv;void main(){vUv=uv;gl_Position=projectionMatrix*modelViewMatrix*vec4(position,1.);}`;
+const PLUME_FS=`uniform float uTime,uFade,uFlash;uniform vec3 uHaze;varying vec2 vUv;
+float h(vec2 p){return fract(sin(dot(p,vec2(127.1,311.7)))*43758.5453);}
+float n(vec2 p){vec2 i=floor(p),f=fract(p);f=f*f*(3.-2.*f);return mix(mix(h(i),h(i+vec2(1,0)),f.x),mix(h(i+vec2(0,1)),h(i+1.),f.x),f.y);}
+float fbm(vec2 p){float v=0.,a=.5;for(int i=0;i<5;i++){v+=a*n(p);p=p*2.03+vec2(1.7,9.2);a*=.5;}return v;}
+void main(){
+ float y=vUv.y,t=uTime;vec2 q=vec2((vUv.x-.5)*2.,y);
+ // Billows rise and roll outward; the column leans downwind and spreads into an anvil.
+ float lean=y*y*.35,w=mix(.1,.24,smoothstep(0.,.7,y))+smoothstep(.6,.95,y)*.32;
+ vec2 p=vec2((q.x-lean)/w*.9,y*3.2-t*.045);float b=fbm(p*1.6+vec2(0.,fbm(p*.8+t*.02)*1.4));
+ float edge=1.-smoothstep(.55,1.05,abs(q.x-lean)/w+(.5-b)*.7);
+ float a=edge*smoothstep(0.,.06,y)*(1.-smoothstep(.8,1.,y+(.5-b)*.25))*smoothstep(.25,.6,b+.2);
+ // Lit from below by the vent: a hot core at the foot fading up the column; ash above.
+ float vent=exp(-y*7.)*(1.-smoothstep(0.,.5,abs(q.x)/max(w,.01)));
+ vec3 ash=mix(vec3(.07,.06,.055),vec3(.24,.19,.16),b)*(.8+.4*smoothstep(.3,.9,y));
+ vec3 col=ash+vec3(1.6,.42,.08)*vent*(1.5+b)+vec3(.9,.25,.06)*exp(-y*3.)*.35*b;
+ // Lightning inside the ash.
+ col+=vec3(.75,.8,1.)*uFlash*smoothstep(.55,.95,b)*smoothstep(.25,.5,y)*(1.-smoothstep(.7,.9,y))*1.6;
+ col=mix(col,uHaze*.6,.16*(1.-vent));a=min(1.,a*1.25);
+ gl_FragColor=vec4(col*a*uFade,a*uFade);
+}`;
 export class Fault {
  constructor(scene,{rock,diffuse,normal,routeX,routeY,routeHeading,quality}){
   Object.assign(this,{scene,routeX,routeY,routeHeading,quality});this.cues=[];this.dummy=new T.Object3D();this.v=[new T.Vector3(),new T.Vector3(),new T.Vector3()];this.up=new T.Vector3(0,1,0);this.q=new T.Quaternion();this.off=[[0,0],[0,0]];this.snapWait=0;
@@ -57,6 +80,8 @@ export class Fault {
   this.plank.onBeforeCompile=s=>{s.vertexShader=s.vertexShader.replace('#include <uv_vertex>','#include <uv_vertex>\n#ifdef USE_INSTANCING\n vMapUv.x+=fract(instanceMatrix[3].z*.37+instanceMatrix[3].x*.11)*4.;vNormalMapUv=vMapUv;\n#endif');};this.plank.customProgramCacheKey=()=>'arcade-plank';
   this.log=new T.MeshStandardMaterial({map:tex(diffuse),normalMap:tex(normal),color:0x8a7560,roughness:.95});this.log.userData.shared=true;
   this.rope=new T.MeshStandardMaterial({color:0x7a6548,roughness:1});this.rope.userData.shared=true;
+  this.plume=new T.Mesh(new T.PlaneGeometry(1,1).translate(0,.5,0),new T.ShaderMaterial({uniforms:{uTime:{value:0},uFade:{value:0},uFlash:{value:0},uHaze:{value:new T.Color()}},vertexShader:PLUME_VS,fragmentShader:PLUME_FS,transparent:true,depthWrite:false,blending:T.CustomBlending,blendSrc:T.OneFactor,blendDst:T.OneMinusSrcAlphaFactor}));
+  this.plume.frustumCulled=false;this.plume.renderOrder=-1;this.plume.visible=false;this.plume.userData.noReflect=true;scene.add(this.plume);this.flash=0;this.nextFlash=2;
  }
  drain(){const c=this.cues;this.cues=[];return c;}
  cue(c){this.cues.push(c);}
@@ -127,7 +152,12 @@ export class Fault {
   return snaps;
  }
  update(game,chunks,{camera,time,dt=0,effects}){
-  this.u.uLavaFlow.value=(time*.55)%256;this.u.uLavaPhase.value=(time*.35)%TAU;
+  this.u.uLavaFlow.value=(time*.55)%256;
+  // The eruption stands down the canyon, a little left of the road; it shows once the tube opens out.
+  const pu=this.plume.material.uniforms,z=camera.position.z,dist=262,az=Math.atan2(this.routeX(z+dist,'fault')-camera.position.x,dist)+.09;this.plume.visible=true;pu.uFade.value=clamp((z-262)/40,0,1);pu.uTime.value=time%600;
+  this.plume.position.set(camera.position.x+Math.sin(az)*dist,camera.position.y-6,z+Math.cos(az)*dist);this.plume.rotation.set(0,az+Math.PI,0);this.plume.scale.set(320,250,1);
+  this.nextFlash-=dt;if(this.nextFlash<=0){this.flash=1;this.nextFlash=1.2+Math.random()*3.5;}this.flash=Math.max(0,this.flash-dt*(this.flash>.5?3:7));pu.uFlash.value=this.flash>.5||Math.sin(time*60)>0?this.flash:this.flash*.3;
+  if(this.haze)pu.uHaze.value.copy(this.haze);this.u.uLavaPhase.value=(time*.35)%TAU;
   const origin=game?.bridgeBroken?game.bridgeOrigin:null,st=game?.stageTime??0,camZ=camera.position.z;let snaps=0;
   for(const chunk of chunks){const b=chunk.userData.bridge;if(!b)continue;const cz=chunk.position.z,live=Math.abs(camZ-cz)<22||(origin!=null&&Math.abs(origin-cz)<42);
    if(!live&&!b.dirty)continue;b.dirty=live;snaps+=this.pose(b,origin,st,live?camZ:Infinity,effects);}
