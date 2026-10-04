@@ -187,10 +187,10 @@ export function createPost(renderer){
   contrast:{value:.2},saturation:{value:1.1},shadowTint:{value:new T.Color(.92,1.01,1.04)},highlightTint:{value:new T.Color(1.05,1.0,.9)},lift:{value:.005},
   flash:{value:new T.Color(0,0,0)},lensRain:{value:0},lensTime:{value:0},
   tSmoke:{value:null},tDepth:{value:depthTexture},projInv:{value:new T.Matrix4()},camWorld:{value:new T.Matrix4()},prevViewProj:{value:new T.Matrix4()},motion:{value:0},
-  tAO:{value:aoBlurTarget.texture},aoTexel:{value:new T.Vector2()},aoStrength:{value:0},contactStrength:{value:0},near:{value:.1},far:{value:100},fogDensity:{value:0}
+  tAO:{value:aoBlurTarget.texture},aoTexel:{value:new T.Vector2()},aoStrength:{value:0},contactStrength:{value:0},near:{value:.1},far:{value:100},fogDensity:{value:0},heat:{value:0}
  };
  const final=pass(`varying vec2 vUv;
-  uniform sampler2D tScene,tBloom,tVol,tSmoke,tDepth,tAO;uniform vec2 texel,resolution,aoTexel;uniform mat4 projInv,camWorld,prevViewProj;uniform float motion,aoStrength,contactStrength,near,far,fogDensity;
+  uniform sampler2D tScene,tBloom,tVol,tSmoke,tDepth,tAO;uniform vec2 texel,resolution,aoTexel;uniform mat4 projInv,camWorld,prevViewProj;uniform float motion,aoStrength,contactStrength,near,far,fogDensity,heat;
   uniform float bloomStrength,volStrength,exposure,time,vignette,grain,aberration,sharpen,contrast,saturation,lift,lensRain,lensTime;uniform vec3 shadowTint,highlightTint,flash;
   ${HASH}
   // Raindrops striking an exterior camera's lens. Each cell hosts a stream of
@@ -243,6 +243,11 @@ export function createPost(renderer){
     suv-=(d1.xy*d1.z+d2.xy*d2.z*.7)/a*.022*lensRain;bead=max(d1.z,d2.z*.7)*lensRain;lensRim=max(d1.w,d2.w*.7)*lensRain;
     lensGlint=max(smoothstep(.3,.05,length(d1.xy-vec2(-.38,.44)))*d1.z,smoothstep(.3,.05,length(d2.xy-vec2(-.38,.44)))*d2.z*.7)*lensRain;
    }
+   // Heat shimmer (the arcade's fault stage sets heat): rising ripples bend the far
+   // scene, never the gun or the vehicle a few metres from the lens.
+   if(heat>0.){vec4 hv=projInv*vec4(vUv*2.-1.,texture2D(tDepth,vUv).x*2.-1.,1.);float hd=length(hv.xyz/hv.w),ht=mod(time,62.8318);
+    vec2 hp=vUv*resolution*vec2(.11,.2)+vec2(0.,ht*2.6);vec2 hw=vec2(sin(hp.y*1.3+sin(hp.x*.7+ht*1.9)*1.6)+.7*sin(hp.y*2.9-hp.x*.43+ht*3.1+sin(hp.y*.37)*2.),.6*cos(hp.x*1.1+hp.y*.6+ht*2.3)*sin(hp.y*.5+ht));
+    suv+=hw*texel*heat*.7*smoothstep(7.,26.,hd)*(1.-smoothstep(.6,.8,vUv.y));}
    // Camera motion blur: each pixel's world point from depth, reprojected with last
    // frame's camera, gives its screen velocity; average the frame along it. Pixels
    // near the lens (the gun, the gunner's arms) move with the camera and stay sharp.

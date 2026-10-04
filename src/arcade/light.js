@@ -222,6 +222,8 @@ export class StageLight {
   const cave=id==='fault'?1-smooth(250,292,z):0,flash=this.lightning(game,dt);
   w.hemi.intensity=this.fillIntensity*(1-cave*.42)+flash*5;sun.intensity=this.keyIntensity*(1-cave*.5)+flash*7;w.scene.environmentIntensity=this.envIntensity*(1-cave*.6)+flash*.6;
   w.post.final.volStrength.value=this.airStrength*(1-cave*.6);
+  // Heat shimmer: strong over the lava in the tube, a haze over the canyon floor.
+  w.post.final.heat.value=id==='fault'&&w.post.depthReadable?.6+cave*.6:0;
   if(w.scene.fog){w.scene.fog.color.copy(this.fogColor).multiplyScalar(1-cave*.55);}
   RIM.dir.value.copy(L).transformDirection(camera.matrixWorldInverse);
   this.horizon.position.copy(camera.position);this.horizon.material.uniforms.uTime.value=time%1000;

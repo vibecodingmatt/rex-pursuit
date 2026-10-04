@@ -13,7 +13,7 @@ let seed=4021;const rnd=()=>{seed=(1664525*seed+1013904223)>>>0;return seed/4294
 const AIR={
  gates:{motes:[1,0xffe2b0,1,.03],leaves:.65,birds:true,insects:true},
  river:{motes:[.8,0xfff4dc,.75,.02],leaves:.25,birds:true,insects:true},
- fault:{motes:[.6,0xff8a3c,1.6,.9],embers:true,leaves:0,birds:false,insects:false},
+ fault:{motes:[.9,0xff8a3c,1.6,.9],embers:true,leaves:0,birds:false,insects:false},
  hybrid:{motes:[.45,0xfff4dc,.5,.02],leaves:.2,birds:true,insects:true},
  lagoon:{motes:[.5,0xffb48a,.6,.02],leaves:0,birds:true,insects:true},
  manor:{motes:[.5,0xb4c8ee,.5,.01],leaves:0,birds:false,insects:true,night:1},
@@ -46,12 +46,13 @@ export const PLANT_PUSH=`
 function motesMaterial(){
  return new T.ShaderMaterial({transparent:true,depthWrite:false,blending:T.AdditiveBlending,fog:false,
   uniforms:{uShift:{value:new T.Vector3()},uBox:{value:new T.Vector3(30,12,60)},uTime:{value:0},uColor:{value:new T.Color()},uStrength:{value:1},uRise:{value:0},uPixel:{value:1},uSun:{value:new T.Vector3(0,1,0)},
-   tCanopy:{value:null},uCanopy:{value:new T.Vector4(0,0,-1e4,90)},uEmber:{value:0}},
-  vertexShader:`attribute vec4 seed;uniform vec3 uShift,uBox,uSun;uniform float uTime,uRise,uPixel,uEmber;uniform vec4 uCanopy;uniform sampler2D tCanopy;varying float vLight;varying float vHot;
+   tCanopy:{value:null},uCanopy:{value:new T.Vector4(0,0,-1e4,90)},uEmber:{value:0},uAsh:{value:0}},
+  vertexShader:`attribute vec4 seed;uniform vec3 uShift,uBox,uSun;uniform float uTime,uRise,uPixel,uEmber,uAsh;uniform vec4 uCanopy;uniform sampler2D tCanopy;varying float vLight;varying float vHot;varying float vAsh;
    void main(){
     // World-fixed points wrapped through a box around the camera: the CPU passes the camera
     // position modulo the box, so every input stays small.
-    float t=uTime;vec3 drift=vec3(sin(t*.21+seed.w*20.)*.6,t*(uRise*(.6+seed.w*.8)+.03),sin(t*.3+seed.x*9.)*.4);
+    // Ash (the fault canyon): the cooler half of the points fall, fluttering, instead of rising.
+    float t=uTime,ash=uAsh*step(seed.w,.5);vec3 drift=vec3(sin(t*.21+seed.w*20.)*.6+ash*sin(t*1.7+seed.z*40.)*.35,t*mix(uRise*(.6+seed.w*.8)+.03,-.55-seed.y*.5,ash),sin(t*.3+seed.x*9.)*.4+ash*cos(t*1.3+seed.y*31.)*.3);
     vec3 p=mod(seed.xyz*uBox+drift-uShift,uBox)-vec3(uBox.x*.5,0.,uBox.z*.18);
     vec4 world=modelMatrix*vec4(p,1.);
     float lit=1.;
@@ -59,11 +60,11 @@ function motesMaterial(){
     vec4 mv=viewMatrix*world;gl_Position=projectionMatrix*mv;
     float d=-mv.z;vec3 view=normalize(world.xyz-cameraPosition);
     float forward=mix(.45,1.8,pow(max(dot(view,uSun),0.),4.));
-    vHot=uEmber*step(.55,seed.w);
+    vHot=uEmber*step(.55,seed.w);vAsh=ash;
     vLight=mix(lit*forward,1.,vHot)*smoothstep(1.2,4.,d)*(1.-smoothstep(30.,52.,d))*(.35+.65*seed.w)*(.7+.3*sin(t*(2.+seed.y*5.)+seed.z*30.));
-    gl_PointSize=uPixel*(1.3+seed.w*2.2+vHot*1.5)*18./max(d,1.);
+    gl_PointSize=uPixel*(1.3+seed.w*2.2+vHot*1.5+ash*1.6)*18./max(d,1.);
    }`,
-  fragmentShader:`uniform vec3 uColor;uniform float uStrength;varying float vLight;varying float vHot;void main(){vec2 c=gl_PointCoord-.5;float a=exp(-dot(c,c)*18.);gl_FragColor=vec4(mix(uColor,vec3(1.,.42,.1)*2.4,vHot)*a*vLight*.85*uStrength,1.);}`});
+  fragmentShader:`uniform vec3 uColor;uniform float uStrength;varying float vLight;varying float vHot;varying float vAsh;void main(){vec2 c=gl_PointCoord-.5;float a=exp(-dot(c,c)*18.);gl_FragColor=vec4(mix(mix(uColor,vec3(.42,.36,.33),vAsh),vec3(1.,.42,.1)*2.4,vHot)*a*vLight*.85*uStrength,1.);}`});
 }
 
 export class CircuitAir {
@@ -105,6 +106,7 @@ export class CircuitAir {
   // Motes: the box follows the camera; its contents stay put in the world.
   const box=u.uBox.value;this.motes.position.copy(camera.position).setY(this.routeY(z,id));
   u.uShift.value.set(((camera.position.x%box.x)+box.x)%box.x,0,((z%box.z)+box.z)%box.z);u.uTime.value=time%600;u.uSun.value.copy(key);u.uPixel.value=Math.min(2,devicePixelRatio);
+  u.uAsh.value=id==='fault'?T.MathUtils.smoothstep(z,280,320):0;
   u.tCanopy.value=canopy.texture;u.uCanopy.value.set(canopy.offset.x,canopy.offset.y,canopy.height,canopy.scale);
   // Leaves drop from the canopy height ahead and settle out on the ground.
   for(let i=0;i<this.leaves.count;i++){const l=this.leafState[i];
