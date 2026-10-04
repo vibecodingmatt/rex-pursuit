@@ -57,7 +57,8 @@ export class Circuit {
   this.emit('stage',{stage:this.stage.id});
  }
  get stage(){return STAGES[this.path[this.stageIndex]];}
- get clearHold(){return DRIVE[this.stage.boss]?5:3.5;}
+ // The finale holds longer for its closing shot (world.js) before the results.
+ get clearHold(){return this.stage.id==='visitor'?6.5:DRIVE[this.stage.boss]?5:3.5;}
  random(){this.rng=(Math.imul(this.rng,1664525)+1013904223)>>>0;return this.rng/4294967296;}
  emit(type,data={}){this.events.push({type,...data});}
  drain(){return this.events.splice(0);}

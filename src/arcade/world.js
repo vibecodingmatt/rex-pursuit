@@ -245,11 +245,13 @@ export class CircuitWorld {
   // After a Rex goes down the camera cranes up off the vehicle, so her fall reads
   // from above instead of foreshortened behind her own head.
   const crane=game?.phase==='clear'&&DRIVE[game.stage.boss]?T.MathUtils.smootherstep(game.phaseTime,.2,2.6)*move:0;
+  // A14 closing shot: after the last king falls the crane keeps rising and turns to the Visitor Center.
+  const closing=id==='visitor'&&game?.phase==='clear'?T.MathUtils.smootherstep(game.phaseTime,2.1,4.9)*move:0;
   // The vehicle (vehicle.js) rides under the route eye point; its spring rig tilts the camera with it.
   const eye=(this.eye??=new T.Vector3()).set(routeX(z,id)+Math.sin(z*.11)*.10*move,routeY(z,id)+2.65-drop,z);
   this.look.set(routeX(z+24,id),routeY(z+24,id)+2.25-drop+nose-crane*3.3,z+24);const rig=game&&this.vehicle?this.vehicle.ride(dt,eye,this.look,{id,rough,move,hp:game.hp}):null;
-  this.camera.position.copy(eye);this.camera.position.y+=crane*3.6+Math.sin(this.time*64)*shake*.12*move+(rig?rig.heave:Math.sin(z*1.2)*.025*rough*move);
-  this.camera.lookAt(this.look);this.camera.rotateZ(roll);if(rig){this.camera.rotateY(rig.yaw);this.camera.rotateX(rig.pitch);this.camera.rotateZ(rig.roll);}this.camera.updateMatrixWorld();
+  this.camera.position.copy(eye);this.camera.position.y+=crane*3.6+closing*4.5+Math.sin(this.time*64)*shake*.12*move+(rig?rig.heave:Math.sin(z*1.2)*.025*rough*move);
+  if(closing>0){const h=routeHeading(PLAZA,id);(this.closingAt??=new T.Vector3()).set(routeX(PLAZA,id)+Math.sin(h)*62,routeY(PLAZA,id)+8,PLAZA+Math.cos(h)*62);this.camera.lookAt(this.closingAt.lerp(this.look,1-closing));}else this.camera.lookAt(this.look);this.camera.rotateZ(roll);if(rig){this.camera.rotateY(rig.yaw);this.camera.rotateX(rig.pitch);this.camera.rotateZ(rig.roll);}this.camera.updateMatrixWorld();
   this.lit=this.light.update(game,{z,camera:this.camera,time:this.time});this.gate.update(id,this.camera,this.time,{height:this.renderer.domElement.height});
   const live=[];if(id==='gates')for(const chunk of this.chunks)for(const s of chunk.userData.sparks||[])if(s.z>z-6&&s.z<z+70)live.push(s);this.sparks.update(dt,live,this.camera,this.renderer.domElement.height);
   // The canopy's dapple is pinned to the ground; open stages light the air from the shadow map alone.
