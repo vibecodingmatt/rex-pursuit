@@ -23,6 +23,8 @@ export class CircuitQuality{
   // Ambient occlusion only pays for itself on wide screens.
   w.post.configure({scale:this.governor.scale,...a.post,ao:wide?a.post.ao:false});
   const size=wide?a.shadow:Math.min(a.shadow,1536),shadow=w.sun.shadow;if(shadow.mapSize.x!==size){shadow.mapSize.setScalar(size);shadow.map?.dispose();shadow.map=null;}
+  // The gun's many small parts all sit inside the shadow camera; on the lower tiers they stop casting.
+  r.weapon?.body.traverse(o=>{if(o.isMesh)o.castShadow=name==='high'||name==='ultra';});
   r.actors?.setQuality(t);r.bossMosa?.setQuality(t);r.effects?.setQuality?.(t);r.impacts?.setQuality(t);w.air?.setQuality?.(t);w.spray?.setQuality(name);w.river?.setQuality(name);
  }
  cycle(){const list=['auto',...ORDER];this.choice=list[(list.indexOf(this.choice)+1)%list.length];if(!this.fixed)storeQuality(this.choice);this.auto=this.detected.tier;this.apply();}
