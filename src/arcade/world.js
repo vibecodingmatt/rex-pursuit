@@ -69,6 +69,34 @@ function voltTexture(){
 }
 function marbleTexture(){const c=document.createElement('canvas');c.width=c.height=512;const x=c.getContext('2d');x.fillStyle='#777e79';x.fillRect(0,0,512,512);for(let i=0;i<6000;i++){const n=noise(i);x.fillStyle=`rgba(${n>.5?'221,228,212':'37,49,46'},.06)`;x.fillRect(noise(i+1)*512,noise(i+2)*512,2+noise(i+3)*16,1);}for(let i=0;i<25;i++){x.strokeStyle=`rgba(36,52,47,${.05+noise(i)*.14})`;x.lineWidth=1+noise(i)*2;x.beginPath();x.moveTo(noise(i)*512,0);x.bezierCurveTo(noise(i+1)*512,120,noise(i+2)*512,360,noise(i+3)*512,512);x.stroke();}x.strokeStyle='#263a35';x.lineWidth=4;x.strokeRect(1,1,510,510);const t=new T.CanvasTexture(c);t.colorSpace=T.SRGBColorSpace;t.wrapS=t.wrapT=T.RepeatWrapping;t.anisotropy=8;return t;}
 
+/**
+ * Phone pass 2: every chunk's instanced meshes (trees, cover, rocks, decals, fences) draw through one shared
+ * InstancedMesh per geometry/material/shadow combination instead of one per chunk (about 24 draw calls a chunk,
+ * nine chunks). Chunks keep their own instanced meshes off the scene graph as data; the batches are refilled
+ * when chunks stream in or out, rocks swap LOD, or ground cover toggles (all at chunk boundaries, not per frame).
+ */
+class ChunkBatches {
+ constructor(scene){this.scene=scene;this.batches=new Map();this.dirty=false;this.m=new T.Matrix4();}
+ /** Take a fresh chunk's instanced meshes off the scene graph; they become data for the batches. */
+ adopt(chunk){const held=[];for(const o of [...chunk.children])if(o.isInstancedMesh){chunk.remove(o);held.push(o);}chunk.userData.batched=held;this.dirty=true;}
+ meshes(){return [...this.batches.values()];}
+ rebuild(chunks){
+  this.dirty=false;const groups=new Map(),m=this.m;
+  for(const c of chunks)for(const h of c.userData.batched||[]){if(!h.visible||!h.count)continue;const key=`${h.geometry.uuid}|${h.material.uuid}|${h.castShadow}|${h.receiveShadow}|${!!h.userData.noReflect}`;let g=groups.get(key);if(!g)groups.set(key,g={sample:h,parts:[]});g.parts.push([c,h]);}
+  for(const [key,b] of this.batches)if(!groups.has(key)){this.scene.remove(b);b.dispose();this.batches.delete(key);}
+  for(const [key,{sample,parts}] of groups){
+   const total=parts.reduce((n,[,h])=>n+h.count,0);let b=this.batches.get(key);
+   if(!b||b.instanceMatrix.count<total){if(b){this.scene.remove(b);b.dispose();}
+    b=new T.InstancedMesh(sample.geometry,sample.material,Math.ceil(total*1.4)+8);b.name='Chunk batch';b.castShadow=sample.castShadow;b.receiveShadow=sample.receiveShadow;b.userData.noReflect=!!sample.userData.noReflect;b.frustumCulled=false;this.scene.add(b);this.batches.set(key,b);}
+   const colors=parts.some(([,h])=>h.instanceColor);if(colors&&!b.instanceColor)b.instanceColor=new T.InstancedBufferAttribute(new Float32Array(b.instanceMatrix.count*3).fill(1),3);
+   let n=0;for(const [c,h] of parts){const src=h.instanceMatrix.array,p=c.position;
+    for(let i=0;i<h.count;i++){m.fromArray(src,i*16);m.elements[12]+=p.x;m.elements[13]+=p.y;m.elements[14]+=p.z;m.toArray(b.instanceMatrix.array,(n+i)*16);}
+    if(b.instanceColor){const out=b.instanceColor.array;if(h.instanceColor)out.set(h.instanceColor.array.subarray(0,h.count*3),n*3);else out.fill(1,n*3,(n+h.count)*3);}
+    n+=h.count;}
+   b.count=n;b.instanceMatrix.needsUpdate=true;if(b.instanceColor)b.instanceColor.needsUpdate=true;}
+ }
+}
+
 export class CircuitWorld {
  constructor(canvas){
   installArcadeFog();
@@ -78,7 +106,7 @@ export class CircuitWorld {
   this.scene=new T.Scene();this.camera=new T.PerspectiveCamera(62,1,.08,300);
   this.hemi=new T.HemisphereLight(0xd5e9dd,0x34382a,2.5);this.scene.add(this.hemi);
   this.sun=new T.DirectionalLight(0xffe5be,3.1);this.sun.castShadow=true;this.sun.shadow.mapSize.setScalar(innerWidth>700?2048:1536);this.sun.shadow.bias=-.0004;this.sun.shadow.normalBias=.08;this.scene.add(this.sun,this.sun.target);
-  this.chunks=[];this.id='';this.distance=0;this.time=0;this.ready=false;this.materials={};
+  this.chunks=[];this.batches=new ChunkBatches(this.scene);this.id='';this.distance=0;this.time=0;this.ready=false;this.materials={};
   this.dummy=new T.Object3D();this.color=new T.Color();this.look=new T.Vector3();
   this.sky=createSky(this.scene);this.post=createPost(this.renderer);this.post.configure({scale:1,msaa:2,bloomLevels:4,volumetric:false,ao:false,grain:.015,motionBlur:.65});
   this.renderer.info.autoReset=false;this.post.final.contrast.value=.10;this.post.final.vignette.value=.18;this.post.final.aberration.value=.0004;this.post.final.exposure.value=1.24;
@@ -119,7 +147,7 @@ export class CircuitWorld {
   this.water=new Water(new T.PlaneGeometry(250,500),{textureWidth:innerWidth>700?1024:512,textureHeight:innerWidth>700?1024:512,waterNormals:normalTexture,sunDirection:new T.Vector3(-.5,.8,-.4).normalize(),sunColor:0xfff0c9,waterColor:0x236e75,distortionScale:.85,fog:true});this.water.rotation.x=-Math.PI/2;this.water.visible=false;this.scene.add(this.water);this.river=new RiverSurface(this.water,{routeX});this.bowAt=new T.Vector3();this.fill=new T.Color();
   // The mirror pass skips small ground clutter (grass, pebbles, contact shadows, litter) and the
   // motes, leaves and insects in the air; they barely read in the reflection.
-  const reflect=this.water.onBeforeRender;this.water.onBeforeRender=(...a)=>{const hidden=[];for(const o of [...this.chunks.flatMap(c=>c.children),this.air.motes,this.air.leaves,this.air.insectFrame])if(o.userData.noReflect&&o.visible){o.visible=false;hidden.push(o);}reflect.apply(this.water,a);for(const o of hidden)o.visible=true;};
+  const reflect=this.water.onBeforeRender;this.water.onBeforeRender=(...a)=>{const hidden=[];for(const o of [...this.chunks.flatMap(c=>c.children),...this.batches.meshes(),this.air.motes,this.air.leaves,this.air.insectFrame])if(o.userData.noReflect&&o.visible){o.visible=false;hidden.push(o);}reflect.apply(this.water,a);for(const o of hidden)o.visible=true;};
   this.spray=new Spray(this.scene);this.sunLit=new T.Color();
   this.signs={gates:labelTexture('JURASSIC PARK','ISLA NUBLAR • NORTH GATE'),river:labelTexture('RIVER OF GIANTS'),fault:labelTexture('SERVICE CROSSING','UNSTABLE GROUND • DO NOT STOP'),hybrid:labelTexture('INNOVATION VALLEY'),lagoon:labelTexture('LAGOON OBSERVATORY'),manor:labelTexture('THE CONSERVATORY'),visitor:labelTexture('VISITOR CENTER','WHEN GIANTS RULED THE EARTH')};
   this.materials.porcelain=new T.MeshStandardMaterial({color:0xcdbf9f,roughness:.2});this.materials.voltSign=new T.MeshStandardMaterial({map:voltTexture(),roughness:.55,metalness:.25});this.sparks=new Sparks(this.scene);
@@ -233,15 +261,16 @@ export class CircuitWorld {
   const small=[kit.materials.grass,kit.materials.fern,kit.materials.shrub];g.userData.cover=g.children.filter(o=>o.isMesh&&small.includes(o.material));
   return g;
  }
- disposeChunk(g){this.scene.remove(g);const shared=new Set([...Object.values(this.materials),...Object.values(this.kit.materials)]);g.traverse(o=>{if(o.isInstancedMesh){o.dispose();return;}if(o.isLineSegments){o.geometry.dispose();o.material.dispose();return;}if(o.isMesh&&!Object.values(this.geometry).includes(o.geometry))o.geometry.dispose();if(o.isMesh&&!shared.has(o.material)&&!o.material.userData.shared)o.material.dispose();});}
+ disposeChunk(g){this.scene.remove(g);for(const h of g.userData.batched||[])h.dispose();g.userData.batched=[];this.batches.dirty=true;const shared=new Set([...Object.values(this.materials),...Object.values(this.kit.materials)]);g.traverse(o=>{if(o.isInstancedMesh){o.dispose();return;}if(o.isLineSegments){o.geometry.dispose();o.material.dispose();return;}if(o.isMesh&&!Object.values(this.geometry).includes(o.geometry))o.geometry.dispose();if(o.isMesh&&!shared.has(o.material)&&!o.material.userData.shared)o.material.dispose();});}
  setStage(id){if(this.id===id)return;
   {const r=this.rotunda;r.root.visible=false;r.reset();this.doorBroken=false;if(id==='visitor'){const k=Math.hypot(1,DX0(PLAZA)),zd=PLAZA+DOOR/k;r.place(new T.Vector3(routeX(zd,id),Y0(PLAZA)+STEPS[2],zd),Math.atan(DX0(PLAZA)));}}
   {const v=this.visitorCenter,on=id==='visitor';v.root.visible=on;if(on){const h=routeHeading(PLAZA,id);v.root.position.set(routeX(PLAZA,id),routeY(PLAZA,id),PLAZA);v.root.rotation.set(0,Math.PI+h,0);}}this.spray.reset();for(const g of this.chunks)this.disposeChunk(g);this.chunks=[];this.id=id;const p=palettes[id];this.light.setStage(id);this.air.setStage(id);this.materials.ground.setStage(id);this.rocks.setStage(id);this.materials.leaf.color.set(p.leaf).multiplyScalar(1.45);this.materials.canopy.color.set(p.leaf).multiplyScalar(.77);this.materials.water.color.set(p.water);}
  sync(game,{reduced=false,time=0,shake=0}={}){
   if(!this.ready)return;const id=game?.stage.id||'gates';this.setStage(id);this.distance=game?.travel??time*4;const before=this.time;this.time=game?.time??time;const dt=clamp(this.time-before,0,.1);this.wave.value=this.time;
-  const first=Math.floor(this.distance/32)-1;for(const g of this.chunks.filter(g=>g.userData.index<first||g.userData.index>first+8)){this.disposeChunk(g);this.chunks.splice(this.chunks.indexOf(g),1);}for(let i=first;i<=first+8;i++)if(!this.chunks.some(g=>g.userData.index===i))this.chunks.push(this.makeChunk(i));
+  const first=Math.floor(this.distance/32)-1;for(const g of this.chunks.filter(g=>g.userData.index<first||g.userData.index>first+8)){this.disposeChunk(g);this.chunks.splice(this.chunks.indexOf(g),1);}for(let i=first;i<=first+8;i++)if(!this.chunks.some(g=>g.userData.index===i)){const c=this.makeChunk(i);this.batches.adopt(c);this.chunks.push(c);}
   // Scanned rocks drop to their far LOD beyond 70 m.
-  for(const chunk of this.chunks){const ahead=chunk.position.z-this.distance,cover=ahead<(this.coverDistance??Infinity);if(chunk.userData.coverOn!==cover){chunk.userData.coverOn=cover;for(const o of chunk.userData.cover||[])o.visible=cover;}const far=ahead>70;if(chunk.userData.far!==far){chunk.userData.far=far;for(const o of chunk.children)if(o.userData.lod)o.geometry=far?o.userData.lod.far:o.userData.lod.near;}}
+  for(const chunk of this.chunks){const ahead=chunk.position.z-this.distance,cover=ahead<(this.coverDistance??Infinity);if(chunk.userData.coverOn!==cover){chunk.userData.coverOn=cover;for(const o of chunk.userData.cover||[])o.visible=cover;this.batches.dirty=true;}const far=ahead>70;if(chunk.userData.far!==far){chunk.userData.far=far;for(const o of [...chunk.children,...(chunk.userData.batched||[])])if(o.userData.lod)o.geometry=far?o.userData.lod.far:o.userData.lod.near;this.batches.dirty=true;}}
+  if(this.batches.dirty)this.batches.rebuild(this.chunks);
   const z=this.distance,move=reduced?0:1,rough=id==='fault'?1.7:1,roll=Math.sin(z*.071)*.007*move;
   // Anchor the leap to the actual gap, so Overdrive cannot land us in midair.
   const leap=id==='fault'&&game?.bridgeBroken?(z-game.bridgeOrigin+30)/60:-1;
