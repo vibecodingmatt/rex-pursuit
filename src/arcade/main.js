@@ -65,6 +65,7 @@ function bossCues(){
  for(const cue of renderer.bossMosa?.drain()||[]){if(!field.context||mode!=='playing')continue;
   if(cue.type==='breach'){field.splash('enter',cue.at,1);field.play(field.roles.opening,1,.58,{vocal:false,at:cue.at,wet:.5});renderer.shake=Math.max(renderer.shake,.5);}
   if(cue.type==='slam'){field.splash('enter',cue.at,1);field.groundImpact(1,cue.at);renderer.shake=Math.max(renderer.shake,1.1);}
+  if(cue.type==='swell'){field.splash('step',cue.at,1.2);renderer.shake=Math.max(renderer.shake,.45);}
   if(cue.type==='surface'){field.splash('step',cue.at,1);field.play(field.roles.growl,.8,.62,{vocal:false,at:cue.at,wet:.4});}
   if(cue.type==='bite'){field.bite();field.impact();renderer.shake=Math.max(renderer.shake,1.2);}
   if(cue.type==='pain')field.play(field.roles.opening,.8,.75,{vocal:false,at:cue.at,wet:.4});
@@ -83,7 +84,7 @@ function bossCues(){
  }
  // A cut wire's live end crackles.
  for(const cue of renderer.world.sparks?.drain()||[])if(mode==='playing')audio.hiss(.04+Math.random()*.07,.03+.1*cue.near,3600+Math.random()*2400);
- const boss=renderer.bossRex;if(!boss)return;const cam=renderer.world.camera.position;audio.modeledRex=boss.ready&&!!field.context;
+ const boss=renderer.bossRex;if(!boss)return;const cam=renderer.world.camera.position;audio.modeledRex=boss.ready&&!!field.context;audio.modeledMosa=!!renderer.bossMosa?.ready&&!!field.context;
  for(const cue of boss.drain()){
   if(!field.context||mode!=='playing')continue;
   if(cue.type==='roar'){boss.voiceSlot=cue.slot;field.roar(cue.opening);}

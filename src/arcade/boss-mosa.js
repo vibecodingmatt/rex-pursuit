@@ -29,11 +29,13 @@ const BODY=[[-3,0,.12],[-2.4,0,.18],[-1.8,0,.26],[-1.2,0,.34],[-.6,0,.42],[0,0,.
 export class BossMosa {
  constructor(world){this.world=world;this.mesh=null;this.slot=null;this.cues=[];this.ready=false;this.p=[];this.ray=new T.Ray();this.inv=new T.Matrix4();this.v=new T.Vector3();this.w=new T.Vector3();this.lastHit=null;this.stage='';this.lastTime=0;this.sphere=new T.Sphere();}
  async load(low=false){
-  const model=await loadMosa(low?'mosa-low.bin':'mosa.bin');this.mesh=createMosa(model);this.mesh.scale.setScalar(SCALE);this.mesh.visible=false;this.world.scene.add(this.mesh);this.world.rimCreatures?.(this.mesh);
+  const model=await loadMosa(low||this.detail===false?'mosa-low.bin':'mosa.bin');this.mesh=createMosa(model);this.mesh.scale.setScalar(SCALE);this.mesh.visible=false;this.world.scene.add(this.mesh);this.world.rimCreatures?.(this.mesh);
   // Compile now, on the hidden canvas, so her arrival doesn't stall.
   const cam=this.world.camera;this.mesh.position.copy(cam.position).add(this.v.set(0,0,30).applyQuaternion(cam.quaternion));this.mesh.visible=true;try{this.world.render();}catch{/* compiles later */}this.mesh.visible=false;
   this.ready=true;
  }
+ /** The Low tier swims the coarser sculpt. */
+ setQuality(t){this.detail=!!t.detail;if(this.mesh)loadMosa(this.detail?'mosa.bin':'mosa-low.bin').then(m=>{this.mesh.geometry=m.geometry;});}
  reset(){this.slot=null;this.cues=[];this.stage='';this.lastTime=0;this.lastHit=null;if(this.mesh)this.mesh.visible=false;}
  handles(e){return !!(e?.boss&&e.kind==='mosa'&&this.slot?.id===e.id&&this.ready);}
  drain(){return this.cues.splice(0);}
@@ -79,7 +81,10 @@ export class BossMosa {
   const burst=(p,k,ring=1.4)=>{w.spray?.burst(p.clone().setY(LEVEL),k);w.river?.ring(p.x,p.z,ring);};
   if(crossed(1.55)){const at=this.v.set(0,0,.8).applyMatrix4(m.matrixWorld);burst(at,1.6,2.4);burst(head,1.2);this.cues.push({type:'breach',at:at.clone()});}
   if(c>1.6&&c<3.1&&w.spray){for(let i=0;i<Math.ceil(dt*45);i++){const p=this.v.set((Math.random()-.5)*.6,-.3,-2.5+Math.random()*4.5).applyMatrix4(m.matrixWorld);if(p.y>LEVEL+.3)w.spray.drop(p.x,p.y,p.z,(Math.random()-.5)*.8,-.5-Math.random(),(Math.random()-.5)*.8,.02+Math.random()*.03,2.4,.2,.65);}}
-  if(crossed(3.15)){for(const z of [-2.6,-1.2,.2,1.6]){const p=this.v.set(0,0,z).applyMatrix4(m.matrixWorld);burst(p,1.8,2.6);}const at=this.v.set(0,0,0).applyMatrix4(m.matrixWorld).clone();this.cues.push({type:'slam',at});w.vehicle?.hit(at,1.3);}
+  if(crossed(3.15)){for(const z of [-2.6,-1.2,.2,1.6]){const p=this.v.set(0,0,z).applyMatrix4(m.matrixWorld);burst(p,1.8,2.6);}const at=this.v.set(0,0,0).applyMatrix4(m.matrixWorld).clone();this.cues.push({type:'slam',at});w.vehicle?.hit(at,1.3);
+   // The displacement wave: it runs out at about 9 m/s and lifts the launch when it gets there.
+   s.swell={t:at.distanceTo(this.world.camera.position)/9,side:Math.sign(at.x-this.world.camera.position.x)||1};}
+  if(s.swell&&(s.swell.t-=dt)<=0){const bow=this.v.set(0,0,-3).applyQuaternion(this.world.camera.quaternion).add(this.world.camera.position).setY(LEVEL);w.vehicle?.swell?.(1,s.swell.side);w.spray?.burst(bow,1.4);w.river?.ring(bow.x,bow.z,1.2);this.cues.push({type:'swell',at:bow.clone()});s.swell=null;}
   if(crossed(4.05)||crossed(.25)){burst(head,1,1.6);this.cues.push({type:'surface',at:head.clone()});}
  }
  /** Rules hits: a ray against her body spheres in model space; anything under the water is water. */

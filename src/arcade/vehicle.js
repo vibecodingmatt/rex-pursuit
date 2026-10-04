@@ -90,6 +90,8 @@ export class CircuitVehicle{
  /** Sideways shove target in metres (+ is the camera's right); a pusher sets it every frame it pushes. */
  shove(x){this.push=x;}
  // A hard landing: the body slams down nose first and rebounds on the springs.
+ /** A swell lifts the boat (the Mosasaurus' slam): up, bow first, and over to one side. */
+ swell(s=1,side=1){const m=this.move??1;this.heave.v+=2.8*s*m;this.pitch.v+=1.1*s*m;this.roll.v+=side*.7*s*m;}
  land(s=1){const m=this.move??1;this.heave.v-=3.4*s*m;this.pitch.v-=1.3*s*m;this.roll.v+=(Math.random()-.5)*.6*s*m;}
  reset(){for(const s of [this.pitch,this.roll,this.heave,this.yaw,this.slide])s.reset();this.push=0;this.swell=0;this.rig.slide=0;this.lastSpeed=this.lastHeading=null;}
  /**
