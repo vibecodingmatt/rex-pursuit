@@ -132,6 +132,13 @@ export class Rotunda {
   this.bannerRest=Float32Array.from(bannerGeo.attributes.position.array);this.bannerSize=[bw,bh];
   add(new T.CylinderGeometry(.06,.06,bw+.6,8),steel,[0,12.55,32.4],[0,0,Math.PI/2]);
   this.collapse=[-1,-1];this.fall=-1;this.cues=[];this.centre=new T.Vector3();
+  // Moonbeams: soft additive cones from a few clerestory windows on the moon's side and down from the oculus.
+  const beam=new T.ShaderMaterial({uniforms:{uColor:{value:new T.Color(0x86a6d0)},uOpacity:{value:.16}},transparent:true,depthWrite:false,blending:T.AdditiveBlending,side:T.DoubleSide,fog:false,
+   vertexShader:'varying vec2 vUv;varying vec3 vN;varying vec3 vV;void main(){vUv=uv;vec4 w=modelMatrix*vec4(position,1.);vN=normalize(mat3(modelMatrix)*normal);vV=normalize(cameraPosition-w.xyz);gl_Position=projectionMatrix*viewMatrix*w;}',
+   fragmentShader:'uniform vec3 uColor;uniform float uOpacity;varying vec2 vUv;varying vec3 vN;varying vec3 vV;void main(){float a=smoothstep(0.,.35,vUv.y)*smoothstep(1.,.75,vUv.y);float edge=pow(abs(dot(vN,vV)),2.);gl_FragColor=vec4(uColor*uOpacity*a*edge,1.);}'});
+  const shaft=(from,to,r0,r1,k=1)=>{const a=new T.Vector3(...from),b=new T.Vector3(...to),d=a.clone().sub(b),len=d.length(),m=new T.Mesh(new T.CylinderGeometry(r0,r1,len,24,1,true),k===1?beam:Object.assign(beam.clone(),{}));if(k!==1)m.material.uniforms.uOpacity.value=.16*k;m.position.copy(a).add(b).multiplyScalar(.5);m.quaternion.setFromUnitVectors(new T.Vector3(0,1,0),d.normalize());m.renderOrder=3;m.userData.noReflect=true;root.add(m);};
+  for(const a of [-2.2,-1.75,-1.3,-.85]){const w=[Math.sin(a)*(R+.3),G+2.1,R+Math.cos(a)*(R+.3)];shaft(w,[Math.sin(a)*3.5+1.5,0,R+Math.cos(a)*4],.55,1.8);}
+  shaft([0,H+(R+.6)*.52-.2,R],[0,0,R],2.3,3.6,1.3);
   this.inside=false;this.local=new T.Vector3();this.world=new T.Vector3();this.zero=new T.Matrix4().makeScale(0,0,0);
  }
  drain(){return this.cues.splice(0);}
