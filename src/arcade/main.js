@@ -46,7 +46,7 @@ function processEvents(){for(const event of game.drain()){
  // After a Rex, let her fall read before the card arrives.
  if(event.type==='clear'){lastTally=event;if(event.perfect)audio.chime(5);if(game.clearHold>3.5)clearCard=game.stage.id==='visitor'?3.9:2.1;else announce('SECTOR CLEAR',clearCopy(),tallyLine(),3);}
  if(event.type==='bridge'){announce('HOLD ON','There goes the bridge.','SHOOT THE FALLING DEBRIS',2);radio('Brace! Clear the debris. We are jumping the gap!');}
- if(event.type==='focus')radio('Overdrive online. Five seconds. Make them count.');
+ if(event.type==='focus'){radio('Overdrive online. Five seconds. Make them count.');audio.tone(880,.6,.08,'sine',110);audio.hiss(.45,.07,1300);}
  if(event.type==='power'){if(event.kind==='spread'){announce('SPREAD SHOT','Every round finds two more.','8 SECONDS · SWEEP THE PACK',1.6);radio('Spread rounds loaded! Sweep them!');}else{announce('EXPLOSIVE ROUNDS','Every round counts double.','8 SECONDS · SHOOT EVERYTHING',1.6);radio('Explosive rounds loaded! Light them up!');}}
  if(event.type==='beat'&&event.text)radio(event.text);
  if(event.type==='threat')radio(`Raptors on the ${event.side}! They are keeping pace. Watch for the turn!`);

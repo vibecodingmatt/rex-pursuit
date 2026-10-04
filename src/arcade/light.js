@@ -182,7 +182,7 @@ export class StageLight {
   const sky=w.sky.uniforms;sky.zenith.value.set(look.sky[0]);sky.horizon.value.set(look.sky[1]);sky.sunDisk.value=look.sky[2];sky.storm.value=look.sky[3];sky.night.value=look.sky[4];sky.sunDir.value.copy(this.key);sky.sunColor.value.set(kc);
   if(look.sky[4]>.5)sky.moonDir.value.copy(this.key);
   const f=w.post.final,[exposure,contrast,saturation,lift,shadow,highlight,vignette,bloom]=look.grade;
-  f.exposure.value=exposure;f.contrast.value=contrast;f.saturation.value=saturation;f.lift.value=lift;f.shadowTint.value.setRGB(...shadow);f.highlightTint.value.setRGB(...highlight);f.vignette.value=vignette;f.bloomStrength.value=bloom;
+  f.exposure.value=exposure;f.contrast.value=contrast;f.saturation.value=saturation;f.lift.value=lift;f.shadowTint.value.setRGB(...shadow);f.highlightTint.value.setRGB(...highlight);f.vignette.value=vignette;f.bloomStrength.value=bloom;this.base={contrast,saturation,vignette,shadow};
   const [airDensity,airColor,airStrength]=look.air;w.post.volume.density.value=airDensity;w.post.volume.sunColor.value.set(airColor);f.volStrength.value=this.airStrength=airStrength;w.post.volume.heightFalloff.value=.07;w.post.volume.maxDistance.value=90;
   RIM.color.value.set(look.rim[0]).multiplyScalar(look.rim[1]);
   if(w.water){const u=w.water.material.uniforms;u.sunDirection.value.copy(this.key);u.sunColor.value.set(kc);}
@@ -224,6 +224,8 @@ export class StageLight {
   w.post.final.volStrength.value=this.airStrength*(1-cave*.6);
   // Heat shimmer: strong over the lava in the tube, a haze over the canyon floor.
   w.post.final.heat.value=id==='fault'&&w.post.depthReadable?.6+cave*.6:0;
+  // Overdrive: a bullet-time grade (desaturated, harder, vignetted, cool shadows, a touch of lens fringing), eased in and out.
+  if(this.base){const f=w.post.final,b=this.base,od=game?.focusTime>0?Math.min(1,(5-game.focusTime)*3,game.focusTime*2):0;f.saturation.value=b.saturation*(1-.5*od);f.contrast.value=b.contrast+.12*od;f.vignette.value=b.vignette+.32*od;f.aberration.value=.0004+.0024*od;f.shadowTint.value.setRGB(...b.shadow).lerp(this.odTint??=new T.Color(.8,.97,1.08),od*.6);}
   if(w.scene.fog){w.scene.fog.color.copy(this.fogColor).multiplyScalar(1-cave*.55);}
   RIM.dir.value.copy(L).transformDirection(camera.matrixWorldInverse);
   this.horizon.position.copy(camera.position);this.horizon.material.uniforms.uTime.value=time%1000;
