@@ -38,7 +38,8 @@ export class CircuitActors {
  pushers(){const out=[];for(const a of this.actors.values()){const k=a.e.kind;if(a.dead||!a.c||k==='ptero')continue;out.push({x:a.position.x,z:a.position.z,r:k==='trike'?3.6:k==='galli'?1.8:2.3,s:1});}return out;}
  makeShadow(){const c=document.createElement('canvas');c.width=c.height=64;const x=c.getContext('2d'),g=x.createRadialGradient(32,32,4,32,32,32);g.addColorStop(0,'#000b');g.addColorStop(1,'#0000');x.fillStyle=g;x.fillRect(0,0,64,64);return new T.CanvasTexture(c);}
  reset(){for(const [id,w]of this.walls)this.dropWall(id,w);for(const a of this.actors.values())if(a.mesh)disposeProp(a.mesh);this.actors.clear();this.corpses=[];this.critters.reset({empty:true});this.flyers.reset({empty:true});for(const s of this.shadows)s.visible=false;}
- makeProp(kind){
+ makeProp(kind,stage){
+  if(kind==='rock'&&stage==='fault'&&this.world.fault){const m=this.world.fault.meteor();this.scene.add(m);return m;}
   if(kind==='ichthy'&&this.ichthy){const mesh=createIchthy(this.ichthy);mesh.scale.setScalar(1.15);this.scene.add(mesh);return mesh;}
   const built=buildProp(kind);if(built){this.scene.add(built);return built;}
   const group=new T.Group(),material=new T.MeshStandardMaterial({color:kind==='supply'?0x5ac4a8:kind==='barrel'?0xc67230:kind==='spit'?0xaadc67:0x99917d,metalness:kind==='barrel'?.5:0,roughness:.8});
@@ -64,7 +65,7 @@ export class CircuitActors {
   let shadow=0;
   for(const e of game.entities){
    if(e.boss||e.age<0){if(e.ambush&&!e.boss&&!e.dead)this.brushWall(e,game);continue;}let a=this.actors.get(e.id);
-   if(!a){const kind=species[e.kind],c=kind?this.critters.huntSpawn(kind,Math.sign(e.lane-.5),30):e.kind==='ptero'?this.flyers.huntSpawn('pteranodon',Math.sign(e.lane-.5)):null;a={e,c,mesh:c?null:this.makeProp(e.kind),position:new T.Vector3(),head:new T.Vector3(),yaw:0,dead:false,burst:!!e.ambush};this.actors.set(e.id,a);if(c&&kind)c.scale=sizes[e.kind];}
+   if(!a){const kind=species[e.kind],c=kind?this.critters.huntSpawn(kind,Math.sign(e.lane-.5),30):e.kind==='ptero'?this.flyers.huntSpawn('pteranodon',Math.sign(e.lane-.5)):null;a={e,c,mesh:c?null:this.makeProp(e.kind,game.stage.id),position:new T.Vector3(),head:new T.Vector3(),yaw:0,dead:false,burst:!!e.ambush};this.actors.set(e.id,a);if(c&&kind)c.scale=sizes[e.kind];}
    const age=Math.max(0,e.age),life=e.life,side=e.lane<.5?-1:1,id=game.stage.id,cruise=id==='manor'?14:id==='fault'?27:24;
    const animal=!!species[e.kind],windup=e.leaper?e.leapAt-.65:life-.9,charge=clamp((age-windup)/.9,0,1),parallel=40-age*2.5;
    // Crates and barrels stand still beside the track; everything else closes on the vehicle.
@@ -212,7 +213,9 @@ export class CircuitActors {
   const m=a.mesh,k=e.kind;a.flinch=Math.max(0,(a.flinch||0)-dt*3);m.position.copy(a.position);
   if(k==='rock'){m.rotation.set(age*.7,a.yaw,age);
    // Dust streams off a thrown rock and billows where it skips along the ground.
-   if(this.effects&&(a.dustT=(a.dustT||0)-dt)<=0){a.dustT=.06;const low=a.position.y-ground<1.6;this.effects.groundDust(v.copy(a.position),p.set(0,low?1.2:.3,0),{size:low?1.1:.55,opacity:low?.42:.22,life:low?1.6:.9});}
+   // A10: on the fault it is a flaming bomb that trails embers and dark smoke instead.
+   if(m.userData.meteor){if(this.effects&&(a.dustT=(a.dustT||0)-dt)<=0){a.dustT=.04;this.effects.haze(v.copy(a.position),p.set(0,.8,0),{life:1.6,size:1.3,growth:3,opacity:.5,color:0x241d1a,drag:1.2,rise:.5});this.effects.speck(v.copy(a.position),p.set(Math.random()-.5,1+Math.random()*1.5,Math.random()-.5),0xff8a30,.08,.9);}}
+   else if(this.effects&&(a.dustT=(a.dustT||0)-dt)<=0){a.dustT=.06;const low=a.position.y-ground<1.6;this.effects.groundDust(v.copy(a.position),p.set(0,low?1.2:.3,0),{size:low?1.1:.55,opacity:low?.42:.22,life:low?1.6:.9});}
   }else if(k==='spit'){
    // A wobbling, stretching blob leads its droplets.
    const w=Math.sin(age*15+e.seed);m.rotation.set(0,a.yaw,age*2);m.children[0].scale.set(.38*(1-.12*w),.38*(1+.1*w),.38*(1.4+.25*w));

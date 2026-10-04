@@ -88,7 +88,7 @@ export class Fault {
   this.rope=new T.MeshStandardMaterial({color:0x7a6548,roughness:1});this.rope.userData.shared=true;
   this.plume=new T.Mesh(new T.PlaneGeometry(1,1).translate(0,.5,0),new T.ShaderMaterial({uniforms:{uTime:{value:0},uFade:{value:0},uFlash:{value:0},uHaze:{value:new T.Color()}},vertexShader:PLUME_VS,fragmentShader:PLUME_FS,transparent:true,depthWrite:false,blending:T.CustomBlending,blendSrc:T.OneFactor,blendDst:T.OneMinusSrcAlphaFactor}));
   // Flaming boulders thrown off the canyon rim; they bounce down the slopes with real physics.
-  this.bombs=[];const bombMat=lavaMaterial(this.u,{glow:2.2,flow:0}),bombGeo=bombGeometry(),flameGeo=new T.PlaneGeometry(1,1).translate(0,.5,0);this.bombWait=1.2;
+  this.bombs=[];const bombMat=this.bombMat=lavaMaterial(this.u,{glow:2.2,flow:0}),bombGeo=this.bombGeo=bombGeometry(),flameGeo=this.flameGeo=new T.PlaneGeometry(1,1).translate(0,.5,0);this.bombWait=1.2;for(const o of [bombMat,bombGeo,flameGeo])o.userData.shared=true;
   for(let i=0;i<6;i++){const mesh=new T.Mesh(bombGeo,bombMat);mesh.castShadow=true;mesh.visible=false;mesh.userData.noReflect=true;scene.add(mesh);
    const flame=new T.Mesh(flameGeo,new T.ShaderMaterial({uniforms:{uTime:this.flameTime,uSeed:{value:i*1.91},uPower:{value:.95}},vertexShader:FLAME_VS,fragmentShader:FLAME_FS,transparent:true,depthWrite:false,blending:T.AdditiveBlending}));flame.frustumCulled=false;flame.renderOrder=60;flame.visible=false;flame.userData.noReflect=true;scene.add(flame);
    this.bombs.push({mesh,flame,p:new T.Vector3(),v:new T.Vector3(),spin:new T.Vector3(),r:1,live:false,bounces:0,trail:0});}
@@ -114,6 +114,10 @@ export class Fault {
    // A trail of embers and dark smoke.
    if(effects&&(b.trail-=dt)<=0){b.trail=.045;effects.haze(g.copy(b.p),this.v[1].set(0,.8,0),{life:1.7,size:b.r*1.2,growth:3.2,opacity:.5,color:0x241d1a,drag:1.2,rise:.5});effects.speck(g.copy(b.p),this.v[1].copy(b.v).multiplyScalar(.2).add(this.v[2].set(Math.random()-.5,1+Math.random(),Math.random()-.5)),0xff8a30,.07,.8);}}
  }
+ /** The rules' falling debris on this stage (actors.js): a flaming bomb instead of a plain rock. */
+ meteor(){const g=new T.Group(),m=new T.Mesh(this.bombGeo,this.bombMat);m.scale.setScalar(1.15);m.castShadow=true;m.userData.noReflect=true;g.add(m);
+  const f=new T.Mesh(this.flameGeo,new T.ShaderMaterial({uniforms:{uTime:this.flameTime,uSeed:{value:Math.random()*9},uPower:{value:1}},vertexShader:FLAME_VS,fragmentShader:FLAME_FS,transparent:true,depthWrite:false,blending:T.AdditiveBlending}));
+  f.scale.set(3,3.8,1);f.frustumCulled=false;f.renderOrder=60;f.userData.noReflect=true;g.add(f);g.userData.meteor=true;return g;}
  drain(){const c=this.cues;this.cues=[];return c;}
  cue(c){this.cues.push(c);}
  // ---- The lava tube ---------------------------------------------------------------
