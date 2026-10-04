@@ -103,7 +103,8 @@ function bossCues(){
  const boss=renderer.bossRex;if(!boss)return;const cam=renderer.world.camera.position;audio.modeledRex=boss.ready&&!!field.context;audio.modeledMosa=!!renderer.bossMosa?.ready&&!!field.context;
  for(const cue of boss.drain()){
   if(!field.context||mode!=='playing')continue;
-  if(cue.type==='roar'){boss.voiceSlot=cue.slot;field.roar(cue.opening);}
+  // The Indominus (A11) is the Rex rig: her calls are the Rex's pitched up, with a raptor shriek over them.
+  if(cue.type==='roar'){boss.voiceSlot=cue.slot;if(boss.slots[cue.slot]?.kind==='indominus'){field.play(cue.opening?field.roles.opening:field.roles.charge,cue.opening?1.3:1.1,cue.opening?1.2:1.26,{vocal:'roar'});field.play(10,.75,.8,{vocal:false,wet:.4});}else field.roar(cue.opening);}
   if(cue.type==='bite'){boss.voiceSlot=cue.slot;field.bite();renderer.shake=Math.max(renderer.shake,1.1);}
   if(cue.type==='pain'){boss.voiceSlot=cue.slot;field.pain(true);radio('She is reeling! Keep it on her head!');}
   if(cue.type==='fall')radio('She is going down. Clear out!');
