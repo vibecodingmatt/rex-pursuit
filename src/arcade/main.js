@@ -1,7 +1,7 @@
 import {Circuit,STAGES,project,grade} from './rules.js';
 import {RideRenderer} from './renderer.js';
 import {RideAudio} from './audio.js';
-import {readRecord,saveRecord} from './records.js';
+import {readRecord,saveRecord,readBoard,boardPlace,addToBoard} from './records.js';
 import {ChaseAudio} from '../chase/audio.js';import {StageAmbience} from './ambience.js';import {CircuitQuality} from './quality.js';
 // RideAudio keeps the score and UI cues; Pursuit's recorded library supplies the
 // world: gunfire, impacts, engine, wind, and the Rex's voice placed at her head.
@@ -10,7 +10,7 @@ const test=new URLSearchParams(location.search).get('test')==='1';
 let clearCard=0,game=null,mode='menu',route='extended',ready=false,fire=false,frozen=false,clock=0,accumulator=0,last=performance.now(),announcementTime=0,radioTime=0,saved=false;
 const aim={x:.5,y:.5},keys=new Set();let pointerId=null;
 // A15: the cabinet's ten-second CONTINUE? countdown, and gamepad state (buttons held last frame).
-let continueClock=0,padHeld=[];
+let continueClock=0,padHeld=[],entering=false;
 canvas.tabIndex=0;
 const fmt=n=>Math.round(n).toLocaleString('en-US');
 const names={trike:'TRICERATOPS · STAMPEDE LEADER',rex:'TYRANNOSAURUS REX',indominus:'INDOMINUS REX',indoraptor:'INDORAPTOR',mosa:'MOSASAURUS',twins:'TWO KINGS. ONE EXIT.'};
@@ -121,7 +121,7 @@ function updateHud(){
  const bosses=game.entities.filter(e=>e.boss&&!e.dead);$('boss-hud').hidden=!bosses.length;
  if(bosses.length){$('boss-name').textContent=names[game.stage.boss];$('boss-fill').style.width=`${100*bosses.reduce((sum,e)=>sum+e.hp,0)/bosses.reduce((sum,e)=>sum+e.maxHp,0)}%`;}
 }
-function overlay(title,copy,kicker){$('overlay-title').textContent=title;$('overlay-copy').textContent=copy;$('overlay-kicker').textContent=kicker;$('resume').hidden=true;$('continue').hidden=true;$('restart').hidden=true;$('result-stats').replaceChildren();fire=false;keys.clear();audio.pause(true);}
+function overlay(title,copy,kicker){$('overlay-title').textContent=title;$('overlay-copy').textContent=copy;$('overlay-kicker').textContent=kicker;$('resume').hidden=true;$('continue').hidden=true;$('restart').hidden=true;$('result-stats').replaceChildren();$('board').hidden=true;$('board-entry').hidden=true;entering=false;fire=false;keys.clear();audio.pause(true);}
 function pause(){if(mode!=='playing')return;field.pause(true).catch(()=>{});showMode('paused');overlay('Ride paused.','Aim with mouse or arrow keys. Hold mouse or Space to fire. E activates Overdrive.','TAKE A BREATH');$('resume').hidden=false;$('resume').focus();}
 function resume(){if(mode!=='paused')return;showMode('playing');void audio.unlock();unlockField();canvas.focus({preventScroll:true});}
 function showContinue(){showMode('continue');overlay('Ride interrupted.',game.credits?`Your vehicle took one hit too many. ${game.credits} free continues remain. Your route and score will be preserved.`:'You gave the island a run for its money. Your score is ready.','CONTINUE?');
@@ -130,10 +130,25 @@ function showContinue(){showMode('continue');overlay('Ride interrupted.',game.cr
 }
 function showResult(won){showMode('result');overlay(won?'You made it out.':'The island wins.',won?`${game.route==='classic'?'The ’94 Circuit':'The Extended Cut'} complete. ${game.continues?'Continued-run record.':'One credit. A whole lot of dinosaurs.'}`:`Reached ${game.stage.name}. Ride again for a cleaner run.`,won?'EXPEDITION COMPLETE':'GAME OVER');
  const stats=[[fmt(game.score),'FINAL SCORE'],[grade(game),'RANK'],[`${Math.round(game.hits/Math.max(1,game.shots)*100)}%`,'ACCURACY'],[String(game.maxCombo),'BEST CHAIN'],[String(game.bosses),'BOSSES REPELLED'],[String(game.continues),'CONTINUES']];
- $('result-stats').replaceChildren(...stats.map(([v,l])=>{const el=document.createElement('div'),b=document.createElement('b'),small=document.createElement('small');b.textContent=v;small.textContent=l;el.append(b,small);return el;}));$('restart').hidden=false;$('restart').focus();persist();
+ $('result-stats').replaceChildren(...stats.map(([v,l])=>{const el=document.createElement('div'),b=document.createElement('b'),small=document.createElement('small');if(l==='RANK')el.className='flourish';b.textContent=v;small.textContent=l;el.append(b,small);return el;}));$('restart').hidden=false;$('restart').focus();persist();showBoard();
+}
+// A15: the local top ten. A qualifying score asks for initials first (keyboard, phone or d-pad).
+function showBoard(){
+ const board=readBoard(()=>localStorage,game.route,game.difficulty),place=boardPlace(board,game.score),allow=!test||new URLSearchParams(location.search).has('board');
+ if(place<0||!allow||game.boardSaved){renderBoard(board,-1);return;}
+ entering=true;$('board-entry').hidden=false;$('board-title').textContent=`NEW HIGH SCORE · #${place+1} · ENTER YOUR INITIALS`;
+ let last='';try{last=localStorage.getItem('lost-circuit.initials')||'';}catch{}$('initials').value=last;$('initials').focus();$('initials').select();renderBoard(board,-1);
+}
+function saveInitials(){
+ if(!entering)return;entering=false;const n=($('initials').value.toUpperCase().replace(/[^A-Z]/g,'').slice(0,3))||'AAA';try{localStorage.setItem('lost-circuit.initials',n);}catch{}
+ const {board,index}=addToBoard(()=>localStorage,game.route,game.difficulty,{n,s:game.score,g:grade(game),c:game.continues?1:0});game.boardSaved=true;
+ $('board-entry').hidden=true;renderBoard(board,index);$('restart').focus();
+}
+function renderBoard(board,highlight){
+ const ol=$('board');ol.hidden=!board.length;ol.replaceChildren(...board.map((e,i)=>{const li=document.createElement('li');if(i===highlight)li.className='new';for(const t of [e.n,fmt(e.s),e.g||'']){const s=document.createElement('span');s.textContent=t;li.append(s);}return li;}));
 }
 function backToMenu(){audio.reset();audio.pause(true);field.stopCalls();field.pause(true).catch(()=>{});showMode('menu');game=null;fire=false;keys.clear();pointerId=null;renderer.reset();updateBest();$('start').focus();}
-$('start').addEventListener('click',start);$('restart').addEventListener('click',start);$('pause').addEventListener('click',()=>mode==='playing'?pause():resume());$('resume').addEventListener('click',resume);$('to-menu').addEventListener('click',backToMenu);
+$('start').addEventListener('click',start);$('initials-save').addEventListener('click',saveInitials);$('initials').addEventListener('keydown',e=>{if(e.key==='Enter'){e.preventDefault();saveInitials();}});$('restart').addEventListener('click',start);$('pause').addEventListener('click',()=>mode==='playing'?pause():resume());$('resume').addEventListener('click',resume);$('to-menu').addEventListener('click',backToMenu);
 $('continue').addEventListener('click',()=>{if(game?.continueRun()){showMode('playing');void audio.unlock();unlockField();canvas.focus({preventScroll:true});processEvents();updateHud();}});
 $('focus').addEventListener('click',()=>{if(mode==='playing'){game.activateFocus();processEvents();canvas.focus({preventScroll:true});}});
 $('sound').addEventListener('click',()=>{audio.mute(!audio.muted);if(field.muted!==audio.muted)field.mute();$('sound').textContent=audio.muted?'SOUND OFF':'SOUND ON';$('sound').setAttribute('aria-pressed',String(audio.muted));$('sound').setAttribute('aria-label',audio.muted?'Enable sound':'Mute sound');if(mode==='playing')void audio.unlock();});
@@ -183,7 +198,10 @@ function frame(now){const raw=now-last,dt=Math.min(.1,raw/1000);last=now;
  pad=gamepad();
  // Gamepad on the screens: A starts, continues or restarts; Start pauses and resumes.
  if(pad){if(pad.pressed(9)){if(mode==='playing')pause();else if(mode==='paused')resume();}
-  if(pad.pressed(0)){if(mode==='menu')$('start').click();else if(mode==='continue'&&!$('continue').hidden)$('continue').click();else if(mode==='result')$('restart').click();}}
+  // Initials by d-pad: up and down turn the last letter, right adds one, left removes one, A saves.
+  if(entering){const v=$('initials').value.toUpperCase().replace(/[^A-Z]/g,''),turn=d=>{const s=v||'A',c=s.charCodeAt(s.length-1)-65;$('initials').value=s.slice(0,-1)+String.fromCharCode(65+((c+d+26)%26));};
+   if(pad.pressed(12))turn(1);if(pad.pressed(13))turn(-1);if(pad.pressed(15)&&v.length<3)$('initials').value=(v||'A')+'A';if(pad.pressed(14))$('initials').value=v.slice(0,-1);}
+  if(pad.pressed(0)){if(entering)saveInitials();else if(mode==='menu')$('start').click();else if(mode==='continue'&&!$('continue').hidden)$('continue').click();else if(mode==='result')$('restart').click();}}
  // CONTINUE? 10 … 1: the last three tick higher; at zero the run ends.
  if(!frozen&&mode==='continue'&&continueClock>0){const was=Math.ceil(continueClock);continueClock-=dt;const left=Math.max(0,Math.ceil(continueClock));if(left!==was&&left>0)audio.tone(left<=3?880:620,.08,.1,'square');$('overlay-kicker').textContent=`CONTINUE? ${left}`;if(continueClock<=0){continueClock=0;showResult(false);}}if(quality&&!frozen&&!document.hidden&&quality.sample(raw,mode==='playing'))qualityLabel();
  if(!frozen){if(mode==='menu'&&!document.hidden)clock+=dt;if(mode==='playing'){if(hitStop>0)hitStop-=dt;else{accumulator+=dt*slowScale(dt);while(accumulator>=1/60){step(1/60);accumulator-=1/60;}}hudTick+=dt;if(hudTick>.08){updateHud();hudTick=0;}}}

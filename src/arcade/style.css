@@ -14,3 +14,11 @@
 #announcement.over{top:16%}#announcement.over>strong{font-size:clamp(26px,3.8vw,54px);margin:8px 0}
 #screen-blood{position:fixed;inset:0;width:100%;height:100%;z-index:1;pointer-events:none}
 #spit-smear,#spit-veil{position:fixed;inset:0;width:100%;height:100%;z-index:1;pointer-events:none}#spit-veil{backdrop-filter:blur(7px) saturate(.8);-webkit-backdrop-filter:blur(7px) saturate(.8);background:rgba(120,150,40,.12);mask-size:100% 100%;-webkit-mask-size:100% 100%}
+/* A15: initials entry, the local top ten and the rank flourish. */
+.board-entry{display:flex;flex-wrap:wrap;gap:10px;align-items:center;justify-content:center;margin:12px 0 4px}.board-entry .kicker{width:100%;text-align:center;color:#f5cf88}
+#initials{width:4.6em;font:700 30px/1 'Courier New',monospace;letter-spacing:.32em;text-transform:uppercase;text-align:center;background:#0b0f0c;color:#f5cf88;border:1px solid #eac27d;padding:6px 2px 6px .32em;border-radius:2px}
+.board{list-style:none;margin:10px auto 14px;padding:0;max-width:360px;font:12px/1.65 'Courier New',monospace;color:#c3cbb8;counter-reset:r}
+.board li{display:grid;grid-template-columns:2.2em 3.6em 1fr 1.6em;gap:8px;counter-increment:r}.board li::before{content:counter(r) '.'}.board li span:nth-child(3){text-align:right}
+.board li.new{color:#f5cf88;animation:board-new .8s ease-in-out infinite alternate}@keyframes board-new{to{text-shadow:0 0 9px #f5cf88}}
+.flourish b{display:inline-block;animation:rank-in 1s cubic-bezier(.2,1.6,.4,1) .25s both}
+@keyframes rank-in{0%{transform:scale(3.4) rotate(-14deg);opacity:0;text-shadow:0 0 34px #f5cf88}100%{transform:none;opacity:1;text-shadow:0 0 12px rgba(245,207,136,.55)}}
