@@ -48,6 +48,8 @@ function processEvents(){for(const event of game.drain()){
  if(event.type==='clear'){lastTally=event;if(event.perfect)audio.chime(5);if(game.clearHold>3.5)clearCard=game.stage.id==='visitor'?3.9:2.1;else announce('SECTOR CLEAR',clearCopy(),tallyLine(),3);}
  if(event.type==='bridge'){announce('HOLD ON','There goes the bridge.','SHOOT THE FALLING DEBRIS',2);radio('Brace! Clear the debris. We are jumping the gap!');}
  if(event.type==='focus'){radio('Overdrive online. Five seconds. Make them count.');audio.tone(880,.6,.08,'sine',110);audio.hiss(.45,.07,1300);}
+ if(event.type==='golden')radio('Golden compy crossing! Five thousand if you can tag it!');
+ if(event.type==='kill'&&event.kind==='golden'){announce('GOLDEN COMPY','Lucky shot.','+5,000',1.3);audio.chime(5);}
  if(event.type==='upgrade'){announce('UPGRADE',event.label,'FOR THE REST OF THE RUN',1.4);audio.chime(4);}
  if(event.type==='power'){if(event.kind==='spread'){announce('SPREAD SHOT','Every round finds two more.','8 SECONDS · SWEEP THE PACK',1.6);radio('Spread rounds loaded! Sweep them!');}else{announce('EXPLOSIVE ROUNDS','Every round counts double.','8 SECONDS · SHOOT EVERYTHING',1.6);radio('Explosive rounds loaded! Light them up!');}}
  if(event.type==='beat'&&event.text)radio(event.text);

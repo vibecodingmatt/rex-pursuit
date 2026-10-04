@@ -26,7 +26,7 @@ export const TYPES = {
  dilo:{cell:2,hp:6,points:300,head:[.48,.38],size:.31},ptero:{cell:3,hp:3,points:180,head:[.64,.47],size:.29},
  indominus:{cell:4,hp:340,points:9000,head:[.29,.27],size:.74},indoraptor:{cell:5,hp:240,points:8500,head:[.32,.5],size:.67},
  mosa:{cell:6,hp:300,points:8500,head:[.42,.4],size:.82},trike:{cell:7,hp:13,points:500,head:[.53,.48],size:.39},
- brachio:{cell:0,atlas:'wildlife',hp:1,points:0,head:[.8,.17],size:.8},galli:{cell:1,atlas:'wildlife',hp:3,points:150,head:[.8,.24],size:.31},compy:{cell:1,hp:1,points:60,head:[.54,.22],size:.13},
+ brachio:{cell:0,atlas:'wildlife',hp:1,points:0,head:[.8,.17],size:.8},galli:{cell:1,atlas:'wildlife',hp:3,points:150,head:[.8,.24],size:.31},compy:{cell:1,hp:1,points:60,head:[.54,.22],size:.13},golden:{cell:1,hp:1,points:5000,head:[.54,.22],size:.13},
  anky:{cell:2,atlas:'wildlife',hp:10,points:350,head:[.74,.66],size:.34},ichthy:{cell:3,atlas:'wildlife',hp:4,points:220,head:[.74,.28],size:.3},
  rock:{hp:5,points:100,size:.16},spit:{hp:1,points:75,size:.10},supply:{hp:1,points:0,size:.13},barrel:{hp:2,points:250,size:.16}
 };
@@ -109,7 +109,7 @@ export class Circuit {
    const depth=p*p;e.x=.5+(e.lane-.5)*(.35+depth*1.4)+Math.sin(t*2+e.seed)*.025;e.y=.48+depth*.25+Math.abs(s)*.009;
    e.size=d.size*(.16+depth*1.2);
    if(['ptero','ichthy','spit'].includes(e.kind)){e.y=.26+depth*.22+Math.sin(t*2+e.seed)*.07;e.size*=1.15;}
-   if(e.kind==='galli'){e.x=clamp(.1+t/e.life*.8,.08,.92);e.y=.58+depth*.06;}
+   if(e.kind==='galli'||e.kind==='golden'){e.x=clamp(.1+t/e.life*.8,.08,.92);e.y=.58+depth*.06;}
    if(e.leaper&&t>e.leapAt){const u=clamp((t-e.leapAt)/.55,0,1);e.x+=(.5-e.x)*u;e.y+=(.64-e.y)*u;e.size=d.size*(1.2+.6*u);}
    e.weak=0;
   }
@@ -209,6 +209,8 @@ export class Circuit {
    while(this.beats.length&&this.beats[0][0]<=this.stageTime)this.beat(...this.beats.shift().slice(1));
    if(this.spawnTimer<=0&&this.entities.filter(e=>!e.dead).length<8){
     // Flyers stay out of the rotunda: near and inside its doors the finale sends only ground animals.
+    // A golden compy dashes across once a stage, somewhere in its middle: hit it for 5,000.
+    if(!this.goldenSeen&&this.phase==='ride'&&this.stageTime>(this.goldenAt??=8+this.random()*(this.stage.duration-16))){this.goldenSeen=true;const e=this.spawn('golden');e.life=2.6;this.emit('golden',{id:e.id});}
     const roster=this.stage.id==='fault'&&this.stageTime>18&&this.stageTime<23?['ptero']:this.stage.id==='visitor'&&this.travel>ROTUNDA-40?['raptor','dilo']:this.stage.roster,arrival=this.spawn(roster[this.wave%roster.length]);this.wave++;this.spawnTimer=2+this.random()*.9;
     if(arrival.kind==='raptor'&&this.wave%3===1)this.emit('threat',{side:arrival.lane<.5?'right':'left'});
     if(this.stageTime>15&&this.wave%3===0)this.spawn(roster[0],{delay:.4});
@@ -232,7 +234,7 @@ export class Circuit {
    if(e.age<0)continue;this.pose(e);
    if(e.boss){if(Math.floor(e.age/6.4)>oldCycle){this.damage(e.kind==='mosa'?25:19,e);e.weakHits=0;this.emit('attack',{kind:e.kind,id:e.id});}}
    else if(e.age>=e.life){
-    e.dead=true;e.fade=0;if(e.kind==='spit')this.emit('splat',{id:e.id,x:e.x,y:e.y});if(!['supply','barrel','galli'].includes(e.kind))this.damage(e.kind==='rock'?14:e.leaper?16:e.kind==='compy'?4:9,e);
+    e.dead=true;e.fade=0;if(e.kind==='spit')this.emit('splat',{id:e.id,x:e.x,y:e.y});if(!['supply','barrel','galli','golden'].includes(e.kind))this.damage(e.kind==='rock'?14:e.leaper?16:e.kind==='compy'?4:9,e);
    }
    if(e.leaper&&!e.leapt&&!e.dead&&e.age>=e.leapAt){e.leapt=true;this.emit('leap',{id:e.id});}
    if(e.kind==='dilo'&&!e.boss&&!e.dead&&e.age>3&&!e.spit){e.spit=true;this.spawn('spit',{x:e.x});this.emit('spit',{x:e.x,y:e.y});}
@@ -242,7 +244,7 @@ export class Circuit {
   if(this.phase==='boss'&&this.entities.every(e=>e.dead)&&this.phaseTime>1.5){this.phase='clear';this.phaseTime=0;this.hp=Math.min(100,this.hp+12);this.score+=1500;this.emit('clear',this.tally());}
   if(this.phase==='clear'&&this.phaseTime>this.clearHold){
    if(this.stageIndex===this.path.length-1)this.finish();
-   else{this.stageIndex++;{const keys=Object.keys(UPGRADES);for(let i=keys.length-1;i>0;i--){const j=Math.floor(this.random()*(i+1));[keys[i],keys[j]]=[keys[j],keys[i]];}this.offer=keys.slice(0,3);this.offerTime=OFFER_TIME+OFFER_DELAY;}this.tallyFrom=[this.shots,this.hits];this.stageHurt=false;this.grenades=Math.min(this.grenadeCap,this.grenades+1);this.stageTime=0;this.travel=0;this.phase='intro';this.phaseTime=0;this.entities=[];this.spawnTimer=1;this.beats=null;this.hazardTimer=5;this.supplyTimer=9;this.bossSpawned=false;this.bridgeBroken=false;this.emit('stage',{stage:this.stage.id});}
+   else{this.stageIndex++;this.goldenSeen=false;this.goldenAt=null;{const keys=Object.keys(UPGRADES);for(let i=keys.length-1;i>0;i--){const j=Math.floor(this.random()*(i+1));[keys[i],keys[j]]=[keys[j],keys[i]];}this.offer=keys.slice(0,3);this.offerTime=OFFER_TIME+OFFER_DELAY;}this.tallyFrom=[this.shots,this.hits];this.stageHurt=false;this.grenades=Math.min(this.grenadeCap,this.grenades+1);this.stageTime=0;this.travel=0;this.phase='intro';this.phaseTime=0;this.entities=[];this.spawnTimer=1;this.beats=null;this.hazardTimer=5;this.supplyTimer=9;this.bossSpawned=false;this.bridgeBroken=false;this.emit('stage',{stage:this.stage.id});}
   }
  }
  snapshot(){return{status:this.status,phase:this.phase,stage:this.stage.id,time:this.time,hp:this.hp,score:this.score,shots:this.shots,hits:this.hits,combo:this.combo,focus:this.focus,continues:this.continues,entities:this.entities.map(e=>({...e}))};}

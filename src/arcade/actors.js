@@ -8,8 +8,8 @@ import {loadIchthy,createIchthy} from './ichthy.js';
 import {makeProp as buildProp,tickProps} from './props.js';
 import {BrachioCrossing} from './brachio-crossing.js';
 
-const species={raptor:'raptor',dilo:'dilophosaurus',galli:'gallimimus',trike:'triceratops',compy:'compy'};
-const sizes={raptor:4.5,dilo:5.8,galli:6.4,trike:8.8,compy:3};
+const species={raptor:'raptor',dilo:'dilophosaurus',galli:'gallimimus',trike:'triceratops',compy:'compy',golden:'goldenCompy'};
+const sizes={raptor:4.5,dilo:5.8,galli:6.4,trike:8.8,compy:3,golden:4.4};
 const v=new T.Vector3(),head=new T.Vector3(),p=new T.Vector3(),up=new T.Vector3(0,1,0),dummy=new T.Object3D();
 const clamp=T.MathUtils.clamp;
 // How far the Jeep's hood sits below the gunner's eye.
@@ -75,12 +75,12 @@ export class CircuitActors {
    // Crates and barrels stand still beside the track; everything else closes on the vehicle.
    // In the rotunda (A14) animals come out from among the skeleton displays, inside its walls.
    const hall=id==='visitor'&&plazaAxis(game.travel)>DOOR-8;
-   const fixed=e.kind==='supply'||e.kind==='barrel',relative=animal?T.MathUtils.lerp((e.ambush?17:hall?20:e.kind==='compy'?24:40)-Math.min(age,windup)*2.5,3,charge):fixed?cruise*(life-age)+5:(cruise+6)*(life-age)+5;
+   const fixed=e.kind==='supply'||e.kind==='barrel',relative=animal?T.MathUtils.lerp((e.ambush?17:hall?20:e.kind==='compy'?24:e.kind==='golden'?16:40)-Math.min(age,windup)*2.5,3,charge):fixed?cruise*(life-age)+5:(cruise+6)*(life-age)+5;
    // Paced from the spawn at cruise speed; on the finale the Jeep slows and stops in the rotunda, so never past it.
    const z=(id==='visitor'?Math.min(e.spawnTravel+cruise*age,game.travel):e.spawnTravel+cruise*age)+relative;
    // Pace the vehicle out of roadside cover, then turn into a short, committed
    // charge. Ground-relative stride uses the derivative of this actual path.
-   const enter=T.MathUtils.smoothstep(age,0,windup),cross=e.kind==='galli';
+   const enter=T.MathUtils.smoothstep(age,0,windup),cross=e.kind==='galli'||e.kind==='golden';
    const width=(e.ambush?8:id==='manor'?7.5:hall?9:e.kind==='compy'?11:animal?32:16)*Math.min(1,this.world.camera.aspect*1.25),span=cross?width*1.75:width-1.6;
    const off=fixed?side*(2.4+e.seed%1*1.8):side*(width-span*enter)+Math.sin(age*2+e.seed)*.28+(e.kind==='compy'?(e.lane-.5)*5:0);
    const lateral=-side*span*6*clamp(age/windup,0,1)*(1-clamp(age/windup,0,1))/windup;
