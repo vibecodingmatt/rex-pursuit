@@ -42,7 +42,7 @@ The current feature is **Lost Circuit '94**, a selectable side mode at `arcade.h
 | Extras (2026-10-04) | Explosive rounds: every other supply crate is orange; shooting it makes every round count double for 8 s. |
 | Current assessment | The implementation and automated routes pass their checks. **The AAA quality target is not met. The user has not accepted this rebuilt visual version yet.** The preceding agent's self-audit is not user approval or an independent review. |
 
-This work is committed locally and has **not been published**. Current instructions are to commit locally and not push until publication is requested. A push to `main` automatically deploys GitHub Pages, even for documentation changes. Older release authorizations in [HANDOFF.md](HANDOFF.md) refer to earlier work and do not authorize this feature's release.
+Everything through A13, the A14/A15 work above and the explosive rounds was **published on 2026-10-04**, when the user asked to push all recent changes to prod. Work after that is committed locally and not pushed until the user asks again ("ship it" or "push to prod"). A push to `main` automatically deploys GitHub Pages, even for documentation changes. Older release authorizations in [HANDOFF.md](HANDOFF.md) refer to earlier work and do not authorize this feature's release.
 
 ## Read only what the next task needs
 
