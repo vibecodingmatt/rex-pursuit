@@ -43,6 +43,8 @@ export const GRENADES=3,GRENADE_MAX=5,GRENADE_FUSE=.35,BLAST=.17;
 export const UPGRADES={rapid:['RAPID FIRE','+20% fire rate'],grenade:['GRENADE BELT','+1 grenade and capacity'],armor:['ARMOR','-20% damage taken'],charge:['OVERDRIVE CELL','+30% Overdrive charge']},OFFER_TIME=6,OFFER_DELAY=2.4;
 /** The cards' screen centres (x across, y down) and half extents, as fractions of the view. */
 export const CARDS={x:[.3,.5,.7],y:.4,w:.085,h:.11};
+/** Expert intensity: tougher animals, harder bites, quicker spawns, and every kill worth more. */
+export const EXPERT={hp:1.4,damage:1.35,spawn:.8,score:1.5};
 /** The clear tally's bonus for a stage without a scratch. */
 export const TALLY_PERFECT=5000;
 /** Spread shot: each round also strikes the two animals nearest the sight within this reach (screen heights). */
@@ -90,7 +92,9 @@ export class Circuit {
  }
  spawn(kind,{boss=false,x,delay=0}={}){
   const def=TYPES[kind],side=this.random()<.5?-1:1;
-  const e={id:++this.serial,kind,boss,hp:boss?(kind==='trike'?180:def.hp):def.hp,maxHp:boss?(kind==='trike'?180:def.hp):def.hp,
+  // Expert: everything takes 1.4x the rounds to drop (EXPERT).
+  const tough=this.difficulty==='expert'&&kind!=='supply'&&kind!=='golden'?EXPERT.hp:1,hp=Math.ceil((boss?(kind==='trike'?180:def.hp):def.hp)*tough);
+  const e={id:++this.serial,kind,boss,hp,maxHp:hp,
    age:-delay,life:boss?99:4.2+this.random()*.7,lane:x??(.5+side*(.12+this.random()*.23)),x:.5,y:.55,size:.01,head:def.head||[.5,.5],
    spawnTravel:this.travel+Math.max(0,delay)*this.speed,
    seed:this.random()*6.28,attack:0,cycle:0,hit:0,dead:false,fade:0,weak:0,weakHits:0,alpha:1};
@@ -117,12 +121,12 @@ export class Circuit {
  }
  damage(amount,source=null){
   if(this.invulnerable>0||this.status!=='playing')return;
-  this.hp=Math.max(0,this.hp-amount*(this.difficulty==='tour'?.55:1)*this.armor);this.combo=0;this.stageHurt=true;this.invulnerable=.6;this.emit('damage',{amount,id:source?.id});
+  this.hp=Math.max(0,this.hp-amount*(this.difficulty==='tour'?.55:this.difficulty==='expert'?EXPERT.damage:1)*this.armor);this.combo=0;this.stageHurt=true;this.invulnerable=.6;this.emit('damage',{amount,id:source?.id});
   if(this.hp===0){this.status='continue';this.emit('loss');}
  }
  kill(e,precise=false){
   if(e.dead)return;e.dead=true;e.fade=0;this.kills++;this.combo++;this.maxCombo=Math.max(this.maxCombo,this.combo);this.chainTime=4.5;
-  const multi=Math.min(5,1+Math.floor(this.combo/5)),points=TYPES[e.kind].points*multi*(precise?1.5:1);
+  const multi=Math.min(5,1+Math.floor(this.combo/5)),points=TYPES[e.kind].points*multi*(precise?1.5:1)*(this.difficulty==='expert'?EXPERT.score:1);
   this.score+=Math.round(points);this.focus=Math.min(100,this.focus+(e.boss?30:9)*this.charge);
   if(e.boss)this.bosses++;this.emit('kill',{id:e.id,x:e.x,y:e.y,points:Math.round(points),kind:e.kind,boss:e.boss,precise});
  }
@@ -213,7 +217,7 @@ export class Circuit {
     // Flyers stay out of the rotunda: near and inside its doors the finale sends only ground animals.
     // A golden compy dashes across once a stage, somewhere in its middle: hit it for 5,000.
     if(!this.goldenSeen&&this.phase==='ride'&&this.stageTime>(this.goldenAt??=8+this.random()*(this.stage.duration-16))){this.goldenSeen=true;const e=this.spawn('golden');e.life=2.6;this.emit('golden',{id:e.id});}
-    const roster=this.stage.id==='fault'&&this.stageTime>18&&this.stageTime<23?['ptero']:this.stage.id==='visitor'&&this.travel>ROTUNDA-40?['raptor','dilo']:this.stage.roster,arrival=this.spawn(roster[this.wave%roster.length]);this.wave++;this.spawnTimer=2+this.random()*.9;
+    const roster=this.stage.id==='fault'&&this.stageTime>18&&this.stageTime<23?['ptero']:this.stage.id==='visitor'&&this.travel>ROTUNDA-40?['raptor','dilo']:this.stage.roster,arrival=this.spawn(roster[this.wave%roster.length]);this.wave++;this.spawnTimer=(2+this.random()*.9)*(this.difficulty==='expert'?EXPERT.spawn:1);
     if(arrival.kind==='raptor'&&this.wave%3===1)this.emit('threat',{side:arrival.lane<.5?'right':'left'});
     if(this.stageTime>15&&this.wave%3===0)this.spawn(roster[0],{delay:.4});
    }
