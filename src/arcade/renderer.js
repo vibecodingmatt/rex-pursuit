@@ -132,6 +132,8 @@ export class RideRenderer {
   // A longer lens than the ride's for the title; the ride's own is restored when it starts.
   const cam=this.world.camera,fov=aspect<1?66:46;if(cam.fov!==fov){cam.fov=fov;cam.updateProjectionMatrix();}this.titleLens=true;
   if(slot?.started){const head=slot.rex.headPosition();t.camera(this.world.camera,head,time,aspect);t.light(this.world.practicalLights,head,time);}
+  // The Rex roars in the rain, as on the finale's street.
+  {const w=this.world,dt=Math.max(0,Math.min(.1,time-(this.titleRainT??time)));this.titleRainT=time;w.rain?.update(dt,{camera:w.camera,renderer:w.renderer,post:w.post,target:1});}
   this.world.render();
  }
  /** Where a grenade aimed at screen (x, y) lands: the first animal it caught, else the ground under the sight. */
