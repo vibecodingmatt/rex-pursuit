@@ -1,9 +1,9 @@
 import {SPECIES,SAFARI_SECONDS,RANKS,readScores,saveScore,safariRank} from './safari-rules.js';
 import {createScoreboard} from './scoreboard.js';
+import {MODES} from './modes.js';
 const $=s=>document.querySelector(s),number=n=>Math.round(n).toLocaleString();
-export function createSafariUI({state,director,onSelect,reducedMotion=false}){
+export function createSafariUI({state,director,hub,onSelect,reducedMotion=false}){
  let selected='pursuit',board=readScores(),best=board.top[0]?.score||0,lastCue=-1,shownScore=0,lastMultiplier=1,lastTick=performance.now(),countUp=0;
- const title=$('#start-screen h1'),copy=$('#start-screen .intro-copy>p'),originalTitle=title.innerHTML,originalCopy=copy.innerHTML;
  const guide=$('#field-guide'),list=$('#species-list'),callout=$('#safari-callout');
  const scores=createScoreboard({root:$('#safari-scoreboard'),list:$('#safari-board'),load:cheated=>readScores(undefined,undefined,cheated).top});
  let cheatBest=readScores(undefined,undefined,true).top[0]?.score||0;
@@ -19,19 +19,13 @@ export function createSafariUI({state,director,onSelect,reducedMotion=false}){
  }
  renderGuide();
  $('#guide-open').onclick=()=>guide.showModal();$('#guide-close').onclick=()=>guide.close();
- function select(value){
-  selected=['safari','containment'].includes(value)?value:'pursuit';document.body.dataset.game=selected;
-  $('#start-screen .intro-copy>.eyebrow').innerHTML='<span></span> '+(selected==='containment'?'ENCOUNTER 03 / SECTOR 07':selected==='safari'?'SAFARI RUN / THE JUNGLE ROAD':'ENCOUNTER 02 / THE JUNGLE ROAD');
-  document.querySelectorAll('[data-game-mode]').forEach(b=>b.setAttribute('aria-pressed',String(b.dataset.gameMode===selected)));
-  title.innerHTML=selected==='containment'?'Containment<br><em>breach.</em>':selected==='safari'?'The jungle.<br>Your <em>high score.</em>':originalTitle;
-  copy.innerHTML=selected==='containment'?'Hold the compound for two minutes.<br>Break the packs. Repel the Rex. Reach the exit.':selected==='safari'?'90 seconds. A jungle full of moving targets.<br>Build a streak. Bag a legend. Beat your best.':originalCopy;
+ // The hub owns the rail, copy and preview; this keeps the Safari details and the start label in step.
+ function select(value,options){
+  selected=hub.select(value,options);
   $('#safari-menu-info').hidden=selected!=='safari';$('#safari-best').textContent=best?`PERSONAL BEST ${number(best)}`:'NO DAMAGE · JUST THE HUNT';
-  if(!$('#start').disabled)$('#start-label').textContent=selected==='containment'?'HOLD THE COMPOUND':selected==='safari'?'START SAFARI RUN':'START THE CHASE';
-  $('#start-screen .start-tip span.mouse-copy').textContent=selected==='containment'?'Stop leaping raptors and charging pachys. R reloads · Space fires a rocket. Shoot blue switches to electrify the yard.':selected==='safari'?'Hold to fire · R reloads · Space launches a grenade.':'Gold targets repel her. Red targets stop debris. R reloads · Space launches a grenade.';
-  $('#start-screen .conditions-picker').hidden=selected==='containment';
+  if(!$('#start').disabled)$('#start-label').textContent=MODES[selected].cta;
   onSelect?.(selected);
  }
- document.querySelectorAll('[data-game-mode]').forEach(b=>b.onclick=()=>select(b.dataset.gameMode));
  function flash(text,kind=''){if(!callout)return;callout.textContent=text;callout.dataset.kind=kind;callout.classList.remove('show');void callout.offsetWidth;callout.classList.add('show');}
  return{
   get selected(){return selected;},select,flash,

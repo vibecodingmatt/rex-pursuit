@@ -8,3 +8,5 @@
 .mode-return{display:inline-flex;align-items:center;min-height:36px;padding:0 10px;border:1px solid #e8be7560;font-size:9px;letter-spacing:1px;color:var(--amber)}
 .mode-picker{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:6px;margin-top:16px;width:min(450px,100%)}.mode-picker a{display:flex;align-items:center;min-height:44px;padding:9px 8px;border:1px solid #c3cdb235;background:#09160ddd;font-size:9px;font-weight:700;letter-spacing:.5px}.mode-picker [aria-current=page]{border-color:var(--amber);color:#ffe0a5;background:#7258314a;box-shadow:inset 3px 0 var(--amber)}
 @media(max-width:420px){header>div{gap:5px}.mode-return{font-size:8px;padding:0 6px}.wordmark{font-size:11px;letter-spacing:1px}}
+/* Launched from the homepage hub: the briefing is only a loading card (title and progress) until the holdout starts. */
+[data-launch] #start-screen .intro>*:not(h2):not(.eyebrow):not(#loading-status){display:none!important}

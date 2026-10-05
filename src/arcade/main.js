@@ -8,6 +8,8 @@ import {ChaseAudio} from '../chase/audio.js';import {StageAmbience} from './ambi
 // world: gunfire, impacts, engine, wind, and the Rex's voice placed at her head.
 const $=id=>document.getElementById(id),canvas=$('ride'),renderer=new RideRenderer(canvas),audio=new RideAudio(),field=new ChaseAudio(),ambience=new StageAmbience(field);let fieldInit=null;
 const test=new URLSearchParams(location.search).get('test')==='1';
+// From the homepage hub (?start=1): ride at once with its route, intensity and run type; menus lead back to the hub.
+const launch=new URL(location.href),fromHub=launch.searchParams.get('start')==='1',hubRide=Object.fromEntries(['route','difficulty','rush','daily'].map(k=>[k,launch.searchParams.get(k)]));if(fromHub){for(const k of ['start','route','difficulty','rush','daily'])launch.searchParams.delete(k);history.replaceState(null,'',launch);}
 let clearCard=0,game=null,mode='menu',route='extended',ready=false,fire=false,frozen=false,clock=0,accumulator=0,last=performance.now(),announcementTime=0,radioTime=0,saved=false;
 const aim={x:.5,y:.5},keys=new Set();let pointerId=null;
 // A15: the cabinet's ten-second CONTINUE? countdown, and gamepad state (buttons held last frame).
@@ -319,7 +321,18 @@ async function load(){
   renderer.actors.brachio.onCall=p=>field.brachio?.(p);renderer.actors.crossing.onStep=p=>{field.splash('step',p,1);renderer.shake=Math.max(renderer.shake,.55*Math.max(0,1-p.distanceTo(renderer.world.camera.position)/45));};
   $('start').disabled=false;$('start-label').textContent='START THE RIDE';$('load-status').textContent='';updateBest();void renderer.loadBosses();}
  catch{$('load-status').textContent='The island could not load. Check your connection and reload this page.';$('start-label').textContent='RELOAD TO RETRY';$('start').disabled=false;$('start').onclick=()=>location.reload();}
-}void load();
+}const loaded=load();
+// The hub's choices go through the cabinet's own controls, so records and labels follow the usual paths.
+if(fromHub){
+ if(hubRide.route==='classic')document.querySelector('[data-route=classic]').click();
+ if(['tour','arcade','expert'].includes(hubRide.difficulty))$('difficulty').value=hubRide.difficulty;
+ if(hubRide.rush==='1')setRush(true);else if(hubRide.daily==='1')setDaily(true);
+ // "Choose a route" returns to the hub, which holds the route picker now.
+ const back=$('to-menu').cloneNode(true);back.textContent='ALL GAMES';back.onclick=()=>location.assign('./?mode=arcade');$('to-menu').replaceWith(back);
+ // The click that launched the ride was on the hub's page; sound starts with the first touch, click or key here.
+ for(const kind of ['pointerdown','keydown'])addEventListener(kind,()=>{void audio.unlock();unlockField();},{once:true,passive:true});
+ loaded.then(()=>{if(ready)start();});
+}
 window.lostCircuit={get ready(){return ready;},get mode(){return mode;},get room(){return field.room||null;},snapshot:()=>game?.snapshot(),get audioState(){return audio.context?.state||'uninitialized';},get art(){return Object.fromEntries(Object.entries(renderer.images).map(([key,im])=>[key,{width:im.width,height:im.height}]));}};
 // Object.assign would copy a getter's current value; quality is created after loading.
 if(test)Object.defineProperty(window.lostCircuit,'quality',{get:()=>quality});

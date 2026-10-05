@@ -4,7 +4,7 @@ const {chromium}=require('playwright-core'),assert=require('node:assert/strict')
  fs.mkdirSync('art/review/breach-collisions',{recursive:true});
  try{
   const p=await browser.newPage({viewport:{width:1440,height:900}});p.on('pageerror',e=>errors.push(e.message));p.on('console',m=>{if(m.type()==='error')errors.push(m.text());});
-  await p.goto('http://127.0.0.1:5188/breach.html');await p.waitForFunction(()=>window.breach?.ready,null,{timeout:120000});await p.locator('#start').click();await p.waitForFunction(()=>breach.mode==='playing');await p.evaluate(()=>breach.freeze=true);
+  await p.goto('http://127.0.0.1:5188/breach.html?menu=1');await p.waitForFunction(()=>window.breach?.ready,null,{timeout:120000});await p.locator('#start').click();await p.waitForFunction(()=>breach.mode==='playing');await p.evaluate(()=>breach.freeze=true);
   const routes=await p.evaluate(()=>{const b=breach,rows=[];for(const hz of [30,60,120])for(const species of ['raptor','pachycephalosaurus'])for(const lane of [0,1,2]){
    b.director.reset();b.round.reset();b.round.time=20;const a=b.director.spawn(lane,species);a.c.scale=a.heavy?4.5:3.1;let contacts=0,cycles=0,lastPhase=a.phase,maxStep=0;const phases=new Set();
    for(let i=0;i<hz*24;i++){b.round.jeep=100;const previous=a.c.p.clone();b.director.update(1/hz,{spawnEnabled:false});maxStep=Math.max(maxStep,a.c.p.distanceTo(previous));phases.add(a.phase);if(b.world.obstacles.contact(a.c))contacts++;if(a.phase==='retreat'&&lastPhase!=='retreat')cycles++;lastPhase=a.phase;}

@@ -1,5 +1,5 @@
 const {chromium}=require('playwright-core');const assert=require('node:assert/strict');const fs=require('node:fs');
-const base=process.env.TEST_URL||'http://127.0.0.1:5188/',url=new URL('ravine.html',base).href,out='art/review/ravine';fs.mkdirSync(out,{recursive:true});
+const base=process.env.TEST_URL||'http://127.0.0.1:5188/',url=new URL('ravine.html?menu=1',base).href,out='art/review/ravine';fs.mkdirSync(out,{recursive:true});
 (async()=>{
  const browser=await chromium.launch({executablePath:process.env.CHROME_PATH||'C:/Program Files/Google/Chrome/Application/chrome.exe',headless:true}),errors=[];
  const watch=p=>{p.on('pageerror',e=>errors.push(e.message));p.on('console',m=>{if(m.type()==='error')errors.push(m.text());});p.on('response',r=>{if(r.status()>=400)errors.push(`${r.status()} ${r.url()}`);});};

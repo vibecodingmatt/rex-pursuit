@@ -4,7 +4,7 @@ const base=process.env.TEST_URL||'http://127.0.0.1:5188/';
  fs.mkdirSync('art/review/cheat-toggles',{recursive:true});
  try{for(const game of ['pursuit','safari','breach']){
   const p=await browser.newPage({viewport:{width:1280,height:720}});p.on('pageerror',e=>errors.push(e.message));p.on('console',m=>{if(m.type()==='error')errors.push(m.text());});
-  await p.goto(game==='breach'?new URL('breach.html',base).href:base);
+  await p.goto(game==='breach'?new URL('breach.html?menu=1',base).href:base);
   await p.waitForFunction(()=>window.breach?.ready||window.rexChase?.mode==='menu',null,{timeout:120000});
   await p.keyboard.type('idspispipdidkfa');assert.equal(await p.evaluate(()=>(window.breach?.round||rexChase.state).cheated),false);
   if(game==='safari')await p.locator('[data-game-mode=safari]').click();await p.locator('#start').click();await p.waitForFunction(()=>(window.breach||rexChase).mode==='playing');

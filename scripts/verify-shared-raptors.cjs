@@ -2,7 +2,7 @@ const {chromium}=require('playwright-core'),assert=require('node:assert/strict')
 const base=process.env.TEST_URL||'http://127.0.0.1:5188/',out='art/review/shared-raptors';fs.mkdirSync(out,{recursive:true});
 (async()=>{const browser=await chromium.launch({executablePath:process.env.CHROME_PATH||'C:/Program Files/Google/Chrome/Application/chrome.exe',headless:true}),errors=[],rows=[];
  try{const p=await browser.newPage({viewport:{width:1440,height:900}});p.on('pageerror',e=>errors.push(e.message));p.on('console',m=>{if(m.type()==='error')errors.push(m.text());});p.on('response',r=>{if(r.status()>=400)errors.push(`${r.status()} ${r.url()}`);});
-  await p.goto(new URL('breach.html',base).href);await p.waitForFunction(()=>window.breach?.ready,null,{timeout:120000});await p.locator('#start').click();await p.waitForFunction(()=>breach.mode==='playing');await p.evaluate(()=>breach.freeze=true);
+  await p.goto(new URL('breach.html?menu=1',base).href);await p.waitForFunction(()=>window.breach?.ready,null,{timeout:120000});await p.locator('#start').click();await p.waitForFunction(()=>breach.mode==='playing');await p.evaluate(()=>breach.freeze=true);
   for(const tier of ['high','low']){
    await p.setViewportSize(tier==='high'?{width:1440,height:900}:{width:390,height:844});
    await p.evaluate(tier=>{const b=breach;b.director.reset();b.round.reset();b.combatFX.reset();const q=document.getElementById('quality');q.value=tier;q.onchange();window.subject=b.director.spawn(0);b.director.update(0);},tier);

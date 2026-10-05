@@ -1,0 +1,64 @@
+/* The homepage hub: one rail for every experience, a card that swaps with the selection, and a
+   recorded preview layer that covers the live scene for modes that run on their own page. */
+#hub-preview{position:fixed;inset:0;z-index:1;pointer-events:none;opacity:0;visibility:hidden;background:#070c09 var(--poster) center/cover no-repeat;transition:opacity .42s ease,visibility 0s .42s}
+#hub-preview.on{opacity:1;visibility:visible;transition:opacity .42s ease}
+#hub-preview video{display:block;width:100%;height:100%;object-fit:cover}
+/* A scrim under the copy: recorded footage is brighter than the live scenes the menu gradient was tuned for. */
+#hub-preview::after{content:"";position:absolute;inset:0;background:linear-gradient(0deg,#060b08 0%,#060b08e0 36%,#060b0870 60%,transparent 78%)}
+@media(min-width:801px){#hub-preview::after{background:linear-gradient(90deg,#060b0899,transparent 50%),linear-gradient(0deg,#060b08b0,transparent 34%)}}
+body:not([data-state=menu]) #hub-preview{display:none}
+
+body #start-screen .intro-copy{width:640px}
+.mode-rail{display:grid;grid-template-columns:repeat(5,minmax(0,1fr));gap:8px;width:min(640px,100%);margin:0 0 4px;padding:6px 2px 0}
+.mode-rail button{display:flex;flex-direction:column;justify-content:flex-start;min-width:0;padding:0;text-align:left;color:#cfd5c2;transition:color .2s}
+.mode-thumb{position:relative;display:block;aspect-ratio:16/9;overflow:hidden;border:1px solid #c3cdb240;background:#0b140e var(--thumb) center/cover no-repeat;filter:saturate(.6) brightness(.62);transition:filter .25s,border-color .25s,box-shadow .25s,transform .25s cubic-bezier(.2,.7,.2,1)}
+.mode-thumb i{position:absolute;right:6px;top:6px;width:5px;height:5px;border-radius:50%;background:var(--amber);box-shadow:0 0 10px var(--amber);opacity:0;transition:opacity .2s}
+.mode-label{display:block;padding-top:8px}
+.mode-label small{display:block;font-size:8px;font-weight:600;letter-spacing:1.6px;color:#a9b49d}
+.mode-label strong{display:block;margin-top:4px;font-size:10.5px;font-weight:700;letter-spacing:.9px;line-height:1.25;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.mode-label em{display:block;margin-top:3px;font-size:9px;font-style:normal;color:#9eab95;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.mode-rail button:hover .mode-thumb{filter:saturate(.85) brightness(.85)}
+.mode-rail button[aria-pressed=true]{color:#ffe7b8}
+.mode-rail button[aria-pressed=true] .mode-thumb{filter:none;border-color:var(--amber);box-shadow:0 0 0 1px var(--amber),0 10px 30px #0009;transform:translateY(-2px)}
+.mode-rail button[aria-pressed=true] .mode-thumb i{opacity:1;animation:hub-live 1.6s ease-in-out infinite}
+.mode-rail button[aria-pressed=true] .mode-label small{color:var(--amber)}
+.mode-rail button:focus-visible{outline:none}.mode-rail button:focus-visible .mode-thumb{outline:2px solid var(--amber);outline-offset:3px}
+.mode-rail button[data-locked=true] .mode-label small::after{content:" · LOCKED";color:#c99a7a}
+@keyframes hub-live{50%{opacity:.25}}
+
+.mode-card{margin-top:26px}
+.mode-card.swap>*{animation:hub-swap .5s cubic-bezier(.2,.7,.2,1) both}
+.mode-card.swap>h1{animation-delay:.04s}.mode-card.swap>p{animation-delay:.08s}.mode-card.swap>.mode-options,.mode-card.swap>.mode-status{animation-delay:.1s}
+@keyframes hub-swap{from{opacity:0;transform:translateY(8px)}}
+.mode-copy{font-size:13px;line-height:1.9;color:#c3c7b5;margin:0}
+.mode-status{margin:12px 0 0;font-size:9px;font-weight:600;letter-spacing:1.6px;color:var(--amber)}
+.mode-options .quality-picker{margin-top:12px}.mode-options .quality-picker:first-child{margin-top:18px}
+.mode-options .quality-options button{white-space:nowrap}
+#arcade-route.locked{opacity:.4}
+#arcade-best{display:block;margin-top:10px;font-size:9px;letter-spacing:1.4px;color:var(--amber)}
+#start-screen .intro-copy .quality-picker[hidden]{display:none!important}
+body #start-screen #start{min-height:44px}
+
+/* Leaving for a mode's own page: a short fade to black. */
+body.leaving::after{content:"";position:fixed;inset:0;z-index:60;background:#050806;animation:hub-leave .26s ease forwards}
+@keyframes hub-leave{from{opacity:0}}
+
+@media(min-width:801px){body #start-screen .intro-copy{bottom:58px;max-height:calc(100dvh - 120px)}body #start-screen h1{font-size:clamp(48px,7.4vh,84px);margin:16px 0 14px}}
+@media(min-width:801px) and (max-height:820px){.mode-label em{display:none}.mode-card{margin-top:18px}body #start-screen h1{font-size:clamp(44px,6.6vh,64px);margin:12px 0 10px}body #start-screen .start-actions{margin-top:14px}}
+
+/* Phones: five compact tiles across the width, names on the thumbnails. */
+@media(max-width:800px){
+ body #start-screen .intro-copy{width:auto;left:20px;right:20px;max-width:none}
+ .mode-rail{gap:5px}
+ .mode-thumb{aspect-ratio:16/12}
+ .mode-label{padding-top:5px}.mode-label small,.mode-label em{display:none}
+ .mode-label strong{font-size:8px;letter-spacing:.4px;white-space:normal;line-height:1.2;margin:0}
+ .mode-card{margin-top:14px}
+ .mode-options .quality-options button{padding:6px 7px}
+}
+@media(max-height:570px) and (orientation:landscape){
+ .mode-thumb{display:none}.mode-rail button{border:1px solid #c3cdb235;background:#09160ddd;padding:6px 8px}.mode-rail button[aria-pressed=true]{border-color:var(--amber);box-shadow:inset 3px 0 var(--amber)}
+ .mode-label{padding:0}.mode-card{margin-top:8px}
+ .mode-card>.eyebrow{display:none}body #start-screen h1{font-size:30px;margin:0 0 6px}.mode-copy{font-size:11px;line-height:1.6}.mode-status{margin-top:6px}body #start-screen .start-actions{margin-top:8px;gap:6px}body #start-screen #start{padding:16px 18px}.mode-rail button{min-height:44px}
+}
+@media(prefers-reduced-motion:reduce){.mode-card.swap>*,.mode-rail button[aria-pressed=true] .mode-thumb i{animation:none}#hub-preview,#hub-preview.on{transition:none}}

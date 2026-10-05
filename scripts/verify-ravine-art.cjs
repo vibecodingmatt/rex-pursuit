@@ -6,7 +6,7 @@ const base=process.env.TEST_URL||'http://127.0.0.1:5188/';
  try{
   const p=await b.newPage({viewport:{width:1440,height:900}});
   p.on('pageerror',e=>errors.push(e.message));p.on('console',m=>{if(m.type()==='error')errors.push(m.text());});
-  await p.goto(new URL('ravine.html',base).href);await p.waitForFunction(()=>window.ravine?.ready,null,{timeout:120000});
+  await p.goto(new URL('ravine.html?menu=1',base).href);await p.waitForFunction(()=>window.ravine?.ready,null,{timeout:120000});
   const inspect=()=>{const r=ravine,a=r.pack.pool.find(a=>a.id===900);r.freeze=true;return{phase:a.phase,root:a.root.position.toArray(),feet:a.legs.map(l=>l[2].getWorldPosition(a.head.clone()).toArray()),unbound:a.meshes.some(m=>m.skeleton?.bones.some(b=>b.name==='neutral_bone')),travel:r.world.travel};};
   const first=await p.evaluate(inspect);assert.equal(first.unbound,false,'no unbound mouth vertices');
   for(const seconds of [2,8,14]){await p.evaluate(seconds=>{for(let i=0;i<seconds*30;i++)ravine.step(1/30);},seconds);const next=await p.evaluate(inspect);assert.equal(next.phase,first.phase,'idle never advances a walking cycle');assert.deepEqual(next.root,first.root);assert.equal(next.travel,0);next.feet.forEach((foot,i)=>foot.forEach((v,j)=>assert.ok(Math.abs(v-first.feet[i][j])<.012,'idle feet remain planted')));await p.screenshot({path:`art/review/ravine/idle-${seconds}.png`});}

@@ -9,7 +9,7 @@ const dir=`art/review/breach-splatter/${baseline?'before':'after'}`;fs.mkdirSync
   for(const [name,width,height,quality]of [['desktop',1280,720,'high'],['phone',390,844,'low']]){
    const p=await browser.newPage({viewport:{width,height},isMobile:name==='phone',hasTouch:name==='phone'});
    p.on('pageerror',e=>errors.push(e.message));p.on('console',m=>{if(m.type()==='error')errors.push(m.text());});p.on('response',r=>{if(r.status()>=400)errors.push(`${r.status()} ${r.url()}`);});
-   await p.goto(new URL('breach.html',base).href);await p.waitForFunction(()=>window.breach?.ready,null,{timeout:120000});await p.locator('#quality').selectOption(quality);
+   await p.goto(new URL('breach.html?menu=1',base).href);await p.waitForFunction(()=>window.breach?.ready,null,{timeout:120000});await p.locator('#quality').selectOption(quality);
    await p.locator('#start').click();await p.waitForFunction(()=>breach.mode==='playing');await p.evaluate(()=>breach.freeze=true);
    for(const view of ['first','third'])for(const lane of [0,2])for(const weapon of ['gun','rocket']){
     await p.evaluate(()=>breach.start());if(view==='third')await p.keyboard.press('v');

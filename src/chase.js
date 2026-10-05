@@ -38,13 +38,14 @@ import {createScreenBlood} from './chase/screen-blood.js';
 import {activateCheat,createCheatInput,createCheatBadge} from './chase/cheats.js';
 import {createScoreboard,readBoard,saveRun} from './chase/scoreboard.js';
 import {ravineAvailable,campaignProgress,completeChapter} from './chase/campaign.js';
+import {createHub} from './chase/hub.js';
+import {MODES} from './chase/modes.js';
 const $=s=>document.querySelector(s),canvas=$('#scene');
+// Chapter two's status on its hub card; locked until the Rex is beaten (unless the playtest flag opens it).
 function updateCampaignLink(){
- const available=ravineAvailable(),progress=campaignProgress(),card=$('#ravine-menu');
- $('#campaign-link').textContent=available?'CHAPTER 02 · RAPTOR RAVINE ↗':'CHAPTER 02 · BEAT THE REX TO UNLOCK';
- $('#ravine-menu-status').textContent=progress.completed?'CHAPTER 02 · COMPLETED':progress.ravine?'CHAPTER 02 · UNLOCKED':available?'CHAPTER 02 · AVAILABLE NOW':'BEAT THE REX TO UNLOCK';
- card.querySelector('b').textContent=progress.completed?'REPLAY ↗':progress.ravine?'CONTINUE ↗':'PLAY ↗';
- card.setAttribute('aria-disabled',String(!available));if(available)card.setAttribute('href','./ravine.html?start=1');else card.removeAttribute('href');
+ const available=ravineAvailable(),progress=campaignProgress();
+ $('#ravine-status').textContent=progress.completed?'CHAPTER 02 · COMPLETED · REPLAY ANY TIME':progress.ravine?'CHAPTER 02 · UNLOCKED':available?'CHAPTER 02 · AVAILABLE NOW':'LOCKED · BEAT THE REX IN CHAPTER 01';
+ $('[data-game-mode=ravine]').dataset.locked=String(!available);
 }
 updateCampaignLink();
 installAtmosphericFog();
@@ -106,7 +107,7 @@ const combatFX=createCombatFX(scene,effects,{surface:(x,z)=>jungle.groundAt(x,z)
 const cheatInput=createCheatInput({isPlaying:()=>mode==='playing'&&!state.result,activate:code=>{if(activateCheat(state,code)){cheatBadge.update(state);audio.cue(true);}}});
 const pursuitScores=createScoreboard({root:$('#pursuit-scoreboard'),title:'PURSUIT · WILDLIFE POINTS',load:cheated=>readBoard('pursuit',cheated)});
 const returnURL=new URL(location.href),requestedMode=returnURL.searchParams.get('mode');
-if(['pursuit','safari','containment'].includes(requestedMode)){returnURL.searchParams.delete('mode');history.replaceState(history.state,'',returnURL);}
+if(MODES[requestedMode]){returnURL.searchParams.delete('mode');history.replaceState(history.state,'',returnURL);}
 weather=createWeather(scene,{renderer,sky,makeEnvironment:createEnvironmentMap,reducedMotion});weather.captureBase({sun,hemi,rim,fill,post});
 weather.onThunder=(delay,near)=>audio.thunder(delay,near);
 night=createNight(scene,{jeep,weather,renderer});
@@ -119,9 +120,14 @@ const safariFx=createSafariFx($('#safari-fx'),camera);
 // update the title scene: the Rex for Pursuit, the crossing roster for Safari.
 async function menuScene(){
  if(mode!=='menu')return;const request=++menuRequest,selected=safariUI.selected;
+ // Recorded previews: the loop covers the scene, which stops drawing until a live mode returns.
+ if(!hub.isLive(selected)){
+  const locked=selected==='ravine'&&!ravineAvailable();$('#start').disabled=locked;$('#start-label').textContent=locked?'BEAT THE REX TO UNLOCK':MODES[selected].cta;
+  $('#loading-status').textContent=locked?'Survive the Rex Pursuit to open the north pass.':'Headphones recommended · Opens its own ride';return;
+ }
  if(selected!=='containment'){
   breachPreview?.leave();if(rex)rex.actor.visible=selected!=='safari';if(selected==='safari')safariDirector.resetParade();
-  $('#start').disabled=false;$('#start-label').textContent=selected==='safari'?'START SAFARI RUN':'START THE CHASE';$('#loading-status').textContent='Headphones recommended · First / third person';return;
+  $('#start').disabled=false;$('#start-label').textContent=MODES[selected].cta;$('#loading-status').textContent='Headphones recommended · First / third person';return;
  }
  $('#start').disabled=true;$('#start-label').textContent='PREPARING THE COMPOUND';$('#loading-status').textContent='Preparing the compound preview…';
  try{
@@ -130,7 +136,8 @@ async function menuScene(){
   $('#start').disabled=false;$('#start-label').textContent='HOLD THE COMPOUND';$('#loading-status').textContent='Rockets break the packs. Blue switches electrify the yard.';
  }catch(error){if(request!==menuRequest)return;if(!breachPreview)previewLoad=null;breachPreview?.leave();$('#loading-status').textContent='Preview unavailable. You can still enter the compound.';$('#start').disabled=false;$('#start-label').textContent='HOLD THE COMPOUND';console.warn('Compound preview unavailable',error);}
 }
-const safariUI=createSafariUI({state,director:safariDirector,reducedMotion,onSelect:menuScene});
+const hub=createHub({reducedMotion,onSelect:(id,options)=>safariUI.select(id,options)});
+const safariUI=createSafariUI({state,director:safariDirector,hub,reducedMotion,onSelect:menuScene});
 let lastNotice=null;
 critters.onScatter=p=>audio.chirp(p);critters.onHerd=p=>audio.herd(p);brachio.onCall=p=>audio.brachio(p);flyers.onFlush=p=>audio.flush(p);flyers.onCall=p=>audio.screech(p);
 critters.onKill=flyers.onKill=birds.onKill=(p,kind)=>audio.death(kind,p);critters.onCall=(p,kind)=>audio.call(kind,p);
@@ -170,7 +177,7 @@ addEventListener('blur',()=>{controls.reset();if(mode==='playing')pause();});
 $('#credits-open').onclick=()=>$('#credits').showModal();$('#credits-close').onclick=()=>$('#credits').close();
 async function start(){
  $('#next-chapter').hidden=true;
- if(safariUI.selected==='containment'){location.assign('./breach.html?start=1');return;}
+ if(hub.isExternal(safariUI.selected)){if(!$('#start').disabled)hub.launch(safariUI.selected);return;}
  if(!rex)return;controls.reset();$('#start').disabled=true;$('#start-label').textContent='STARTING THE ENGINE';
  try{await audio.init();}catch(e){console.warn('Audio initialization failed',e.message);}
  audio.stopCalls();state.reset();cheatBadge.update(false);combatFX.reset();screenBlood.reset();$('#pursuit-scoreboard').hidden=true;if(safariUI.selected==='safari')state.startSafari();safariDirector.reset();safariUI.reset();
@@ -443,7 +450,7 @@ function frame(now){
  requestAnimationFrame(frame);const raw=Math.max(0,now-last),dt=Math.min(.045,raw/1000);last=Math.max(last,now);frameCount++;
  // Do not render incomplete rigs/materials and synchronously compile several
  // throwaway shader variants while the real assets are still loading.
- if(mode==='loading'||document.hidden)return;
+ if(mode==='loading'||document.hidden||mode==='menu'&&hub.covered)return;
  if(!document.hidden&&governor.sample(raw,mode!=='loading'))post.configure({scale:governor.scale});
  if(quality==='auto'&&governor.strained&&ORDER.indexOf(autoTier)>0){autoTier=ORDER[ORDER.indexOf(autoTier)-1];applyQuality();}
  if(mode==='paused'||mode==='ended'||freeze){renderFrame(now);return;}
@@ -517,7 +524,7 @@ requestAnimationFrame(frame);
 const boot=(stage,fraction)=>{$('#boot-stage').textContent=stage;$('#boot-fill').style.transform=`scaleX(${fraction})`;$('#boot-percent').textContent=`${Math.round(fraction*100)}%`;};boot('Waking the predator',.12);
 try{rex=await createRex(scene,p=>{const f=p.total?p.loaded/p.total:0;$('#loading-status').textContent=p.total?`Creature ${Math.round(f*100)}%`:'Preparing the creature…';boot('Waking the predator',.12+f*.66);});boot('Compiling light and shadow',.82);await critters.ready();targets=createTargets(rex,camera,$('#target-layer'));skid.attachCoat(rex.hide.uniforms.uRexFallMud);coat=createRexCoat(rex.hide.uniforms);
  // Where river water streams off her: belly, thighs, shins, feet and the underside of the tail.
- drips.push(...[['back_02_',1.1],['back_03_',1.2],['tail_02_',.7],['tail_05_',.45],['leg_02_L_',.5],['leg_02_R_',.5],['leg_03_L_',.2],['leg_03_R_',.2],['foot_02_01_L_',.1],['foot_02_01_R_',.1]].map(([n,drop])=>({bone:rex.bones.find(b=>b.name.startsWith(n)),drop,p:new T.Vector3()})).filter(d=>d.bone));rex.gait.ground=(x,z)=>jungle.fordDip(x,z);rex.gait.water=(x,z)=>jungle.waterDepth(x,z);skid.prepare(true);await post.prepare(scene,camera);skid.prepare(false);await swallow.prepare();boot('Ready',1);setMode('menu');$('#start').disabled=false;safariUI.select(['pursuit','safari','containment'].includes(requestedMode)?requestedMode:safariUI.selected);$('#loading-status').textContent='Headphones recommended · First / third person';}
+ drips.push(...[['back_02_',1.1],['back_03_',1.2],['tail_02_',.7],['tail_05_',.45],['leg_02_L_',.5],['leg_02_R_',.5],['leg_03_L_',.2],['leg_03_R_',.2],['foot_02_01_L_',.1],['foot_02_01_R_',.1]].map(([n,drop])=>({bone:rex.bones.find(b=>b.name.startsWith(n)),drop,p:new T.Vector3()})).filter(d=>d.bone));rex.gait.ground=(x,z)=>jungle.fordDip(x,z);rex.gait.water=(x,z)=>jungle.waterDepth(x,z);skid.prepare(true);await post.prepare(scene,camera);skid.prepare(false);await swallow.prepare();boot('Ready',1);setMode('menu');$('#start').disabled=false;safariUI.select(MODES[requestedMode]?requestedMode:safariUI.selected);hub.warmPosters();$('#loading-status').textContent='Headphones recommended · First / third person';}
 catch(e){console.error(e);$('#loading-status').textContent='The creature could not load. Refresh to try again.';$('#start-label').textContent='LOAD FAILED';}
 // Exposed for local visual and interaction verification; no network or remote state.
-window.rexChase={get breachPreview(){return breachPreview;},combatFX,screenBlood,safariDirector,safariUI,safariFx,scene,camera,renderer,post,birds,critters,flyers,insects,brachio,ford,get coat(){return coat;},sky,canopy,weather,night,setConditions,toggleFlashlight,mud,governor,sun,lights:{hemi,rim,fill},jungle,get quality(){return{setting:quality,tier:tierName(),detected:detected.tier,gpu:detected.gpu,scale:governor.scale,frameMs:governor.frameMs};},setQuality,jeep,effects,opening,ambushScenery,debris,swallow,visitorCenter,get targets(){return targets;},get rex(){return rex;},state,audio,start,setView,shoot,grenade,get mode(){return mode;},get view(){return view;},get frames(){return frameCount;},set freeze(v){freeze=v;},get freeze(){return freeze;},aimAt(world){pointer.copy(world.clone().project(camera));moveReticle();},snapshot(){return{mode,view,safari:state.safari?{score:state.safari.score,kills:state.safari.kills,ready:state.safari.ready}:null,health:state.health,jeep:state.jeep,phase:state.phase,ammo:state.ammo,wounds:rex?.damage.count,damageStage:rex?.damage.stage,persistentImpacts:rex?.damage.totalImpacts,headshots:state.headshots,drawCalls:renderer.info.render.calls,triangles:renderer.info.render.triangles,audioClips:audio.buffers.size,remaining:state.remaining,objectives:state.objectivesCleared,debrisCleared:state.debrisCleared,debrisMissed:state.debrisMissed};}};
+window.rexChase={get breachPreview(){return breachPreview;},hub,combatFX,screenBlood,safariDirector,safariUI,safariFx,scene,camera,renderer,post,birds,critters,flyers,insects,brachio,ford,get coat(){return coat;},sky,canopy,weather,night,setConditions,toggleFlashlight,mud,governor,sun,lights:{hemi,rim,fill},jungle,get quality(){return{setting:quality,tier:tierName(),detected:detected.tier,gpu:detected.gpu,scale:governor.scale,frameMs:governor.frameMs};},setQuality,jeep,effects,opening,ambushScenery,debris,swallow,visitorCenter,get targets(){return targets;},get rex(){return rex;},state,audio,start,setView,shoot,grenade,get mode(){return mode;},get view(){return view;},get frames(){return frameCount;},set freeze(v){freeze=v;},get freeze(){return freeze;},aimAt(world){pointer.copy(world.clone().project(camera));moveReticle();},snapshot(){return{mode,view,safari:state.safari?{score:state.safari.score,kills:state.safari.kills,ready:state.safari.ready}:null,health:state.health,jeep:state.jeep,phase:state.phase,ammo:state.ammo,wounds:rex?.damage.count,damageStage:rex?.damage.stage,persistentImpacts:rex?.damage.totalImpacts,headshots:state.headshots,drawCalls:renderer.info.render.calls,triangles:renderer.info.render.triangles,audioClips:audio.buffers.size,remaining:state.remaining,objectives:state.objectivesCleared,debrisCleared:state.debrisCleared,debrisMissed:state.debrisMissed};}};

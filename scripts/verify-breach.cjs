@@ -1,5 +1,5 @@
 const {chromium}=require('playwright-core'),assert=require('node:assert/strict'),fs=require('node:fs');
-const base=process.env.TEST_URL||'http://127.0.0.1:5188/',url=new URL('breach.html',base).href;
+const base=process.env.TEST_URL||'http://127.0.0.1:5188/',url=new URL('breach.html?menu=1',base).href;
 (async()=>{
  fs.mkdirSync('art/review/breach',{recursive:true});
  const browser=await chromium.launch({executablePath:process.env.CHROME_PATH||'C:/Program Files/Google/Chrome/Application/chrome.exe',headless:true}),errors=[];

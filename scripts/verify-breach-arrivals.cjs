@@ -4,7 +4,7 @@ const {chromium}=require('playwright-core'),assert=require('node:assert/strict')
  const errors=[],rows=[];fs.mkdirSync('art/review/breach-arrivals',{recursive:true});
  try{
   const p=await browser.newPage({viewport:{width:1440,height:900}});p.on('pageerror',e=>errors.push(e.message));p.on('console',m=>{if(m.type()==='error')errors.push(m.text());});
-  await p.goto('http://127.0.0.1:5188/breach.html');await p.waitForFunction(()=>window.breach?.ready,null,{timeout:120000});await p.locator('#start').click();await p.waitForFunction(()=>breach.mode==='playing');await p.evaluate(()=>breach.freeze=true);
+  await p.goto('http://127.0.0.1:5188/breach.html?menu=1');await p.waitForFunction(()=>window.breach?.ready,null,{timeout:120000});await p.locator('#start').click();await p.waitForFunction(()=>breach.mode==='playing');await p.evaluate(()=>breach.freeze=true);
   for(const [name,width,height,tier,view]of [['first',1440,900,'high','first'],['third',1440,900,'high','third'],['phone',390,844,'low','first'],['landscape',844,390,'low','third']]){
    await p.setViewportSize({width,height});
    await p.evaluate(({tier,view})=>{const b=breach,q=document.getElementById('quality');q.value=tier;q.onchange();if(b.view!==view)document.getElementById('view').click();b.step(0);},{tier,view});
