@@ -11,17 +11,19 @@ function arcadeBest(o){const route=o.run==='rush'?'bossrush':o.run==='daily'?`da
 export function createHub({reducedMotion=false,onSelect}={}){
  const layer=$('#hub-preview'),video=layer.querySelector('video'),rail=$('.mode-rail'),tiles=[...rail.querySelectorAll('[data-game-mode]')];
  const saveData=!!navigator.connection?.saveData,portrait=matchMedia('(orientation: portrait)');
- let selected='pursuit',covered=false,coverTimer=0,prefetched=new Set(),arcade=readArcade();
+ let selected='pursuit',covered=false,live=false,coverTimer=0,prefetched=new Set(),arcade=readArcade();
  // Thumbnails and posters are small; load them up front so a switch never shows an empty frame.
  for(const t of tiles){const f=previewFiles(t.dataset.gameMode);t.querySelector('.mode-thumb')?.style.setProperty('--thumb',`url("${abs(f.thumb)}")`);}
  function warmPosters(){for(const id of MODE_IDS)if(MODES[id].preview==='video'){const f=previewFiles(id);new Image().src=portrait.matches?f.posterTall:f.poster;}}
  function showVideo(id){
   const f=previewFiles(id),tall=portrait.matches,src=tall?f.tall:f.wide,poster=tall?f.posterTall:f.poster;
-  clearTimeout(coverTimer);layer.dataset.mode=id;layer.style.setProperty('--poster',`url("${abs(poster)}")`);
+  clearTimeout(coverTimer);layer.dataset.mode=id;layer.classList.remove('still');layer.style.setProperty('--poster',`url("${abs(poster)}")`);
   if(!reducedMotion&&!saveData&&video.dataset.src!==src){video.dataset.src=src;video.poster=poster;video.src=src;video.load();}
   if(!reducedMotion&&!saveData)video.play().catch(()=>{});
   layer.classList.add('on');coverTimer=setTimeout(()=>{covered=true;},FADE);
  }
+ // Until the page's own scene is ready, a live mode shows its still.
+ function showStill(id){const f=previewFiles(id);clearTimeout(coverTimer);covered=false;video.pause();layer.dataset.mode=id;layer.style.setProperty('--poster',`url("${abs(portrait.matches?f.posterTall:f.poster)}")`);layer.classList.add('on','still');}
  function hideVideo(){clearTimeout(coverTimer);covered=false;layer.classList.remove('on');coverTimer=setTimeout(()=>{if(!layer.classList.contains('on'))video.pause();},FADE);}
  // Warm the next page's code while the player reads the card (production builds list every chunk in the HTML).
  async function prefetch(id){
@@ -41,11 +43,11 @@ export function createHub({reducedMotion=false,onSelect}={}){
   id=MODES[id]?id:'pursuit';const changed=id!==selected;selected=id;document.body.dataset.game=id;
   for(const t of tiles){const on=t.dataset.gameMode===id;t.setAttribute('aria-pressed',String(on));t.tabIndex=on?0:-1;if(on&&focus)t.focus();if(on)t.scrollIntoView?.({block:'nearest',inline:'nearest',behavior:changed&&!reducedMotion?'smooth':'auto'});}
   describe(id);updateArcade();
-  if(MODES[id].preview==='video')showVideo(id);else hideVideo();
+  if(MODES[id].preview==='video')showVideo(id);else if(!live)showStill(id);else hideVideo();
   if(MODES[id].href)setTimeout(()=>{if(selected===id)prefetch(id);},500);
   return id;
  }
- portrait.addEventListener?.('change',()=>{if(MODES[selected].preview==='video')showVideo(selected);warmPosters();});
+ portrait.addEventListener?.('change',()=>{if(MODES[selected].preview==='video')showVideo(selected);else if(!live)showStill(selected);warmPosters();});
  for(const t of tiles)t.addEventListener('click',()=>onSelect(t.dataset.gameMode));
  // Arrow keys move along the rail (one tab stop for the whole group).
  rail.addEventListener('keydown',e=>{const step={ArrowRight:1,ArrowDown:1,ArrowLeft:-1,ArrowUp:-1}[e.key];if(e.key==='Home'||e.key==='End'||step){e.preventDefault();const i=tiles.findIndex(t=>t.dataset.gameMode===selected),n=e.key==='Home'?0:e.key==='End'?tiles.length-1:(i+step+tiles.length)%tiles.length;onSelect(tiles[n].dataset.gameMode,{focus:true});}});
@@ -65,5 +67,5 @@ export function createHub({reducedMotion=false,onSelect}={}){
  // mode, so Back (or the game's own exit) returns to this card.
  function launch(id){const here=new URL(location.href);here.searchParams.set('mode',id);history.replaceState(history.state,'',here);document.body.classList.add('leaving');setTimeout(()=>location.assign(launchURL(id)),reducedMotion?0:260);}
  addEventListener('pageshow',e=>{if(!e.persisted)return;document.body.classList.remove('leaving');if(MODES[selected].preview==='video'&&!reducedMotion&&!saveData)video.play().catch(()=>{});});
- return{select,launch,launchURL,warmPosters,get selected(){return selected;},get covered(){return covered;},isLive:id=>MODES[id].preview==='live',isExternal:id=>!!MODES[id].href};
+ return{select,launch,launchURL,warmPosters,setLive(){live=true;},get selected(){return selected;},get covered(){return covered;},isLive:id=>MODES[id].preview==='live',isExternal:id=>!!MODES[id].href};
 }

@@ -119,6 +119,7 @@ const safariFx=createSafariFx($('#safari-fx'),camera);
 // Every fresh visit opens on the Rex chase. Mode switches within this visit still
 // update the title scene: the Rex for Pursuit, the crossing roster for Safari.
 async function menuScene(){
+ if(mode==='loading'){loadingStart();return;}
  if(mode!=='menu')return;const request=++menuRequest,selected=safariUI.selected;
  // Recorded previews: the loop covers the scene, which stops drawing until a live mode returns.
  if(!hub.isLive(selected)){
@@ -138,6 +139,13 @@ async function menuScene(){
 }
 const hub=createHub({reducedMotion,onSelect:(id,options)=>safariUI.select(id,options)});
 const safariUI=createSafariUI({state,director:safariDirector,hub,reducedMotion,onSelect:menuScene});
+// The hub works while the jungle loads: modes on their own pages launch at once, live ones show a still until their scene is ready.
+let bootFraction=0;
+function loadingStart(){
+ if(mode!=='loading')return;const id=safariUI.selected,external=hub.isExternal(id),locked=id==='ravine'&&!ravineAvailable();
+ $('#start').disabled=!external||locked;$('#start-label').textContent=locked?'BEAT THE REX TO UNLOCK':external?MODES[id].cta:`PREPARING THE ${id==='safari'?'SAFARI':'CHASE'} · ${Math.round(bootFraction*100)}%`;
+}
+safariUI.select(MODES[requestedMode]?requestedMode:'pursuit');document.body.dataset.hub='ready';
 let lastNotice=null;
 critters.onScatter=p=>audio.chirp(p);critters.onHerd=p=>audio.herd(p);brachio.onCall=p=>audio.brachio(p);flyers.onFlush=p=>audio.flush(p);flyers.onCall=p=>audio.screech(p);
 critters.onKill=flyers.onKill=birds.onKill=(p,kind)=>audio.death(kind,p);critters.onCall=(p,kind)=>audio.call(kind,p);
@@ -521,10 +529,10 @@ ${tierName()} · scale ${Math.round(governor.scale*100)}% · ${renderer.info.ren
  renderFrame(now);
 }
 requestAnimationFrame(frame);
-const boot=(stage,fraction)=>{$('#boot-stage').textContent=stage;$('#boot-fill').style.transform=`scaleX(${fraction})`;$('#boot-percent').textContent=`${Math.round(fraction*100)}%`;};boot('Waking the predator',.12);
+const boot=(stage,fraction)=>{bootFraction=fraction;loadingStart();$('#boot-stage').textContent=stage;$('#boot-fill').style.transform=`scaleX(${fraction})`;$('#boot-percent').textContent=`${Math.round(fraction*100)}%`;};boot('Waking the predator',.12);
 try{rex=await createRex(scene,p=>{const f=p.total?p.loaded/p.total:0;$('#loading-status').textContent=p.total?`Creature ${Math.round(f*100)}%`:'Preparing the creature…';boot('Waking the predator',.12+f*.66);});boot('Compiling light and shadow',.82);await critters.ready();targets=createTargets(rex,camera,$('#target-layer'));skid.attachCoat(rex.hide.uniforms.uRexFallMud);coat=createRexCoat(rex.hide.uniforms);
  // Where river water streams off her: belly, thighs, shins, feet and the underside of the tail.
- drips.push(...[['back_02_',1.1],['back_03_',1.2],['tail_02_',.7],['tail_05_',.45],['leg_02_L_',.5],['leg_02_R_',.5],['leg_03_L_',.2],['leg_03_R_',.2],['foot_02_01_L_',.1],['foot_02_01_R_',.1]].map(([n,drop])=>({bone:rex.bones.find(b=>b.name.startsWith(n)),drop,p:new T.Vector3()})).filter(d=>d.bone));rex.gait.ground=(x,z)=>jungle.fordDip(x,z);rex.gait.water=(x,z)=>jungle.waterDepth(x,z);skid.prepare(true);await post.prepare(scene,camera);skid.prepare(false);await swallow.prepare();boot('Ready',1);setMode('menu');$('#start').disabled=false;safariUI.select(MODES[requestedMode]?requestedMode:safariUI.selected);hub.warmPosters();$('#loading-status').textContent='Headphones recommended · First / third person';}
+ drips.push(...[['back_02_',1.1],['back_03_',1.2],['tail_02_',.7],['tail_05_',.45],['leg_02_L_',.5],['leg_02_R_',.5],['leg_03_L_',.2],['leg_03_R_',.2],['foot_02_01_L_',.1],['foot_02_01_R_',.1]].map(([n,drop])=>({bone:rex.bones.find(b=>b.name.startsWith(n)),drop,p:new T.Vector3()})).filter(d=>d.bone));rex.gait.ground=(x,z)=>jungle.fordDip(x,z);rex.gait.water=(x,z)=>jungle.waterDepth(x,z);skid.prepare(true);await post.prepare(scene,camera);skid.prepare(false);await swallow.prepare();boot('Ready',1);setMode('menu');hub.setLive();$('#start').disabled=false;safariUI.select(safariUI.selected);hub.warmPosters();$('#loading-status').textContent='Headphones recommended · First / third person';}
 catch(e){console.error(e);$('#loading-status').textContent='The creature could not load. Refresh to try again.';$('#start-label').textContent='LOAD FAILED';}
 // Exposed for local visual and interaction verification; no network or remote state.
 window.rexChase={get breachPreview(){return breachPreview;},hub,combatFX,screenBlood,safariDirector,safariUI,safariFx,scene,camera,renderer,post,birds,critters,flyers,insects,brachio,ford,get coat(){return coat;},sky,canopy,weather,night,setConditions,toggleFlashlight,mud,governor,sun,lights:{hemi,rim,fill},jungle,get quality(){return{setting:quality,tier:tierName(),detected:detected.tier,gpu:detected.gpu,scale:governor.scale,frameMs:governor.frameMs};},setQuality,jeep,effects,opening,ambushScenery,debris,swallow,visitorCenter,get targets(){return targets;},get rex(){return rex;},state,audio,start,setView,shoot,grenade,get mode(){return mode;},get view(){return view;},get frames(){return frameCount;},set freeze(v){freeze=v;},get freeze(){return freeze;},aimAt(world){pointer.copy(world.clone().project(camera));moveReticle();},snapshot(){return{mode,view,safari:state.safari?{score:state.safari.score,kills:state.safari.kills,ready:state.safari.ready}:null,health:state.health,jeep:state.jeep,phase:state.phase,ammo:state.ammo,wounds:rex?.damage.count,damageStage:rex?.damage.stage,persistentImpacts:rex?.damage.totalImpacts,headshots:state.headshots,drawCalls:renderer.info.render.calls,triangles:renderer.info.render.triangles,audioClips:audio.buffers.size,remaining:state.remaining,objectives:state.objectivesCleared,debrisCleared:state.debrisCleared,debrisMissed:state.debrisMissed};}};
