@@ -12,6 +12,8 @@ function readArcade(){try{const v=JSON.parse(localStorage.getItem(ARCADE_KEY)||'
 // Mirrors Lost Circuit's record keys (src/arcade/rules.js recordKey) so the hub shows the same best.
 function arcadeBest(o){const route=o.run==='rush'?'bossrush':o.run==='daily'?`daily-${today()}`:o.route;try{const n=Number(localStorage.getItem(`rex-lost-circuit-v1:${route}:${o.difficulty}:one-credit`));return Number.isSafeInteger(n)&&n>0?n:0;}catch{return 0;}}
 // Each tile's line under its name: a cleared chapter or the best fair score, else the mode's short description.
+// Medals earned on Lost Circuit (src/arcade/records.js MEDAL_KEY).
+function lostCircuitMedals(){try{const v=JSON.parse(localStorage.getItem('rex-lost-circuit-v1:medals')||'[]');return Array.isArray(v)?new Set(v.filter(x=>typeof x==='string')).size:0;}catch{return 0;}}
 function lostCircuitBest(){let best=0;try{for(let i=0;i<localStorage.length;i++){const k=localStorage.key(i);if(/^rex-lost-circuit-v1:(extended|classic|bossrush):[a-z]+:one-credit$/.test(k))best=Math.max(best,Number(localStorage.getItem(k))||0);}}catch{/* Storage denied. */}return best;}
 function records(){
  const progress=campaignProgress(),score=n=>n>0?`BEST ${Math.round(n).toLocaleString('en-US')}`:'';
@@ -82,7 +84,7 @@ export function createHub({reducedMotion=false,onSelect}={}){
  // Lost Circuit's ride options, carried to its page as URL parameters.
  function updateArcade(){
   for(const b of document.querySelectorAll('[data-arcade]')){const [key,value]=b.dataset.arcade.split(':');b.setAttribute('aria-pressed',String(arcade[key]===value));}
-  $('#arcade-route').classList.toggle('locked',arcade.run!=='full');const best=arcadeBest(arcade);$('#arcade-best').textContent=best?`BEST ${best.toLocaleString('en-US')}`:'NO RECORD YET';
+  $('#arcade-route').classList.toggle('locked',arcade.run!=='full');const best=arcadeBest(arcade),medals=lostCircuitMedals();const line=$('#arcade-best');line.textContent=best?`BEST ${best.toLocaleString('en-US')}`:'NO RECORD YET';if(medals)line.append(Object.assign(document.createElement('span'),{className:'mode-medals',textContent:` · ${medals} MEDAL${medals>1?'S':''}`}));
   try{localStorage.setItem(ARCADE_KEY,JSON.stringify(arcade));}catch{/* Storage denied: the choice lasts this visit. */}
  }
  for(const b of document.querySelectorAll('[data-arcade]'))b.addEventListener('click',()=>{const [key,value]=b.dataset.arcade.split(':');arcade[key]=value;if(key==='route')arcade.run='full';updateArcade();});
