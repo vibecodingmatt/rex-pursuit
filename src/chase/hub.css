@@ -18,6 +18,7 @@ body #start-screen .intro-copy{width:640px}
 .mode-label small{display:block;font-size:8px;font-weight:600;letter-spacing:1.6px;color:#a9b49d}
 .mode-label strong{display:block;margin-top:4px;font-size:10.5px;font-weight:700;letter-spacing:.9px;line-height:1.25;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 .mode-label em{display:block;margin-top:3px;font-size:9px;font-style:normal;color:#9eab95;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.mode-label em.record{color:#d9b77a;letter-spacing:.6px;font-size:8.5px;font-weight:600}
 .mode-rail button:hover .mode-thumb{filter:saturate(.85) brightness(.85)}
 .mode-rail button[aria-pressed=true]{color:#ffe7b8}
 .mode-rail button[aria-pressed=true] .mode-thumb{filter:none;border-color:var(--amber);box-shadow:0 0 0 1px var(--amber),0 10px 30px #0009;transform:translateY(-2px)}
