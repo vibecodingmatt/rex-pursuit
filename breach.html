@@ -9,7 +9,7 @@
 <script>{const q=new URLSearchParams(location.search);if(!["start","test","menu"].some(k=>q.get(k)==="1"))location.replace("./?mode=containment");else if(q.get("start")==="1")document.documentElement.dataset.launch="1";}</script>
 </head><body data-state="loading">
  <canvas id="scene" aria-label="Containment compound. Aim with the mouse, or drag to aim above your thumb."></canvas><div class="vignette"></div><div id="damage-flash"></div><div id="transition"></div>
- <header><a class="wordmark" href="./">REX<span>:</span>PURSUIT</a><span class="sector">SECTOR 07 <i>●</i> LOCKDOWN</span><div><a class="mode-return" href="./?mode=containment">GAME MODES</a><button id="sound" aria-label="Mute sound">SOUND ON</button><button id="pause" aria-label="Pause encounter">Ⅱ</button></div></header>
+ <header><a class="wordmark" href="./?mode=containment">REX<span>:</span>PURSUIT</a><span class="sector">SECTOR 07 <i>●</i> LOCKDOWN</span><div><a class="mode-return" href="./?mode=containment">GAME MODES</a><button id="sound" aria-label="Mute sound">SOUND ON</button><button id="pause" aria-label="Pause encounter">Ⅱ</button></div></header>
  <section id="objective" class="playing"><div class="eyebrow" id="stage">RESTORE THE EXIT</div><div class="objective-line"><h1 id="objective-title">Hold the compound.</h1><strong id="clock">2:00</strong></div><div class="track"><i id="gate-progress"></i></div><p id="objective-detail">SERVICE EXIT REBOOTING</p></section>
  <div id="radio" role="status" aria-live="polite"><b>CONTROL</b><span id="radio-copy"></span></div>
  <div id="warning" class="playing" hidden><strong id="warning-title">RAPTOR PREPARING TO LEAP</strong><span id="warning-copy">Interrupt it before it reaches the Jeep.</span></div>
