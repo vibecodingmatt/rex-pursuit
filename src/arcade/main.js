@@ -10,7 +10,7 @@ const $=id=>document.getElementById(id),canvas=$('ride'),renderer=new RideRender
 const test=new URLSearchParams(location.search).get('test')==='1';
 // From the homepage hub (?start=1): ride at once with its route, intensity and run type; menus lead back to the hub.
 const launch=new URL(location.href),fromHub=launch.searchParams.get('start')==='1',hubRide=Object.fromEntries(['route','difficulty','rush','daily'].map(k=>[k,launch.searchParams.get(k)]));if(fromHub){for(const k of ['start','route','difficulty','rush','daily'])launch.searchParams.delete(k);history.replaceState(null,'',launch);}
-let clearCard=0,game=null,mode='menu',route='extended',ready=false,fire=false,frozen=false,clock=0,accumulator=0,last=performance.now(),announcementTime=0,radioTime=0,saved=false;
+let clearCard=0,game=null,mode='menu',route='extended',ready=false,fire=false,frozen=false,clock=0,last=performance.now(),announcementTime=0,radioTime=0,saved=false;
 const aim={x:.5,y:.5},keys=new Set();let pointerId=null;
 // A15: the cabinet's ten-second CONTINUE? countdown, and gamepad state (buttons held last frame).
 let continueClock=0,padHeld=[],entering=false,lastMultiplier=1,hiBest=0,lastTally=null,heartbeat=0,lastStrike=null;
@@ -49,7 +49,7 @@ function stageChanged(){if(!attract&&game&&!game.route.startsWith('practice-')&&
  announce(`${String(game.stageIndex+1).padStart(2,'0')} / ${String(game.path.length).padStart(2,'0')} — ${stage.era}`,stage.name,'HOLD TO FIRE · SHOOT DEBRIS · KEEP MOVING');radio(stage.radio);
 }
 function unlockField(){fieldInit??=field.init().then(()=>{audio.worldSounds=false;if(field.muted!==audio.muted)field.mute();if(mode!=='playing')return field.pause(true);}).catch(e=>{console.warn('Recorded audio unavailable:',e.message);});if(field.context)field.pause(false).catch(()=>{});}
-function start(override){if(!ready)return;clearCard=0;p2=null;runMedals=[];hiBest=readBest()||0;audio.reset();field.stopCalls();void audio.unlock();unlockField();const practice=typeof override==='string'?override:null;game=new Circuit({route:practice||(rush?'bossrush':daily?'extended':route),difficulty:$('difficulty').value,seed:daily&&!practice?Number(today()):94});if(daily&&!practice)game.route=dailyRoute();game.projector=(e,aspect)=>renderer.project(e,aspect);saved=false;fire=false;keys.clear();renderer.reset();clock=0;accumulator=0;showMode('playing');canvas.focus({preventScroll:true});processEvents();updateHud();}
+function start(override){if(!ready)return;clearCard=0;p2=null;runMedals=[];hiBest=readBest()||0;audio.reset();field.stopCalls();void audio.unlock();unlockField();const practice=typeof override==='string'?override:null;game=new Circuit({route:practice||(rush?'bossrush':daily?'extended':route),difficulty:$('difficulty').value,seed:daily&&!practice?Number(today()):94});if(daily&&!practice)game.route=dailyRoute();game.projector=(e,aspect)=>renderer.project(e,aspect);saved=false;fire=false;keys.clear();renderer.reset();clock=0;showMode('playing');canvas.focus({preventScroll:true});processEvents();updateHud();}
 function processEvents(){for(const event of game.drain()){
  renderer.event(event);audio.event(event);fieldEvent(event);
  if(event.type==='stage')stageChanged();
@@ -300,7 +300,10 @@ function frame(now){const raw=now-last,dt=Math.min(.1,raw/1000);last=now;
   if(pad.pressed(0)){if(entering)saveInitials();else if(mode==='menu')$('start').click();else if(mode==='continue'&&!$('continue').hidden)$('continue').click();else if(mode==='result')$('restart').click();}}
  // CONTINUE? 10 … 1: the last three tick higher; at zero the run ends.
  if(!frozen&&mode==='continue'&&continueClock>0){const was=Math.ceil(continueClock);continueClock-=dt;const left=Math.max(0,Math.ceil(continueClock));if(left!==was&&left>0)audio.tone(left<=3?880:620,.08,.1,'square');$('overlay-kicker').textContent=`CONTINUE? ${left}`;if(continueClock<=0){continueClock=0;showResult(false);}}if(quality&&!frozen&&!document.hidden&&quality.sample(raw,mode==='playing'))qualityLabel();
- if(!frozen){if(mode==='menu'&&!document.hidden)clock+=dt;if(mode==='playing'){if(hitStop>0)hitStop-=dt;else{accumulator+=dt*slowScale(dt);while(accumulator>=1/60){step(1/60);accumulator-=1/60;}}hudTick+=dt;if(hudTick>.08){updateHud();hudTick=0;}
+ if(!frozen){if(mode==='menu'&&!document.hidden)clock+=dt;if(mode==='playing'){if(hitStop>0)hitStop-=dt;else{
+   // Step by this frame's own time, in equal pieces of at most 1/60 s. A fixed 1/60 step left most frames of a
+   // 120-165 Hz screen without a new state (167 of 287 at 144 Hz), which juddered unevenly.
+   const sim=dt*slowScale(dt),n=Math.ceil(sim*60-1e-9);for(let i=0;i<n;i++)step(sim/n);}hudTick+=dt;if(hudTick>.08){updateHud();hudTick=0;}
    // Low integrity: a heartbeat in time with the pulsing vignette (light.js).
    if(medalTime>0&&(medalTime-=dt)<=0)$('medal').hidden=true;
    heartbeat-=dt;if(game.hp<=30&&game.status==='playing'&&heartbeat<=0){heartbeat=.84;audio.tone(58,.11,.14,'sine',42);setTimeout(()=>audio.tone(52,.13,.11,'sine',38),170);}}}
