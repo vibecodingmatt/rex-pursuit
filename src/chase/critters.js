@@ -470,7 +470,7 @@ export function createCritters(scene,{jungle,camera=null,capacities={}}){
   if(Math.abs(c.p.x)<1.3&&c.p.z>-2.5&&c.p.z<2.5)c.p.x=(c.dir||Math.sign(c.p.x)||1)*1.3;
   const ground=jungle.groundAt(c.p.x,c.p.z),gs=Math.hypot(c.v.x,c.v.z);
   c.p.y=c.onRock?(c.hop>0?T.MathUtils.lerp(ground,c.perchY,c.hop/.18)+Math.sin(c.hop/.18*Math.PI)*.08:c.perchY):ground;
-  if(gs>.15){const target=Math.atan2(c.v.x,c.v.z);let d=target-c.yaw;d=Math.atan2(Math.sin(d),Math.cos(d));const turn=T.MathUtils.clamp(d,-14*dt,14*dt);c.yaw+=turn;c.roll+=(T.MathUtils.clamp(-turn/dt*.035,-.35,.35)-c.roll)*Math.min(1,dt*10);}
+  if(gs>.15&&dt>0){const target=Math.atan2(c.v.x,c.v.z);let d=target-c.yaw;d=Math.atan2(Math.sin(d),Math.cos(d));const turn=T.MathUtils.clamp(d,-14*dt,14*dt);c.yaw+=turn;c.roll+=(T.MathUtils.clamp(-turn/dt*.035,-.35,.35)-c.roll)*Math.min(1,dt*10);}
   c.yaw=Math.atan2(Math.sin(c.yaw),Math.cos(c.yaw));
   // Stride lengthens with speed, so cadence rises more slowly than pace.
   const stride=k.strideLength?k.strideLength*c.scale:k.stride[0]+gs*k.stride[1],cadence=c.cadence*(k.motion&&!k.strideLength?Math.sqrt(SIZE[k.name]/c.scale):1);c.phase=(c.phase+dt*gs/stride*cadence)%1;
