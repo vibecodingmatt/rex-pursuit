@@ -51,7 +51,9 @@ export const TALLY_PERFECT=5000;
 export const SPREAD=.24;
 // A Rex or Triceratops boss is fought in reverse: the vehicle brakes, then backs away
 // while she chases (or charges) it. The clear phase holds longer so her fall can play out.
-export const DRIVE={rex:-9,twins:-8,trike:-6};
+// The Jeep backs away from every boss that walks at it on the modeled Rex rig (boss-rex.js); driving forward
+// instead pins her on its never-through-the-vehicle clamp, and the Jeep visibly shoves her backwards.
+export const DRIVE={rex:-9,indominus:-9,twins:-8,trike:-6};
 // A9: the river's brachiosaur straddles the channel at this travel (m); the launch eases off
 // to half speed from 130 m out, passes under her and opens up again past her.
 export const BRACHIO={z:480,slow:.5};
