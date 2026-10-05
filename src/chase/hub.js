@@ -20,7 +20,7 @@ function records(){
 export function createHub({reducedMotion=false,onSelect}={}){
  const layer=$('#hub-preview'),video=layer.querySelector('video'),rail=$('.mode-rail'),tiles=[...rail.querySelectorAll('[data-game-mode]')];
  const saveData=!!navigator.connection?.saveData,portrait=matchMedia('(orientation: portrait)');
- let selected='pursuit',covered=false,live=false,coverTimer=0,prefetched=new Set(),arcade=readArcade();
+ let selected='pursuit',covered=false,live=false,fitted=false,coverTimer=0,prefetched=new Set(),arcade=readArcade();
  // Thumbnails and posters are small; load them up front so a switch never shows an empty frame.
  for(const t of tiles){const f=previewFiles(t.dataset.gameMode);t.querySelector('.mode-thumb')?.style.setProperty('--thumb',`url("${abs(f.thumb)}")`);}
  function warmPosters(){for(const id of MODE_IDS)if(MODES[id].preview==='video'){const f=previewFiles(id);new Image().src=portrait.matches?f.posterTall:f.poster;}}
@@ -41,19 +41,23 @@ export function createHub({reducedMotion=false,onSelect}={}){
    for(const el of doc.querySelectorAll('script[type=module][src],link[rel=modulepreload][href],link[rel=stylesheet][href]')){const url=new URL(el.getAttribute('src')||el.getAttribute('href'),page).href;if(url.startsWith(location.origin)&&!document.querySelector(`link[rel=prefetch][href="${url}"]`))document.head.append(Object.assign(document.createElement('link'),{rel:'prefetch',href:url,as:el.tagName==='LINK'&&el.rel==='stylesheet'?'style':'script'}));}
   }catch{prefetched.delete(id);}
  }
- function describe(id){
+ function fill(id){
   const m=MODES[id];$('#start-screen .mode-card>.eyebrow').innerHTML='<span></span> '+m.eyebrow;$('#start-screen h1').innerHTML=m.title;$('#start-screen .mode-copy').innerHTML=m.copy;
   $('#start-screen .start-tip span.mouse-copy').textContent=m.tip;$('#start-screen .start-tip span.touch-copy').innerHTML=m.touch;
   for(const el of document.querySelectorAll('[data-for-modes]'))el.hidden=!el.dataset.forModes.split(' ').includes(id);
-  // Restart the copy's entrance so each switch reads as a new card.
-  const copy=$('#start-screen .mode-card');copy.classList.remove('swap');void copy.offsetWidth;copy.classList.add('swap');
  }
+ // Restart the copy's entrance so each switch reads as a new card.
+ function describe(id){fill(id);const copy=$('#start-screen .mode-card');copy.classList.remove('swap');void copy.offsetWidth;copy.classList.add('swap');}
+ // Every card takes the tallest card's height, so the rail stays put while the selection changes
+ // (the block is anchored to the bottom of the screen). Measured in one synchronous pass: nothing paints in between.
+ function fitCards(){const card=$('#start-screen .mode-card');card.style.minHeight='';let tallest=0;for(const id of MODE_IDS){fill(id);tallest=Math.max(tallest,card.offsetHeight);}fill(selected);card.style.minHeight=`${tallest}px`;}
+ let fitTimer=0;addEventListener('resize',()=>{clearTimeout(fitTimer);fitTimer=setTimeout(fitCards,120);});document.fonts?.ready.then(fitCards);
  function updateRecords(){const r=records();for(const t of tiles){const id=t.dataset.gameMode,line=t.querySelector('.mode-label em');line.textContent=r[id]||MODES[id].short;line.classList.toggle('record',!!r[id]);}}
  updateRecords();
  function select(id,{focus=false}={}){
   id=MODES[id]?id:'pursuit';const changed=id!==selected;selected=id;document.body.dataset.game=id;
   for(const t of tiles){const on=t.dataset.gameMode===id;t.setAttribute('aria-pressed',String(on));t.tabIndex=on?0:-1;if(on&&focus)t.focus();if(on)t.scrollIntoView?.({block:'nearest',inline:'nearest',behavior:changed&&!reducedMotion?'smooth':'auto'});}
-  describe(id);updateArcade();updateRecords();
+  describe(id);updateArcade();updateRecords();if(!fitted){fitted=true;fitCards();}
   if(MODES[id].preview==='video')showVideo(id);else if(!live)showStill(id);else hideVideo();
   if(MODES[id].href)setTimeout(()=>{if(selected===id)prefetch(id);},500);
   return id;

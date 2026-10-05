@@ -144,6 +144,7 @@ let bootFraction=0;
 function loadingStart(){
  if(mode!=='loading')return;const id=safariUI.selected,external=hub.isExternal(id),locked=id==='ravine'&&!ravineAvailable();
  $('#start').disabled=!external||locked;$('#start-label').textContent=locked?'BEAT THE REX TO UNLOCK':external?MODES[id].cta:`PREPARING THE ${id==='safari'?'SAFARI':'CHASE'} · ${Math.round(bootFraction*100)}%`;
+ $('#loading-status').textContent=locked?'Survive the Rex Pursuit to open the north pass.':external?'Headphones recommended · Opens its own ride':'Preparing the jungle…';
 }
 safariUI.select(MODES[requestedMode]?requestedMode:'pursuit');document.body.dataset.hub='ready';
 let lastNotice=null;
@@ -530,7 +531,7 @@ ${tierName()} · scale ${Math.round(governor.scale*100)}% · ${renderer.info.ren
 }
 requestAnimationFrame(frame);
 const boot=(stage,fraction)=>{bootFraction=fraction;loadingStart();$('#boot-stage').textContent=stage;$('#boot-fill').style.transform=`scaleX(${fraction})`;$('#boot-percent').textContent=`${Math.round(fraction*100)}%`;};boot('Waking the predator',.12);
-try{rex=await createRex(scene,p=>{const f=p.total?p.loaded/p.total:0;$('#loading-status').textContent=p.total?`Creature ${Math.round(f*100)}%`:'Preparing the creature…';boot('Waking the predator',.12+f*.66);});boot('Compiling light and shadow',.82);await critters.ready();targets=createTargets(rex,camera,$('#target-layer'));skid.attachCoat(rex.hide.uniforms.uRexFallMud);coat=createRexCoat(rex.hide.uniforms);
+try{rex=await createRex(scene,p=>{const f=p.total?p.loaded/p.total:0;if(!hub.isExternal(safariUI.selected))$('#loading-status').textContent=p.total?`Creature ${Math.round(f*100)}%`:'Preparing the creature…';boot('Waking the predator',.12+f*.66);});boot('Compiling light and shadow',.82);await critters.ready();targets=createTargets(rex,camera,$('#target-layer'));skid.attachCoat(rex.hide.uniforms.uRexFallMud);coat=createRexCoat(rex.hide.uniforms);
  // Where river water streams off her: belly, thighs, shins, feet and the underside of the tail.
  drips.push(...[['back_02_',1.1],['back_03_',1.2],['tail_02_',.7],['tail_05_',.45],['leg_02_L_',.5],['leg_02_R_',.5],['leg_03_L_',.2],['leg_03_R_',.2],['foot_02_01_L_',.1],['foot_02_01_R_',.1]].map(([n,drop])=>({bone:rex.bones.find(b=>b.name.startsWith(n)),drop,p:new T.Vector3()})).filter(d=>d.bone));rex.gait.ground=(x,z)=>jungle.fordDip(x,z);rex.gait.water=(x,z)=>jungle.waterDepth(x,z);skid.prepare(true);await post.prepare(scene,camera);skid.prepare(false);await swallow.prepare();boot('Ready',1);setMode('menu');hub.setLive();$('#start').disabled=false;safariUI.select(safariUI.selected);hub.warmPosters();$('#loading-status').textContent='Headphones recommended · First / third person';}
 catch(e){console.error(e);$('#loading-status').textContent='The creature could not load. Refresh to try again.';$('#start-label').textContent='LOAD FAILED';}
