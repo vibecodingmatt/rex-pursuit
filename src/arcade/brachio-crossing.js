@@ -20,8 +20,8 @@ const SCALE=1.7,GAP=.39,STRIDE=3.8,DUTY=.62,WALK=.11;
 const FEET=[[1.1,2.05,.42,0,3.4],[-1.1,2.05,.42,0,3.4],[1.12,-1.35,.5,1,4.35],[-1.12,-1.35,.5,1,4.35]];
 // A lateral-sequence walk: hind +x, fore +x a quarter cycle later, then the -x pair half a cycle on.
 const OFFSET=[.25,.75,0,.5];
-// A smooth ramp: 0 below 0, x - w/2 above w, a parabola between.
-const ramp=(x,w=16)=>x<=0?0:x>=w?x-w/2:x*x/(2*w);
+// A smooth ramp: 0 below 0, x - w/2 above w, a parabola between; slope is its derivative.
+const ramp=(x,w=16)=>x<=0?0:x>=w?x-w/2:x*x/(2*w),slope=(x,w=16)=>x<=0?0:x>=w?1:x/w;
 /** One leg at gait phase f (cycles) into out (the shader's uLeg): planted for DUTY of the cycle, the
  * foot moving back exactly as fast as she walks, then a swing that folds the foot back, lifts it and
  * sets it down ahead. Returns the foot's offset along her body (model m) and whether it is up. */
@@ -38,6 +38,8 @@ export class BrachioCrossing{
  }
  /** Her offset across the channel (m, + toward screen-left) when the boat is d metres short of her. */
  static lateralAt(d){return WALK*(ramp(d-30)-ramp(-25-d));}
+ /** How fast she walks (m/s) when the boat is d metres short of her and moving at boatSpeed. */
+ static paceAt(d,boatSpeed){return WALK*(slope(d-30)+slope(-25-d))*Math.abs(boatSpeed);}
  hide(){if(this.on){this.on=false;this.b.mesh.visible=false;this.b.uniforms.uWalk.value.set(0,0,0,0);for(const l of this.b.uniforms.uLeg.value)l.set(0,0,0,0);}}
  update(game,dt){
   const b=this.b,id=game.stage.id,d=BRACHIO.z-game.travel;
@@ -46,7 +48,11 @@ export class BrachioCrossing{
   // Across the channel at the ford, facing the way she walks (toward screen-right).
   const h=routeHeading(BRACHIO.z,id),px=Math.cos(h),pz=-Math.sin(h),fx=-px,fz=-pz;
   const lat=BrachioCrossing.lateralAt(d),moved=this.lateral===null?0:Math.abs(lat-this.lateral);this.lateral=lat;
-  const speed=dt>0?moved/dt:0,walking=T.MathUtils.clamp(speed/.8,0,1);this.phase+=moved/(STRIDE*SCALE);
+  // Her pace follows from where the boat is and how fast it moves, never from the change since the last
+  // call: the arcade syncs once per fixed step while firing and again to render, and at 120-144 Hz most
+  // renders follow no step at all. A per-call speed read 0 on those, snapping the legs straight every other
+  // frame (the laptop flicker) and freezing them while the gun fired.
+  const walking=T.MathUtils.clamp(BrachioCrossing.paceAt(d,game.speed)/.8,0,1);this.phase+=moved/(STRIDE*SCALE);
   const cx=routeX(BRACHIO.z,id)+px*lat,cz=BRACHIO.z+pz*lat,bed=terrainY(px*lat,BRACHIO.z,id,{river:true});
   // The body rides highest over each planted hind foot and rolls onto the side that bears the weight.
   const sway=2*Math.PI*(this.phase-.31),m=b.mesh;m.scale.setScalar(SCALE);m.rotation.set(0,Math.atan2(fx,fz),-.018*Math.cos(sway)*walking);
