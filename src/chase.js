@@ -456,7 +456,11 @@ function renderFrame(now=performance.now()){
 function frame(now){
  // A frame's timestamp can precede the clock sampled during long start-up work;
  // a negative step would make every damped camera/FOV blend diverge.
- requestAnimationFrame(frame);const raw=Math.max(0,now-last),dt=Math.min(.045,raw/1000);last=Math.max(last,now);frameCount++;
+ requestAnimationFrame(frame);
+ // The menu's preview is a background: on 120-165 Hz screens draw every other frame (60-82 fps), half the GPU work.
+ // Gameplay draws every frame. Skipped frames leave the clock alone, so the next frame's step covers both.
+ if(mode==='menu'&&now-last<11.5)return;
+ const raw=Math.max(0,now-last),dt=Math.min(.045,raw/1000);last=Math.max(last,now);frameCount++;
  // Do not render incomplete rigs/materials and synchronously compile several
  // throwaway shader variants while the real assets are still loading.
  if(mode==='loading'||document.hidden||mode==='menu'&&hub.covered)return;
