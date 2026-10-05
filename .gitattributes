@@ -11,3 +11,5 @@
 *.png binary
 *.jpg binary
 *.wasm binary
+*.sh text eol=lf
+*.mp4 binary
