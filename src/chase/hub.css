@@ -37,7 +37,7 @@ body #start-screen .mode-card.swap>h1{animation-delay:.04s}body #start-screen .m
 .mode-options .quality-picker{margin-top:12px}.mode-options .quality-picker:first-child{margin-top:18px}
 .mode-options .quality-options button{white-space:nowrap}
 #arcade-route.locked{opacity:.4}
-#arcade-best{display:inline-block;margin:12px 18px 0 0;font-size:9px;letter-spacing:1.4px;color:var(--amber)}
+#arcade-best{display:inline-block;margin:12px 14px 0 0;font-size:9px;letter-spacing:1.4px;color:var(--amber)}
 .mode-more{display:inline-block;margin-top:12px;font-size:9px;letter-spacing:1.2px;color:#cfd5c2;border-bottom:1px solid #e8be7555;padding-bottom:2px}.mode-more:hover{color:var(--amber)}
 #start-screen .intro-copy .quality-picker[hidden]{display:none!important}
 body #start-screen #start{min-height:44px}
@@ -73,3 +73,5 @@ body[data-hub] #start-screen .start-actions,body[data-hub] #start-screen .mode-c
 body[data-hub] .mode-rail{animation:rise .8s .05s cubic-bezier(.2,.7,.2,1) both}
 body[data-state=loading] #start-screen .mode-card>.quality-picker{pointer-events:none;filter:brightness(.5) saturate(.4)}
 @media(prefers-reduced-motion:reduce){body[data-hub] #start-screen *{animation:none!important}}
+/* Short portrait phones: Lost Circuit's options need the room, so its blurb goes (the title and tile say what it is). */
+@media(orientation:portrait) and (max-height:640px){.mode-card:has(#arcade-options:not([hidden])) .mode-copy{display:none}.mode-options .quality-picker{margin-top:8px}.mode-options .quality-picker:first-child{margin-top:10px}}
