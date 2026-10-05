@@ -48,6 +48,7 @@ Everything above is **published** (2026-10-04, three pushes; the third, after th
 
 | Need | Read |
 | --- | --- |
+| The homepage hub: mode rail, previews, how each mode is entered and left | The 2026-10-05 hub section of [HANDOFF.md](HANDOFF.md); re-recording previews: [scripts/previews/README.md](../scripts/previews/README.md) |
 | What the user wanted, 1994 research sources, controls, routes and asset provenance | [LOST-CIRCUIT.md](LOST-CIRCUIT.md) |
 | **Next arcade upgrade drop** | [ARCADE-ROADMAP.md](ARCADE-ROADMAP.md): read it, then only the files the drop names |
 | Honest quality verdict, remaining gaps and evidence limits | [ARCADE-QUALITY-AUDIT.md](ARCADE-QUALITY-AUDIT.md) (2026-10-02; the roadmap's diagnosis is newer) |

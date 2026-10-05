@@ -40,7 +40,7 @@ Read `package.json` and the selected script before running it. There is no need 
 | Breach solid-object clearance, direct rocket contact and model breakup | `npm run test:breach-collisions` (source server only) |
 | Safari rules, mode picker, scoring, results, remembered records and mobile flow | `npm run test:safari` |
 | IDKFA, fair/cheater score isolation, shared wildlife gore and close explosive lens splatter | `npm run test:cheats` (source or built entry base); pure rules are also in `test:logic` |
-| Homepage mode switching, cached compound preview, loading races and return navigation | `npm run test:mode-menu` |
+| Homepage hub: five-mode switching, instant hub during loading, recorded previews idling the scene, cached compound preview, loading races, Lost Circuit launch with hub options, direct-visit redirects and return navigation | `npm run test:mode-menu` (Ravine's tile: `npm run test:ravine-menu`) |
 | Shared Safari gait/frill, Breach leap pose, hit transforms and continuous deaths at both tiers | `npm run test:safari-motion` (source server only) |
 | Full creature catalogue, frill presets, selection races and short-menu scrolling | `npm run test:creature-lab` |
 | Walk/run cadence, foot planting, roar locomotion | `npm run test:gait` |

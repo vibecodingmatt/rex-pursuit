@@ -21,6 +21,7 @@ This skill and its references are ordinary Markdown usable by any provider. A sk
 
 | Task | Main files relative to the checkout |
 | --- | --- |
+| Homepage hub: the five-mode rail, mode copy and options, live/recorded previews, launch and return URLs | `src/chase/hub.js`, `modes.js`, `hub.css`; loops in `public/previews/` (`scripts/previews/README.md`); entry scripts in the `<head>` of `ravine.html`, `arcade.html`, `breach.html` |
 | Game entry, camera, frame clock, pause, event/audio cues | `index.html`, `src/chase.js`, `src/chase.css`, `src/chase-premium.css` |
 | Lost Circuit '94: classic/extended arcade routes, moving world, normal actors, aimed gun, 2.5D bosses and records | `arcade.html`, `src/arcade/`; read the [Lost Circuit reference](references/lost-circuit.md) and `docs/ARCADE-QUALITY-AUDIT.md` |
 | Raptor Ravine: campaign chase, shared authored raptor and scanned cliffs | `ravine.html`, `src/ravine/`, `src/chase/raptor-models.js`; read `docs/RAPTOR-RAVINE.md` and `docs/RAVINE-TURBO-AUDIT.md` |
