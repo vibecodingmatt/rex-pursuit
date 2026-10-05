@@ -47,7 +47,8 @@ export function createSafariDirector({critters,flyers,birds,vector,random=Math.r
    menu.ground-=dt;menu.air-=dt;menu.birds-=dt;
    if(menu.ground<=0){const kind=pick(PARADE,random()),big=['triceratops','stegosaurus','parasaurolophus'].includes(kind),z=big?17+random()*6:10+random()*9;
     if(kind==='compy')crossing(kind,3+Math.floor(random()*3),1.3,z);else if(kind==='gallimimus')crossing(kind,2+Math.floor(random()*3),2.4,z+3);else spawn(kind,z,{announce:false});
-    menu.ground=(big?3.2:1.6)+random()*1.4;}
+    // Dense enough that the hub's Safari preview rarely shows an empty road.
+    menu.ground=(big?2.5:1.1)+random()*1.1;}
    if(menu.air<=0){const r=random();spawn(r<.12?'quetzalcoatlus':r<.6?'pteranodon':'dimorphodon',0,{announce:false});menu.air=4+random()*3.5;}
    if(menu.birds<=0){birds.scatter(vector.set(side()*3,7,20),{spread:3,count:5});menu.birds=9+random()*6;}
   },
