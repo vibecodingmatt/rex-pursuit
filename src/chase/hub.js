@@ -91,5 +91,7 @@ export function createHub({reducedMotion=false,onSelect}={}){
  // mode, so Back (or the game's own exit) returns to this card.
  function launch(id){const here=new URL(location.href);here.searchParams.set('mode',id);history.replaceState(history.state,'',here);document.body.classList.add('leaving');setTimeout(()=>location.assign(launchURL(id)),reducedMotion?0:260);}
  addEventListener('pageshow',e=>{if(!e.persisted)return;document.body.classList.remove('leaving');if(MODES[selected].preview==='video'&&!reducedMotion&&!saveData)video.play().catch(()=>{});});
- return{select,launch,launchURL,warmPosters,setLive(){live=true;},get selected(){return selected;},get covered(){return covered;},isLive:id=>MODES[id].preview==='live',isExternal:id=>!!MODES[id].href};
+ return{select,launch,launchURL,warmPosters,setLive(){live=true;},
+  // A live preview that takes a moment to build (the compound) shows its still meanwhile.
+  hold(id){if(selected===id)showStill(id);},release(id){if(selected===id&&MODES[id].preview==='live')hideVideo();},get selected(){return selected;},get covered(){return covered;},isLive:id=>MODES[id].preview==='live',isExternal:id=>!!MODES[id].href};
 }

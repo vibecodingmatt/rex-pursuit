@@ -130,12 +130,12 @@ async function menuScene(){
   breachPreview?.leave();if(rex)rex.actor.visible=selected!=='safari';if(selected==='safari')safariDirector.resetParade();
   $('#start').disabled=false;$('#start-label').textContent=MODES[selected].cta;$('#loading-status').textContent='Headphones recommended · First / third person';return;
  }
- $('#start').disabled=true;$('#start-label').textContent='PREPARING THE COMPOUND';$('#loading-status').textContent='Preparing the compound preview…';
+ $('#start').disabled=true;$('#start-label').textContent='PREPARING THE COMPOUND';$('#loading-status').textContent='Preparing the compound preview…';if(!breachPreview)hub.hold('containment');
  try{
   previewLoad??=import('./chase/breach-preview.js').then(({createBreachPreview})=>createBreachPreview({scene,camera,renderer,critters,rex,jeep,weather,sky,night,lights:{sun,hemi,rim,fill},post,quality:{branchMap:jungle.branchMap,tier:()=>TIERS[tierName()]}}));
   breachPreview=await previewLoad;if(request!==menuRequest)return;breachPreview.enter();await breachPreview.prepare();if(request!==menuRequest)return;
-  $('#start').disabled=false;$('#start-label').textContent='HOLD THE COMPOUND';$('#loading-status').textContent='Rockets break the packs. Blue switches electrify the yard.';
- }catch(error){if(request!==menuRequest)return;if(!breachPreview)previewLoad=null;breachPreview?.leave();$('#loading-status').textContent='Preview unavailable. You can still enter the compound.';$('#start').disabled=false;$('#start-label').textContent='HOLD THE COMPOUND';console.warn('Compound preview unavailable',error);}
+  $('#start').disabled=false;$('#start-label').textContent='HOLD THE COMPOUND';$('#loading-status').textContent='Rockets break the packs. Blue switches electrify the yard.';hub.release('containment');
+ }catch(error){if(request!==menuRequest)return;if(!breachPreview)previewLoad=null;breachPreview?.leave();hub.release('containment');$('#loading-status').textContent='Preview unavailable. You can still enter the compound.';$('#start').disabled=false;$('#start-label').textContent='HOLD THE COMPOUND';console.warn('Compound preview unavailable',error);}
 }
 const hub=createHub({reducedMotion,onSelect:(id,options)=>safariUI.select(id,options)});
 const safariUI=createSafariUI({state,director:safariDirector,hub,reducedMotion,onSelect:menuScene});
